@@ -7,6 +7,7 @@ import {
   FRONTEND_CAPABILITIES,
   PAGE_SEMANTIC_STRUCTURE,
   buildOutlinePageList,
+  formatCurrentDate,
   formatDesignContract,
   resolveStylePrompt
 } from './shared'
@@ -18,9 +19,33 @@ export function buildEditAgentSystemPrompt(
   const { presetLabel, presetId, stylePrompt: resolvedStylePrompt } = resolveStylePrompt(styleId)
   const stylePrompt = context.styleSkillPrompt?.trim() || resolvedStylePrompt
   const pageList = buildOutlinePageList(context)
+  const currentDate = formatCurrentDate()
   const statusLanguage = context.appLocale === 'en' ? 'English' : 'Simplified Chinese'
   const analyzingEditRequestLabel = progressText(context.appLocale, 'understanding')
   const editCompletedLabel = progressText(context.appLocale, 'completed')
+  const searchEnabled = context.allowWebSearch === true
+  const currentDateBlock = searchEnabled
+    ? [
+        '## Current date',
+        `- ${currentDate}`,
+        '- Web search is enabled for this session.',
+        '- For latest, current, recent, near-term, live, or time-sensitive facts, verify them with web_search before writing.'
+      ]
+    : [
+        '## Current date',
+        `- ${currentDate}`,
+        '- Web search is not enabled for this session.',
+        '- Do not present time-sensitive facts as currently verified information.'
+      ]
+  const searchExecutionBlock = searchEnabled
+    ? [
+        '3. Before writing time-sensitive facts, call web_search.',
+        '   If search snippets are insufficient for concrete facts or numbers, call fetch_web_content on 1-3 high-value results before finalizing the edit.'
+      ]
+    : [
+        '3. Web search is disabled in this session.',
+        '   If the task depends on current facts, avoid presenting them as freshly verified.'
+      ]
 
   const targetInfo = context.selectedPageId
     ? `Target page: ${context.selectedPageId} (slide ${context.selectedPageNumber ?? '?'})`
@@ -87,6 +112,8 @@ export function buildEditAgentSystemPrompt(
       context.designContract ? '\n设计契约（本次演示的实际视觉规范）：' : '',
       context.designContract ? formatDesignContract(context.designContract) : '',
       '',
+      ...currentDateBlock,
+      '',
       '## Current Task',
       `Topic: ${context.topic}`,
       `Deck title: ${context.deckTitle}`,
@@ -135,6 +162,8 @@ export function buildEditAgentSystemPrompt(
     context.designContract ? '\n设计契约（本次演示的实际视觉规范，修改时必须遵守）：' : '',
     context.designContract ? formatDesignContract(context.designContract) : '',
     '',
+    ...currentDateBlock,
+    '',
     CANVAS_CONSTRAINTS,
     '',
     PAGE_SEMANTIC_STRUCTURE,
@@ -181,17 +210,18 @@ export function buildEditAgentSystemPrompt(
     '   progress must be a numeric literal such as 10, 42, or 95. Do not pass strings such as "10".',
     '   Progress must be monotonic and granular: Analyze (10-25) / Locate target (25-40) / Apply edit (40-88) / Verify (88-96) / Completed (98-100).',
     '   Do not jump straight to 90+. Advance with meaningful steps.',
+    ...searchExecutionBlock,
     hasSelector
-      ? '3. read_file target page + grep to locate target → edit_file(old_string, new_string) for precise replacement'
+      ? '4. read_file target page + grep to locate target → edit_file(old_string, new_string) for precise replacement'
       : '',
     !hasSelector
       ? isSinglePageEdit
-        ? '3. Call update_single_page_file(pageId=target page, content). Single-page edits must not call update_page_file.'
-        : '3. Call update_page_file(pageId, content) to apply edits. Always pass pageId explicitly.'
+        ? '4. Call update_single_page_file(pageId=target page, content). Single-page edits must not call update_page_file.'
+        : '4. Call update_page_file(pageId, content) to apply edits. Always pass pageId explicitly.'
       : '',
-    '4. verify_completion() — confirm the target page file structure is complete',
-    `5. report_generation_status('${editCompletedLabel}', ...)`,
-    "6. Final response: summarize the change in 1-2 sentences. Use the same language as the user's edit instruction unless the user explicitly requests another language.",
+    '5. verify_completion() — confirm the target page file structure is complete',
+    `6. report_generation_status('${editCompletedLabel}', ...)`,
+    "7. Final response: summarize the change in 1-2 sentences. Use the same language as the user's edit instruction unless the user explicitly requests another language.",
     '## Current Task',
     `Topic: ${context.topic}`,
     `Deck title: ${context.deckTitle}`,

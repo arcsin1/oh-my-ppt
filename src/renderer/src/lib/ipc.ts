@@ -106,6 +106,7 @@ export interface CreateSessionPayload {
   styleId: string
   pageCount?: number
   referenceDocumentPath?: string
+  allowWebSearch?: boolean
 }
 
 export interface ModelConfig {
@@ -118,6 +119,17 @@ export interface ModelConfig {
   active: boolean
   createdAt: number
   updatedAt: number
+}
+
+export interface WebSearchServiceStatus {
+  daemonUrl: string
+  running: boolean
+  installed: boolean
+  installSource: 'managed' | 'workspace' | 'none'
+  installDir: string
+  workspaceDir: string
+  canInstall: boolean
+  canStart: boolean
 }
 
 export const ipc = {
@@ -185,6 +197,12 @@ export const ipc = {
   listModelConfigs: () => getIpc().invoke('settings:listModelConfigs') as Promise<ModelConfig[]>,
   saveSettings: (settings: Record<string, unknown>) =>
     getIpc().invoke('settings:save', settings) as Promise<{ success: boolean }>,
+  getWebSearchServiceStatus: () =>
+    getIpc().invoke('settings:getWebSearchServiceStatus') as Promise<WebSearchServiceStatus>,
+  installWebSearchService: () =>
+    getIpc().invoke('settings:installWebSearchService') as Promise<WebSearchServiceStatus>,
+  startWebSearchService: () =>
+    getIpc().invoke('settings:startWebSearchService') as Promise<WebSearchServiceStatus>,
   upsertModelConfig: (payload: {
     id?: string
     name: string

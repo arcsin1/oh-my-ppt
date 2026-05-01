@@ -7,6 +7,15 @@ import {
   type ConfigurableModelTimeoutProfile,
   resolveModelTimeoutMs
 } from '@shared/model-timeout'
+import {
+  DEFAULT_WEB_SEARCH_ENGINES,
+  DEFAULT_WEB_SEARCH_LIMIT,
+  DEFAULT_WEB_SEARCH_PROXY_URL,
+  SUPPORTED_WEB_SEARCH_ENGINES,
+  getWebSearchServiceStatus,
+  installWebSearchService,
+  startWebSearchService
+} from '../utils/web-search-service'
 import { readAppLocale, uiText } from './locale-utils'
 
 const readGlobalTimeouts = (
@@ -32,11 +41,38 @@ export function registerSettingsHandlers(ctx: IpcContext): void {
       typeof settings.storage_path === 'string' && settings.storage_path.trim().length > 0
         ? settings.storage_path.trim()
         : ''
+    const webSearchEngines = Array.isArray(settings.web_search_engines)
+      ? settings.web_search_engines
+          .map((item) => String(item || '').trim().toLowerCase())
+          .filter((item) =>
+            SUPPORTED_WEB_SEARCH_ENGINES.includes(
+              item as (typeof SUPPORTED_WEB_SEARCH_ENGINES)[number]
+            )
+          )
+      : DEFAULT_WEB_SEARCH_ENGINES
+    const rawWebSearchLimit = Number(settings.web_search_limit)
+    const webSearchLimit =
+      Number.isFinite(rawWebSearchLimit) && rawWebSearchLimit > 0
+        ? Math.max(1, Math.min(20, Math.round(rawWebSearchLimit)))
+        : DEFAULT_WEB_SEARCH_LIMIT
+    const webSearchUseProxy = settings.web_search_use_proxy === true
+    const webSearchProxyUrl =
+      typeof settings.web_search_proxy_url === 'string' &&
+      settings.web_search_proxy_url.trim().length > 0
+        ? settings.web_search_proxy_url.trim()
+        : DEFAULT_WEB_SEARCH_PROXY_URL
     return {
       theme: settings.theme || 'light',
       locale: settings.locale === 'en' ? 'en' : 'zh',
       storagePath,
-      timeouts: readGlobalTimeouts(settings)
+      timeouts: readGlobalTimeouts(settings),
+      webSearch: {
+        engines: webSearchEngines.length > 0 ? webSearchEngines : DEFAULT_WEB_SEARCH_ENGINES,
+        limit: webSearchLimit,
+        useProxy: webSearchUseProxy,
+        proxyUrl: webSearchProxyUrl,
+        serviceStatus: await getWebSearchServiceStatus()
+      }
     }
   })
 
@@ -65,6 +101,41 @@ export function registerSettingsHandlers(ctx: IpcContext): void {
     if (typeof settings.storagePath === 'string' && settings.storagePath.trim().length > 0) {
       await db.setStoragePath(settings.storagePath)
     }
+    if (settings.webSearch && typeof settings.webSearch === 'object') {
+      const webSearch = settings.webSearch as {
+        engines?: unknown
+        limit?: unknown
+        useProxy?: unknown
+        proxyUrl?: unknown
+      }
+      if (Array.isArray(webSearch.engines)) {
+        const engines = webSearch.engines
+          .map((item) => String(item || '').trim().toLowerCase())
+          .filter((item) =>
+            SUPPORTED_WEB_SEARCH_ENGINES.includes(
+              item as (typeof SUPPORTED_WEB_SEARCH_ENGINES)[number]
+            )
+          )
+        await db.setSetting(
+          'web_search_engines',
+          engines.length > 0 ? engines : DEFAULT_WEB_SEARCH_ENGINES
+        )
+      }
+      if (webSearch.limit !== undefined) {
+        const rawLimit = Number(webSearch.limit)
+        const limit =
+          Number.isFinite(rawLimit) && rawLimit > 0
+            ? Math.max(1, Math.min(20, Math.round(rawLimit)))
+            : DEFAULT_WEB_SEARCH_LIMIT
+        await db.setSetting('web_search_limit', limit)
+      }
+      if (webSearch.useProxy !== undefined) {
+        await db.setSetting('web_search_use_proxy', webSearch.useProxy === true)
+      }
+      if (typeof webSearch.proxyUrl === 'string') {
+        await db.setSetting('web_search_proxy_url', webSearch.proxyUrl.trim())
+      }
+    }
     if (settings.timeouts && typeof settings.timeouts === 'object') {
       const timeouts = settings.timeouts as Partial<
         Record<ConfigurableModelTimeoutProfile, unknown>
@@ -77,6 +148,29 @@ export function registerSettingsHandlers(ctx: IpcContext): void {
       }
     }
     return { success: true }
+  })
+
+  ipcMain.handle('settings:getWebSearchServiceStatus', async () => {
+    log.info('[settings:getWebSearchServiceStatus] requested')
+    return getWebSearchServiceStatus()
+  })
+
+  ipcMain.handle('settings:installWebSearchService', async () => {
+    log.info('[settings:installWebSearchService] requested')
+    return installWebSearchService()
+  })
+
+  ipcMain.handle('settings:startWebSearchService', async () => {
+    log.info('[settings:startWebSearchService] requested')
+    const settings = await db.getAllSettings()
+    return startWebSearchService({
+      useProxy: settings.web_search_use_proxy === true,
+      proxyUrl:
+        typeof settings.web_search_proxy_url === 'string' &&
+        settings.web_search_proxy_url.trim().length > 0
+          ? settings.web_search_proxy_url.trim()
+          : DEFAULT_WEB_SEARCH_PROXY_URL
+    })
   })
 
   ipcMain.handle('settings:upsertModelConfig', async (_event, payload) => {

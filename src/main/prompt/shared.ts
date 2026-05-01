@@ -112,6 +112,10 @@ export function resolveStylePrompt(
   };
 }
 
+export function formatCurrentDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export function buildOutlinePageList(context: SessionDeckGenerationContext): string {
   return context.outlineItems
     .map((item, i) => {

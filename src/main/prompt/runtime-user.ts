@@ -1,16 +1,20 @@
-import { CONTENT_LANGUAGE_RULES } from "./shared";
+import { CONTENT_LANGUAGE_RULES, formatCurrentDate } from "./shared";
 
 export function buildPlanningUserPrompt(args: {
   topic: string;
   totalPages: number;
   userMessage: string;
 }): string {
+  const currentDate = formatCurrentDate();
   const hasExplicitPageHint = /第\s*\d+\s*页|(?:page|slide)\s*\d+/i.test(args.userMessage);
   return [
     `Topic: ${args.topic}`,
+    `Current date: ${currentDate}`,
     `Target slide count: ${args.totalPages}`,
     `Return exactly ${args.totalPages} slides, no more and no fewer.`,
     hasExplicitPageHint ? "The user provided page/slide hints. Preserve that pagination intent when possible." : "",
+    "If the user mentions latest, current, recent, the last two days, today, this week, this month, live, or news, do not default to stale years or months.",
+    "If the user does not explicitly request a historical period, interpret time-sensitive wording using the current date.",
     "",
     "Plan each slide title, key points, and layout intent. Use short phrases, not long paragraphs.",
     "Output must be a JSON array. Each item must be exactly { title, keyPoints, layoutIntent }; keyPoints must contain 1-6 strings.",

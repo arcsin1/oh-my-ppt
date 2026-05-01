@@ -12,7 +12,19 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/Tabs'
 import { useSettingsStore } from '../store'
 import { useToastStore } from '../store'
-import { CheckCircle2, FolderSearch, Pencil, Plus, ShieldCheck, Trash2, X } from 'lucide-react'
+import {
+  CheckCircle2,
+  Download,
+  FolderSearch,
+  Pencil,
+  Play,
+  Plus,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Trash2,
+  X
+} from 'lucide-react'
 import { useLang } from '../i18n'
 import type { ModelConfig } from '../lib/ipc'
 import {
@@ -23,6 +35,18 @@ import {
 } from '@shared/model-timeout.js'
 
 type ProviderId = 'anthropic' | 'openai'
+
+const WEB_SEARCH_ENGINE_OPTIONS = [
+  { value: 'bing', label: 'Bing' },
+  { value: 'duckduckgo', label: 'DuckDuckGo' },
+  { value: 'baidu', label: 'Baidu' },
+  { value: 'brave', label: 'Brave' },
+  { value: 'csdn', label: 'CSDN' },
+  { value: 'exa', label: 'Exa' },
+  { value: 'juejin', label: 'Juejin' },
+  { value: 'linuxdo', label: 'LinuxDo' },
+  { value: 'startpage', label: 'Startpage' }
+] as const
 
 interface ModelForm {
   id?: string
@@ -65,6 +89,7 @@ const createModelForm = (config: ModelConfig): ModelForm => ({
 
 export function SettingsPage(): React.JSX.Element {
   const {
+    settings,
     modelConfigs,
     fetchSettings,
     saveSettings,
@@ -73,7 +98,12 @@ export function SettingsPage(): React.JSX.Element {
     deleteModelConfig,
     setVerificationMessage,
     verifyApiKey,
-    chooseStoragePath
+    chooseStoragePath,
+    refreshWebSearchServiceStatus,
+    installWebSearchService,
+    startWebSearchService,
+    webSearchError,
+    webSearchBusy
   } = useSettingsStore()
   const { success, error, warning, info } = useToastStore()
   const { lang, setLang, t } = useLang()
@@ -90,6 +120,10 @@ export function SettingsPage(): React.JSX.Element {
   const [verifying, setVerifying] = useState(false)
   const [activatingId, setActivatingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [webSearchLimit, setWebSearchLimit] = useState('20')
+  const [webSearchEngines, setWebSearchEngines] = useState<string[]>(['bing', 'duckduckgo'])
+  const [webSearchUseProxy, setWebSearchUseProxy] = useState(false)
+  const [webSearchProxyUrl, setWebSearchProxyUrl] = useState('http://127.0.0.1:7897')
 
   useEffect(() => {
     let active = true
@@ -99,6 +133,12 @@ export function SettingsPage(): React.JSX.Element {
       const nextSettings = useSettingsStore.getState().settings
       setStoragePath(nextSettings?.storagePath || '')
       setTimeoutSeconds(createTimeoutSeconds(nextSettings?.timeouts))
+      setWebSearchLimit(String(nextSettings?.webSearch?.limit || 20))
+      setWebSearchEngines(
+        nextSettings?.webSearch?.engines?.length ? nextSettings.webSearch.engines : ['bing', 'duckduckgo']
+      )
+      setWebSearchUseProxy(nextSettings?.webSearch?.useProxy === true)
+      setWebSearchProxyUrl(nextSettings?.webSearch?.proxyUrl || 'http://127.0.0.1:7897')
     }
     void loadSettings()
     return () => {
@@ -329,6 +369,101 @@ export function SettingsPage(): React.JSX.Element {
     }
   }
 
+  const toggleEngine = (engine: string, checked: boolean): void => {
+    setWebSearchEngines((current) => {
+      if (checked) {
+        return current.includes(engine) ? current : [...current, engine]
+      }
+      return current.filter((item) => item !== engine)
+    })
+  }
+
+  const handleInstallWebSearch = async (): Promise<void> => {
+    const installed = await installWebSearchService()
+    if (installed) {
+      success(lang === 'en' ? 'Web search service installed' : '联网搜索服务已安装', {
+        description:
+          lang === 'en'
+            ? 'You can start the service now.'
+            : '现在可以继续启动服务。'
+      })
+      return
+    }
+    error(lang === 'en' ? 'Failed to install web search service' : '联网搜索服务安装失败', {
+      description:
+        webSearchError || (lang === 'en' ? t('common.retryLater') : '请稍后重试。')
+    })
+  }
+
+  const handleStartWebSearch = async (): Promise<void> => {
+    const started = await startWebSearchService()
+    if (started) {
+      success(lang === 'en' ? 'Web search service started' : '联网搜索服务已启动', {
+        description:
+          lang === 'en'
+            ? 'The home page can enable web search now.'
+            : '首页现在可以开启联网搜索。'
+      })
+      return
+    }
+    error(lang === 'en' ? 'Failed to start web search service' : '联网搜索服务启动失败', {
+      description:
+        webSearchError || (lang === 'en' ? t('common.retryLater') : '请稍后重试。')
+    })
+  }
+
+  const handleSaveWebSearch = async (): Promise<void> => {
+    const normalizedLimit = Number.parseInt(webSearchLimit.trim(), 10)
+    if (!Number.isFinite(normalizedLimit) || normalizedLimit < 1 || normalizedLimit > 20) {
+      warning(lang === 'en' ? 'Enter a result limit between 1 and 20' : '请填写 1-20 之间的搜索结果数量')
+      return
+    }
+    if (!webSearchEngines.length) {
+      warning(lang === 'en' ? 'Select at least one search engine' : '请至少选择一个联网搜索引擎')
+      return
+    }
+    if (webSearchUseProxy && !webSearchProxyUrl.trim()) {
+      warning(lang === 'en' ? 'Enter a proxy URL' : '请填写代理地址')
+      return
+    }
+
+    await saveSettings({
+      webSearch: {
+        engines: webSearchEngines,
+        limit: normalizedLimit,
+        useProxy: webSearchUseProxy,
+        proxyUrl: webSearchProxyUrl.trim()
+      }
+    })
+    const saveError = useSettingsStore.getState().verificationMessage
+    if (saveError) {
+      error(t('settings.saveFailed'), { description: saveError })
+      return
+    }
+    success(t('settings.saved'), {
+      description:
+        lang === 'en'
+          ? 'Web search configuration has been written locally'
+          : '联网搜索配置已写入本地'
+    })
+  }
+
+  const serviceStatus = settings?.webSearch?.serviceStatus
+  const serviceBadge = serviceStatus?.running
+    ? {
+        label: lang === 'en' ? 'Running' : '运行中',
+        className: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      }
+    : serviceStatus?.installed
+      ? {
+          label: lang === 'en' ? 'Installed' : '已安装',
+          className: 'bg-amber-50 text-amber-700 border-amber-200'
+        }
+      : {
+          label: lang === 'en' ? 'Not installed' : '未安装',
+          className: 'bg-slate-100 text-slate-600 border-slate-200'
+        }
+
   return (
     <div className="mx-auto max-w-4xl p-6">
       <div className="mb-5">
@@ -505,7 +640,175 @@ export function SettingsPage(): React.JSX.Element {
             </CardContent>
           </Card>
 
-          <div className="flex justify-end">
+          <Card className="mb-4">
+            <CardHeader className="p-5 pb-3">
+              <CardTitle className="text-base">
+                {lang === 'en' ? 'Web search' : '联网搜索'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 p-5 pt-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Search className="h-4 w-4 text-[#5d6b4d]" />
+                  <span className="text-sm font-medium">open-websearch</span>
+                </div>
+                <span className={`rounded-full border px-2.5 py-1 text-xs ${serviceBadge.className}`}>
+                  {serviceBadge.label}
+                </span>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    void refreshWebSearchServiceStatus()
+                  }}
+                  disabled={webSearchBusy}
+                  className="h-10 rounded-lg border border-[#7ea06f]/45"
+                >
+                  <RefreshCw className="mr-1.5 h-4 w-4" />
+                  {lang === 'en' ? 'Refresh' : '刷新状态'}
+                </Button>
+                {!serviceStatus?.installed ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      void handleInstallWebSearch()
+                    }}
+                    disabled={webSearchBusy}
+                    className="h-10 rounded-lg border border-[#7ea06f]/45"
+                  >
+                    <Download className="mr-1.5 h-4 w-4" />
+                    {lang === 'en' ? 'Install' : '一键安装'}
+                  </Button>
+                ) : null}
+                {serviceStatus?.installed && !serviceStatus.running ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      void handleStartWebSearch()
+                    }}
+                    disabled={webSearchBusy}
+                    className="h-10 rounded-lg border border-[#7ea06f]/45"
+                  >
+                    <Play className="mr-1.5 h-4 w-4" />
+                    {lang === 'en' ? 'Start' : '一键启动'}
+                  </Button>
+                ) : null}
+              </div>
+
+              <div className="space-y-1 text-xs text-muted-foreground">
+                <p>URL: {serviceStatus?.daemonUrl || 'http://127.0.0.1:3210'}</p>
+                {serviceStatus?.installSource === 'workspace' ? (
+                  <p>
+                    {lang === 'en'
+                      ? 'Using open-webSearch-main from the workspace.'
+                      : '当前使用工作区内的 open-webSearch-main。'}
+                  </p>
+                ) : null}
+                {serviceStatus?.installSource === 'managed' ? (
+                  <p>
+                    {lang === 'en'
+                      ? 'Using the app-managed open-websearch service.'
+                      : '当前使用应用托管安装的 open-websearch 服务。'}
+                  </p>
+                ) : null}
+                {webSearchError ? <p className="text-destructive">{webSearchError}</p> : null}
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium">
+                  {lang === 'en' ? 'Search engines' : '搜索引擎'}
+                </label>
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                  {WEB_SEARCH_ENGINE_OPTIONS.map((engine) => (
+                    <label
+                      key={engine.value}
+                      className="flex items-center gap-2 rounded-md border border-border/70 px-3 py-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={webSearchEngines.includes(engine.value)}
+                        onChange={(e) => toggleEngine(engine.value, e.target.checked)}
+                        className="h-4 w-4 rounded border-border text-primary"
+                      />
+                      <span>{engine.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium">
+                  {lang === 'en' ? 'Result limit' : '返回结果数量'}
+                </label>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={webSearchLimit}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    if (next === '' || /^\d+$/.test(next)) {
+                      setWebSearchLimit(next)
+                    }
+                  }}
+                  onBlur={() => {
+                    const parsed = Number.parseInt(webSearchLimit || '20', 10)
+                    const normalized =
+                      Number.isFinite(parsed) ? Math.max(1, Math.min(20, parsed)) : 20
+                    setWebSearchLimit(String(normalized))
+                  }}
+                />
+              </div>
+
+              <label className="flex items-start gap-3 rounded-md border border-border/70 px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={webSearchUseProxy}
+                  onChange={(e) => setWebSearchUseProxy(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-border text-primary"
+                />
+                <span className="space-y-1">
+                  <span className="block text-sm font-medium">
+                    {lang === 'en'
+                      ? 'Use proxy when starting the service'
+                      : '启动搜索服务时使用代理'}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {lang === 'en'
+                      ? 'One-click start injects USE_PROXY and PROXY_URL environment variables.'
+                      : '一键启动时会注入 USE_PROXY 和 PROXY_URL 环境变量。'}
+                  </span>
+                </span>
+              </label>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium">
+                  {lang === 'en' ? 'Proxy URL' : '代理地址'}
+                </label>
+                <Input
+                  placeholder="http://127.0.0.1:7897"
+                  value={webSearchProxyUrl}
+                  onChange={(e) => setWebSearchProxyUrl(e.target.value)}
+                  disabled={!webSearchUseProxy}
+                />
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {lang === 'en'
+                    ? 'When a VPN or proxy tool is enabled, such as Clash Verge, the web search service may need a local HTTP proxy port here.'
+                    : '开启 VPN 或代理工具时，例如使用 Clash Verge，联网搜索服务可能需要在这里填写本地 HTTP 代理端口。'}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                void handleSaveWebSearch()
+              }}
+              disabled={webSearchBusy}
+            >
+              {lang === 'en' ? 'Save web search' : '保存联网搜索配置'}
+            </Button>
             <Button onClick={handleSaveTimeouts} disabled={savingTimeouts}>
               {savingTimeouts ? t('common.saving') : t('settings.saveTimeouts')}
             </Button>

@@ -6,6 +6,7 @@ import {
   FRONTEND_CAPABILITIES,
   PAGE_SEMANTIC_STRUCTURE,
   buildOutlinePageList,
+  formatCurrentDate,
   formatDesignContract,
   resolveStylePrompt,
 } from "./shared";
@@ -17,7 +18,34 @@ export function buildDeckAgentSystemPrompt(
   const { presetLabel, presetId, stylePrompt: resolvedStylePrompt } = resolveStylePrompt(styleId);
   const stylePrompt = context.styleSkillPrompt?.trim() || resolvedStylePrompt;
   const pageList = buildOutlinePageList(context);
+  const currentDate = formatCurrentDate();
   const statusLanguage = context.appLocale === "en" ? "English" : "Simplified Chinese";
+  const searchEnabled = context.allowWebSearch === true;
+  const currentDateBlock = searchEnabled
+    ? [
+        "## Current date",
+        `- ${currentDate}`,
+        "- Web search is enabled for this session.",
+        "- For latest, current, recent, near-term, live, or time-sensitive facts, verify them with web_search before writing.",
+        "- Use the current date and current year as the default time anchor unless the user explicitly requests historical information.",
+        "- When the topic is broad, search broadly first, then narrow based on first-round findings.",
+      ]
+    : [
+        "## Current date",
+        `- ${currentDate}`,
+        "- Web search is not enabled for this session.",
+        "- Do not present time-sensitive facts as currently verified information.",
+      ];
+  const searchExecutionBlock = searchEnabled
+    ? [
+        "3. Before writing time-sensitive facts, call web_search.",
+        "   For latest/current/recent topics, avoid defaulting to stale years or months unless the user explicitly requests history.",
+        "   If search snippets are insufficient for concrete facts or numbers, call fetch_web_content on 1-3 high-value results before finalizing the slide.",
+      ]
+    : [
+        "3. Web search is disabled in this session.",
+        "   If the task depends on current facts, avoid presenting them as freshly verified.",
+      ];
 
   const targetInfo = context.selectedPageId
     ? `This run may only modify: ${context.selectedPageId}`
@@ -71,6 +99,8 @@ export function buildDeckAgentSystemPrompt(
     formatDesignContract(context.designContract),
     ...sourceDocumentInstructions,
     "",
+    ...currentDateBlock,
+    "",
     CANVAS_CONSTRAINTS,
     "- index.html 是总览壳（导航+iframe），不要修改其核心结构。",
     "",
@@ -100,9 +130,10 @@ export function buildDeckAgentSystemPrompt(
     "   progress must be a numeric literal such as 10, 35, or 88. Do not pass strings such as \"10\".",
     "   Progress must be detailed and monotonic. Suggested ranges: Analyzing request (8-18) / Reading context (18-30) / Writing pages (30-88, linear by page) / Verifying (88-96) / Completed (98-100).",
     "   Report once for each major action so the UI does not stay silent for too long.",
-    step3Instruction,
-    "4. verify_completion() — check whether target pages are filled",
-    "5. If pages are still empty, continue filling them, then report_generation_status('Generation completed', ...)",
+    ...searchExecutionBlock,
+    step3Instruction.replace(/^3\./, "4."),
+    "5. verify_completion() — check whether target pages are filled",
+    "6. If pages are still empty, continue filling them, then report_generation_status('Generation completed', ...)",
     "## Current Task",
     `Topic: ${context.topic}`,
     `Deck title: ${context.deckTitle}`,

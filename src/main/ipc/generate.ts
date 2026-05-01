@@ -690,6 +690,9 @@ export const runDeepAgentDeckGeneration = async (args: {
   modelTimeoutMs?: number
   topic: string
   deckTitle: string
+  allowWebSearch?: boolean
+  webSearchEngines?: string[]
+  webSearchLimit?: number
   userMessage: string
   outlineTitles: string[]
   outlineItems: OutlineItem[]
@@ -937,6 +940,9 @@ export const runDeepAgentDeckGeneration = async (args: {
         topic: args.topic,
         deckTitle: args.deckTitle,
         styleId: args.styleId,
+        allowWebSearch: args.allowWebSearch,
+        webSearchEngines: args.webSearchEngines,
+        webSearchLimit: args.webSearchLimit,
         styleSkillPrompt: args.styleSkillPrompt,
         appLocale: args.appLocale,
         designContract: args.designContract,
@@ -971,6 +977,7 @@ export const runDeepAgentDeckGeneration = async (args: {
                 pageTitle: page.title,
                 pageOutline: page.outline,
                 layoutIntent: page.layoutIntent,
+                allowWebSearch: args.allowWebSearch,
                 sourceDocumentPaths: args.sourceDocumentPaths,
                 referenceDocumentSnippets,
                 isRetryMode: args.generationMode === 'retry',
@@ -1257,6 +1264,9 @@ export const runDeepAgentEdit = async (args: {
   modelTimeoutMs?: number
   topic: string
   deckTitle: string
+  allowWebSearch?: boolean
+  webSearchEngines?: string[]
+  webSearchLimit?: number
   userMessage: string
   outlineTitles: string[]
   outlineItems: OutlineItem[]
@@ -1292,6 +1302,9 @@ export const runDeepAgentEdit = async (args: {
       topic: args.topic,
       deckTitle: args.deckTitle,
       styleId: args.styleId,
+      allowWebSearch: args.allowWebSearch,
+      webSearchEngines: args.webSearchEngines,
+      webSearchLimit: args.webSearchLimit,
       styleSkillPrompt: args.styleSkillPrompt,
       appLocale: args.appLocale,
       designContract: args.designContract,

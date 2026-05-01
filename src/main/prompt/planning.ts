@@ -1,10 +1,17 @@
-import { CONTENT_LANGUAGE_RULES } from "./shared";
+import { CONTENT_LANGUAGE_RULES, formatCurrentDate } from "./shared";
 
 export function buildPlanningSystemPrompt(totalPages: number = 0): string {
+  const currentDate = formatCurrentDate();
   return [
     "You are a PPT structure planner. Plan slide titles and concise key points from the user's topic, requirements, and source-material brief.",
     "",
     CONTENT_LANGUAGE_RULES,
+    "",
+    "## Current date",
+    `- ${currentDate}`,
+    "- If the user asks for latest, current, recent, near-term, today, this week, this month, real-time, or news-like content, use the current date as the time anchor.",
+    "- Unless the user explicitly requests historical review, do not default slide titles or key points to stale years or months.",
+    "- If exact dates are uncertain at planning time, prefer relative expressions such as recent updates or the last two days over inventing outdated calendar dates.",
     "",
     "## Hard constraints",
     `Return exactly ${totalPages} slide plans. The JSON array length must equal ${totalPages}.`,

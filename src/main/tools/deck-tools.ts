@@ -8,6 +8,8 @@ import { emitToolStatus } from "./types";
 import { validateHtmlContent } from "./html-utils";
 import { buildSessionAssetHeadTags } from "../ipc/page-assets";
 import { progressLabel } from "@shared/progress";
+import { callFetchWebContent, callWebSearch } from "../utils/web-search";
+import { checkDaemonHealth } from "../utils/web-search-service";
 
 const uiText = (locale: "zh" | "en" | undefined, zh: string, en: string): string => (locale === "en" ? en : zh);
 
@@ -914,6 +916,102 @@ export function createSessionBoundDeckTools(context: SessionDeckGenerationContex
     return result;
   };
 
+  const resolvedEngines =
+    Array.isArray(context.webSearchEngines) && context.webSearchEngines.length > 0
+      ? context.webSearchEngines
+      : ["bing", "duckduckgo"];
+  const resolvedLimit =
+    typeof context.webSearchLimit === "number" && Number.isFinite(context.webSearchLimit)
+      ? Math.max(1, Math.min(20, Math.round(context.webSearchLimit)))
+      : 20;
+  const searchTools =
+    context.allowWebSearch === true
+      ? [
+          tool(
+            async ({ query }, config) => {
+              emitNormalizedToolStatus(config, {
+                label: uiText(context.appLocale, `联网搜索：${query}`, `Web search: ${query}`),
+                detail: uiText(
+                  context.appLocale,
+                  `引擎: ${resolvedEngines.join(", ")}`,
+                  `Engines: ${resolvedEngines.join(", ")}`
+                ),
+                progress: 20
+              });
+              const healthy = await checkDaemonHealth();
+              if (!healthy) {
+                throw new Error(
+                  uiText(
+                    context.appLocale,
+                    "open-websearch 本地服务未启动，请先在设置页安装或启动联网搜索服务。",
+                    "The local open-websearch service is not running. Install or start it from Settings first."
+                  )
+                );
+              }
+              const result = await callWebSearch({
+                query,
+                limit: resolvedLimit,
+                engines: resolvedEngines
+              });
+              emitNormalizedToolStatus(config, {
+                label: uiText(
+                  context.appLocale,
+                  `搜索完成，共 ${result.totalResults} 条结果`,
+                  `Search completed with ${result.totalResults} results`
+                ),
+                progress: 40
+              });
+              return JSON.stringify(result, null, 2);
+            },
+            {
+              name: "web_search",
+              description:
+                "Search the web for current information before writing PPT content. Engines and result limit come from user settings; only provide the query.",
+              schema: z.object({
+                query: z.string().min(1).describe("Search query")
+              })
+            }
+          ),
+          tool(
+            async ({ url, maxChars }, config) => {
+              emitNormalizedToolStatus(config, {
+                label: uiText(context.appLocale, `抓取网页内容：${url}`, `Fetching page content: ${url}`),
+                progress: 20
+              });
+              const healthy = await checkDaemonHealth();
+              if (!healthy) {
+                throw new Error(
+                  uiText(
+                    context.appLocale,
+                    "open-websearch 本地服务未启动，请先在设置页安装或启动联网搜索服务。",
+                    "The local open-websearch service is not running. Install or start it from Settings first."
+                  )
+                );
+              }
+              const result = await callFetchWebContent({ url, maxChars });
+              emitNormalizedToolStatus(config, {
+                label: uiText(
+                  context.appLocale,
+                  `网页内容抓取完成：${result.content.length} 字符`,
+                  `Fetched page content: ${result.content.length} chars`
+                ),
+                progress: 40
+              });
+              return JSON.stringify(result, null, 2);
+            },
+            {
+              name: "fetch_web_content",
+              description:
+                "Fetch readable content for a public URL. Use after web_search when snippets are insufficient and more detail is needed.",
+              schema: z.object({
+                url: z.string().url().describe("Public HTTP(S) URL"),
+                maxChars: z.number().int().min(1000).max(50000).optional().default(8000)
+              })
+            }
+          )
+        ]
+      : [];
+
   return [
     // ── get_session_context ──
     tool(
@@ -1303,6 +1401,7 @@ export function createSessionBoundDeckTools(context: SessionDeckGenerationContex
           "Verify that all page files have been filled correctly. Use after update_single_page_file or update_page_file.",
         schema: z.object({})
       }
-    )
+    ),
+    ...searchTools
   ];
 }

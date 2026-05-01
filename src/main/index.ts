@@ -8,11 +8,13 @@ import { AgentManager } from './agent'
 import { setupIPC } from './ipc'
 import { setStyleDb } from './utils/style-skills'
 import type { UpdateAvailablePayload } from '@shared/app-update'
+import { stopManagedWebSearchService } from './utils/web-search-service'
 
 let mainWindow: BrowserWindow | null = null
 let db: PPTDatabase | null = null
 let agentManager: AgentManager | null = null
 let isShuttingDown = false
+let isStoppingWebSearchService = false
 
 const APP_NAME = 'OhMyPPT'
 const DEFAULT_WINDOW_WIDTH = 1100
@@ -284,16 +286,36 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
+  if (isStoppingWebSearchService) {
+    return
+  }
   if (isShuttingDown) return
   isShuttingDown = true
-  if (db) {
-    void db.close().catch((error) => {
-      log.warn('[app] failed to close database on before-quit', {
+  isStoppingWebSearchService = true
+  event.preventDefault()
+
+  void (async () => {
+    try {
+      await stopManagedWebSearchService()
+    } catch (error) {
+      log.warn('[app] failed to stop managed websearch service on before-quit', {
         message: error instanceof Error ? error.message : String(error),
       })
-    })
-  }
+    }
+
+    if (db) {
+      try {
+        await db.close()
+      } catch (error) {
+        log.warn('[app] failed to close database on before-quit', {
+          message: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+
+    app.quit()
+  })()
 })
 
 export { mainWindow, db, agentManager }

@@ -5,6 +5,7 @@ import {
   FRONTEND_CAPABILITIES,
   PAGE_SEMANTIC_STRUCTURE,
   buildOutlinePageList,
+  formatCurrentDate,
   formatDesignContract,
 } from "./shared";
 
@@ -39,6 +40,7 @@ export function buildSinglePageGenerationPrompt(args: {
   pageTitle: string;
   pageOutline: string;
   layoutIntent?: SessionDeckGenerationContext["outlineItems"][number]["layoutIntent"];
+  allowWebSearch?: boolean;
   sourceDocumentPaths?: string[];
   referenceDocumentSnippets?: string;
   isRetryMode?: boolean;
@@ -49,6 +51,7 @@ export function buildSinglePageGenerationPrompt(args: {
     previousError: string;
   };
 }): string {
+  const currentDate = formatCurrentDate();
   const retryInstructions = args.retryContext
     ? [
         "",
@@ -91,6 +94,17 @@ export function buildSinglePageGenerationPrompt(args: {
             "- Do not expand only from the outline. Do not invent exact numbers, dates, system names, or status claims not present in the source document.",
           ].filter(Boolean)
       : [];
+  const webSearchInstructions = args.allowWebSearch
+    ? [
+        "",
+        `Current date: ${currentDate}`,
+        "Web search is enabled for this session.",
+        "- For latest, current, recent, near-term, live, news, release, benchmark, ranking, price, version, or other time-sensitive facts, do not write from stale memory first.",
+        "- Search first, then write. Use current date and current year as the default time anchor unless the user explicitly requests historical information.",
+        "- If the page topic is still broad, start with a broad search to understand the current landscape before narrowing to specific entities.",
+        "- If search snippets are not enough to support concrete facts or numbers, call fetch_web_content to inspect the page details before finalizing the slide.",
+      ]
+    : [];
   return [
     "Generate and write only this slide. Do not modify other slides.",
     "",
@@ -100,6 +114,7 @@ export function buildSinglePageGenerationPrompt(args: {
     `Slide title: ${args.pageTitle}`,
     `Content points: ${args.pageOutline || "Expand from the topic with moderate information density."}`,
     args.layoutIntent ? formatLayoutIntentPrompt(args.layoutIntent) : "",
+    ...webSearchInstructions,
     ...sourceDocumentInstructions,
     "",
     CONTENT_LANGUAGE_RULES,

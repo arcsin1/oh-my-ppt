@@ -64,6 +64,9 @@ export type GenerationContext = {
   topic: string
   deckTitle: string
   appLocale: 'zh' | 'en'
+  allowWebSearch: boolean
+  webSearchEngines: string[]
+  webSearchLimit: number
 }
 
 type FinalizeGenerationArgs = {
@@ -200,6 +203,16 @@ export function createGenerationService(ctx: IpcContext): GenerationService {
     const session = await db.getSession(sessionId)
     if (!session) throw new Error('Session not found')
     const sessionRecord = session as unknown as Record<string, unknown>
+    const sessionMetadata =
+      typeof sessionRecord.metadata === 'string' && sessionRecord.metadata.trim().length > 0
+        ? (() => {
+            try {
+              return JSON.parse(sessionRecord.metadata) as Record<string, unknown>
+            } catch {
+              return {}
+            }
+          })()
+        : {}
     const previousSessionStatus = String(sessionRecord.status || 'active')
     const styleCatalog = listStyleCatalog()
     const defaultStyleId =
@@ -280,6 +293,17 @@ export function createGenerationService(ctx: IpcContext): GenerationService {
 
     const settings = await db.getAllSettings()
     const appLocale = settings.locale === 'en' ? 'en' : 'zh'
+    const allowWebSearch = sessionMetadata.allowWebSearch === true
+    const webSearchEngines = Array.isArray(settings.web_search_engines)
+      ? settings.web_search_engines
+          .map((item) => String(item || '').trim().toLowerCase())
+          .filter((item) => item.length > 0)
+      : ['bing', 'duckduckgo']
+    const rawWebSearchLimit = Number(settings.web_search_limit)
+    const webSearchLimit =
+      Number.isFinite(rawWebSearchLimit) && rawWebSearchLimit > 0
+        ? Math.max(1, Math.min(20, Math.round(rawWebSearchLimit)))
+        : 20
     const activeModel = await resolveActiveModelConfig(ctx)
     const modelTimeouts = await resolveGlobalModelTimeouts(ctx)
     const { provider, model, apiKey } = activeModel
@@ -378,7 +402,10 @@ export function createGenerationService(ctx: IpcContext): GenerationService {
       sourceDocumentPaths,
       topic,
       deckTitle,
-      appLocale
+      appLocale,
+      allowWebSearch,
+      webSearchEngines,
+      webSearchLimit
     }
   }
 
@@ -689,6 +716,9 @@ export function createGenerationService(ctx: IpcContext): GenerationService {
       appLocale: context.appLocale,
       topic: context.topic,
       deckTitle: context.deckTitle,
+      allowWebSearch: context.allowWebSearch,
+      webSearchEngines: context.webSearchEngines,
+      webSearchLimit: context.webSearchLimit,
       userMessage: context.userMessage,
       outlineTitles,
       outlineItems,
@@ -1227,6 +1257,9 @@ export function createGenerationService(ctx: IpcContext): GenerationService {
       appLocale: context.appLocale,
       topic: context.topic,
       deckTitle: context.deckTitle,
+      allowWebSearch: context.allowWebSearch,
+      webSearchEngines: context.webSearchEngines,
+      webSearchLimit: context.webSearchLimit,
       userMessage: context.userMessage,
       outlineTitles,
       outlineItems,
@@ -1762,6 +1795,9 @@ export function createGenerationService(ctx: IpcContext): GenerationService {
       appLocale: context.appLocale,
       topic: context.topic,
       deckTitle: context.deckTitle,
+      allowWebSearch: context.allowWebSearch,
+      webSearchEngines: context.webSearchEngines,
+      webSearchLimit: context.webSearchLimit,
       userMessage:
         context.userMessage ||
         'Continue generating the unfinished slides in this session. Determine the content language from the existing topic, outline, and source materials; do not infer it from this instruction.',

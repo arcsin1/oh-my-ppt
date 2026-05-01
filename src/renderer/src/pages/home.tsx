@@ -53,6 +53,7 @@ export function HomePage(): ReactElement {
   const [topic, setTopic] = useState('')
   const [brief, setBrief] = useState('')
   const [pageCount, setPageCount] = useState(String(DEFAULT_PAGE_COUNT))
+  const [allowWebSearch, setAllowWebSearch] = useState(false)
   const [selectedStyleId, setSelectedStyleId] = useState('')
   const [styleOptions, setStyleOptions] = useState<
     Array<{ id: string; label: string; description: string }>
@@ -104,6 +105,8 @@ export function HomePage(): ReactElement {
     const n = Number.parseInt(pageCountText, 10)
     return n >= MIN_PAGE_COUNT && n <= MAX_PAGE_COUNT
   })()
+  const isEnglish = settings?.locale === 'en'
+  const webSearchReady = settings?.webSearch?.serviceStatus?.running === true
 
   useEffect(() => {
     ipc
@@ -153,7 +156,8 @@ export function HomePage(): ReactElement {
         topic: topicText,
         styleId: selectedStyleId,
         pageCount: safePageCount,
-        referenceDocumentPath: referenceDocumentPath || undefined
+        referenceDocumentPath: referenceDocumentPath || undefined,
+        allowWebSearch
       })
       success(t('home.sessionCreated'), {
         description: t('home.generationStarted'),
@@ -499,6 +503,32 @@ export function HomePage(): ReactElement {
                 className="min-h-[132px] resize-y"
               />
             </div>
+
+            <label
+              className={`flex items-start gap-3 rounded-md border border-border/70 px-4 py-3 ${webSearchReady ? '' : 'opacity-70'}`}
+            >
+              <input
+                type="checkbox"
+                checked={allowWebSearch}
+                onChange={(e) => setAllowWebSearch(e.target.checked)}
+                disabled={!webSearchReady}
+                className="mt-1 h-4 w-4 rounded border-border text-primary"
+              />
+              <span className="space-y-1">
+                <span className="block text-sm font-medium">
+                  {isEnglish ? 'Allow web search' : '允许联网搜索'}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {webSearchReady
+                    ? isEnglish
+                      ? 'When enabled, the AI may use web search for recent information and verifiable real-world data.'
+                      : '开启后，AI 才会获得联网搜索权限，用于检索最新信息和可核实的现实数据。'
+                    : isEnglish
+                      ? 'Start the web search service in Settings before enabling this option.'
+                      : '请先在系统设置中启动联网搜索服务，再开启这个选项。'}
+                </span>
+              </span>
+            </label>
           </CardContent>
         </Card>
 

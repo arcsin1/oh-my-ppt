@@ -42,6 +42,9 @@ export interface SessionDeckGenerationContext {
   topic: string;
   deckTitle: string;
   styleId: string | null | undefined;
+  allowWebSearch?: boolean;
+  webSearchEngines?: string[];
+  webSearchLimit?: number;
   /** Snapshot of the database styleSkill markdown for this run. */
   styleSkillPrompt?: string;
   appLocale?: "zh" | "en";

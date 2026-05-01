@@ -23,6 +23,7 @@ export function registerSessionHandlers(ctx: IpcContext): void {
 
   ipcMain.handle('session:create', async (_event, payload) => {
     const { topic, styleId, pageCount } = payload
+    const allowWebSearch = payload?.allowWebSearch === true
     const referenceDocumentPath =
       typeof payload?.referenceDocumentPath === 'string' ? payload.referenceDocumentPath.trim() : ''
     const locale = await readAppLocale(ctx)
@@ -114,6 +115,10 @@ export function registerSessionHandlers(ctx: IpcContext): void {
       styleId: normalizedStyleId,
       pageCount,
       referenceDocumentPath: sessionReferenceDocumentPath
+    })
+
+    await db.updateSessionMetadata(sessionId, {
+      allowWebSearch
     })
 
     return { sessionId }

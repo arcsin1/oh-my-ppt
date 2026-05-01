@@ -1,12 +1,21 @@
 import { create } from 'zustand'
-import { ipc, type ModelConfig } from '@renderer/lib/ipc'
+import { ipc, type ModelConfig, type WebSearchServiceStatus } from '@renderer/lib/ipc'
 import type { ConfigurableModelTimeoutProfile } from '@shared/model-timeout.js'
+
+interface WebSearchSettings {
+  engines: string[]
+  limit: number
+  useProxy?: boolean
+  proxyUrl?: string
+  serviceStatus?: WebSearchServiceStatus
+}
 
 interface Settings {
   theme: string
   locale: 'zh' | 'en'
   storagePath: string
   timeouts: Record<ConfigurableModelTimeoutProfile, number>
+  webSearch?: WebSearchSettings
 }
 
 interface SettingsStore {
@@ -14,7 +23,9 @@ interface SettingsStore {
   modelConfigs: ModelConfig[]
   verificationMessage: string | null
   storagePathError: string | null
+  webSearchError: string | null
   loading: boolean
+  webSearchBusy: boolean
 
   fetchSettings: () => Promise<void>
   saveSettings: (settings: Partial<Settings>) => Promise<void>
@@ -38,6 +49,9 @@ interface SettingsStore {
     timeoutMs: number
   ) => Promise<boolean>
   chooseStoragePath: () => Promise<string | null>
+  refreshWebSearchServiceStatus: () => Promise<void>
+  installWebSearchService: () => Promise<boolean>
+  startWebSearchService: () => Promise<boolean>
 }
 
 const readStoredLocale = (): 'zh' | 'en' => {
@@ -52,7 +66,9 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   modelConfigs: [],
   verificationMessage: null,
   storagePathError: null,
+  webSearchError: null,
   loading: false,
+  webSearchBusy: false,
 
   fetchSettings: async () => {
     try {
@@ -69,7 +85,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         },
         modelConfigs: Array.isArray(modelConfigs) ? modelConfigs : [],
         storagePathError: null,
-        verificationMessage: null
+        verificationMessage: null,
+        webSearchError: null
       })
     } catch (error) {
       const message =
@@ -176,6 +193,99 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
           : fallbackMessage('选择文件夹失败。', 'Failed to choose folder.')
       set({ storagePathError: message })
       return null
+    }
+  },
+
+  refreshWebSearchServiceStatus: async () => {
+    const settings = get().settings
+    if (!settings) return
+    try {
+      const serviceStatus = await ipc.getWebSearchServiceStatus()
+      set({
+        settings: {
+          ...settings,
+          webSearch: {
+            engines: settings.webSearch?.engines || ['bing', 'duckduckgo'],
+            limit: settings.webSearch?.limit || 20,
+            useProxy: settings.webSearch?.useProxy,
+            proxyUrl: settings.webSearch?.proxyUrl,
+            serviceStatus
+          }
+        },
+        webSearchError: null
+      })
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : fallbackMessage('读取联网搜索服务状态失败。', 'Failed to load web search service status.')
+      set({ webSearchError: message })
+    }
+  },
+
+  installWebSearchService: async () => {
+    set({ webSearchBusy: true, webSearchError: null })
+    try {
+      const serviceStatus = await ipc.installWebSearchService()
+      const settings = get().settings
+      if (settings) {
+        set({
+          settings: {
+            ...settings,
+            webSearch: {
+              engines: settings.webSearch?.engines || ['bing', 'duckduckgo'],
+              limit: settings.webSearch?.limit || 20,
+              useProxy: settings.webSearch?.useProxy,
+              proxyUrl: settings.webSearch?.proxyUrl,
+              serviceStatus
+            }
+          },
+          webSearchBusy: false
+        })
+      } else {
+        set({ webSearchBusy: false })
+      }
+      return serviceStatus.installed
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : fallbackMessage('安装联网搜索服务失败。', 'Failed to install web search service.')
+      set({ webSearchBusy: false, webSearchError: message })
+      return false
+    }
+  },
+
+  startWebSearchService: async () => {
+    set({ webSearchBusy: true, webSearchError: null })
+    try {
+      const serviceStatus = await ipc.startWebSearchService()
+      const settings = get().settings
+      if (settings) {
+        set({
+          settings: {
+            ...settings,
+            webSearch: {
+              engines: settings.webSearch?.engines || ['bing', 'duckduckgo'],
+              limit: settings.webSearch?.limit || 20,
+              useProxy: settings.webSearch?.useProxy,
+              proxyUrl: settings.webSearch?.proxyUrl,
+              serviceStatus
+            }
+          },
+          webSearchBusy: false
+        })
+      } else {
+        set({ webSearchBusy: false })
+      }
+      return serviceStatus.running
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : fallbackMessage('启动联网搜索服务失败。', 'Failed to start web search service.')
+      set({ webSearchBusy: false, webSearchError: message })
+      return false
     }
   }
 }))

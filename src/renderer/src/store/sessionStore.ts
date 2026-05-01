@@ -58,6 +58,7 @@ interface SessionStore {
     styleId: string
     pageCount?: number
     referenceDocumentPath?: string
+    allowWebSearch?: boolean
   }) => Promise<string>
   loadSession: (sessionId: string) => Promise<void>
   loadMessages: (payload: { sessionId: string; chatType: 'main' | 'page'; pageId?: string }) => Promise<void>
