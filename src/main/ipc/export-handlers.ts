@@ -240,6 +240,9 @@ export function registerExportHandlers(ctx: IpcContext): void {
     }
 
     const warnings: string[] = []
+    let pagesWithoutText = 0
+    let pagesWithoutImages = 0
+    let pagesWithoutShapes = 0
 
     try {
       const slides: HtmlToPptxSlide[] = []
@@ -262,14 +265,24 @@ export function registerExportHandlers(ctx: IpcContext): void {
         slides.push(extracted.slide)
         if (extracted.warning) warnings.push(extracted.warning)
         if (extracted.slide.texts.length === 0) {
-          warnings.push(`页面 ${page.pageId} 未提取到可编辑文本。`)
+          pagesWithoutText += 1
         }
         if (exportImages && extracted.slide.images.length === 0) {
-          warnings.push(`页面 ${page.pageId} 未提取到可编辑图片。`)
+          pagesWithoutImages += 1
         }
         if (exportShapes && extracted.slide.shapes.length === 0) {
-          warnings.push(`页面 ${page.pageId} 未提取到可编辑形状。`)
+          pagesWithoutShapes += 1
         }
+      }
+
+      if (pagesWithoutText > 0) {
+        warnings.push(`${pages.length} 页中有 ${pagesWithoutText} 页未提取到可编辑文本。`)
+      }
+      if (exportImages && pagesWithoutImages > 0 && pagesWithoutImages < pages.length) {
+        warnings.push(`${pages.length} 页中有 ${pagesWithoutImages} 页未检测到图片。`)
+      }
+      if (exportShapes && pagesWithoutShapes > 0 && pagesWithoutShapes < pages.length) {
+        warnings.push(`${pages.length} 页中有 ${pagesWithoutShapes} 页未检测到形状。`)
       }
 
       await writeHtmlToPptx(saveResult.filePath, {

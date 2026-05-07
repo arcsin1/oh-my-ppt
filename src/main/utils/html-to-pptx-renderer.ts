@@ -2,16 +2,16 @@ import { BrowserWindow, type NativeImage } from 'electron'
 import log from 'electron-log/main.js'
 import { pathToFileURL } from 'url'
 import {
-    buildHtmlToPptxExtractScript,
-    normalizeExtractedHtmlToPptxSlide,
-    type HtmlToPptxSlide,
-    type HtmlToPptxTextBox
+  buildHtmlToPptxExtractScript,
+  normalizeExtractedHtmlToPptxSlide,
+  type HtmlToPptxSlide,
+  type HtmlToPptxTextBox
 } from './html-to-pptx'
 import {
-    FREEZE_PAGE_FOR_PPTX_SCRIPT,
-    HIDE_ELEMENTS_FOR_PPTX_BACKGROUND_SCRIPT,
-    HIDE_TEXT_FOR_PPTX_BACKGROUND_SCRIPT,
-    WAIT_FOR_PPTX_CAPTURE_FRAME_SCRIPT
+  FREEZE_PAGE_FOR_PPTX_SCRIPT,
+  HIDE_ELEMENTS_FOR_PPTX_BACKGROUND_SCRIPT,
+  HIDE_TEXT_FOR_PPTX_BACKGROUND_SCRIPT,
+  WAIT_FOR_PPTX_CAPTURE_FRAME_SCRIPT
 } from './html-to-pptx-browser-scripts'
 
 export interface HtmlPageForPptx {
@@ -215,8 +215,8 @@ export const extractHtmlPageToPptxSlide = async ({
   timeoutMs,
   settleMs,
   waitForPrintReadySignal,
-  exportImages = false,
-  exportShapes = false
+  exportImages = true,
+  exportShapes = true
 }: HtmlPageToPptxSlideOptions): Promise<HtmlPageToPptxSlideResult> => {
   const win = new BrowserWindow({
     show: false,
