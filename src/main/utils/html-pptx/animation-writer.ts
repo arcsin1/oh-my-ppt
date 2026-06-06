@@ -5,8 +5,7 @@ import type {
 } from './types'
 import {
   getPptxAnimationPreset,
-  resolveTraceMotion,
-  wipeFilterForFrom
+  resolveTraceMotion
 } from '../../animation/pptx-animation-map'
 
 export interface PptxTargetAnimation {
@@ -26,13 +25,15 @@ const clampMs = (value: number, fallback: number): number => {
 
 const targetXml = (spid: number): string => `<p:tgtEl><p:spTgt spid="${spid}"/></p:tgtEl>`
 
-const ctnAttrs = (anim: PptxTargetAnimation, id: number): string => {
-  const preset = getPptxAnimationPreset(anim.type)
-  if (!preset) return ''
-  const nodeType = anim.trigger === 'click' ? 'clickEffect' : 'withEffect'
-  const subtype =
-    preset.presetSubtype === undefined ? '' : ` presetSubtype="${preset.presetSubtype}"`
-  return `id="${id}" presetID="${preset.presetId}" presetClass="${preset.presetClass}"${subtype} fill="hold" grpId="0" nodeType="${nodeType}"`
+/** Compute PPTX wipe presetSubtype from data-anim-from direction. */
+const wipeSubtypeForFrom = (from: string | undefined): number => {
+  switch (from) {
+    case 'right':  return 2  // wipe from right edge = wipe left
+    case 'top':    return 4  // wipe from top edge = wipe down
+    case 'bottom': return 3  // wipe from bottom edge = wipe up
+    case 'left':
+    default:       return 1  // wipe from left edge = wipe right
+  }
 }
 
 const visibilitySetXml = (spid: number, id: number): string => `<p:set>
@@ -51,6 +52,17 @@ const visibilitySetXml = (spid: number, id: number): string => `<p:set>
     <p:strVal val="visible"/>
   </p:to>
 </p:set>`
+
+const wipeEntranceXml = (
+  spid: number,
+  id: number,
+  duration: number
+): string => `<p:animEffect transition="in">
+  <p:cBhvr>
+    <p:cTn id="${id}" dur="${duration}" fill="hold"/>
+    ${targetXml(spid)}
+  </p:cBhvr>
+</p:animEffect>`
 
 const fadeXml = (
   spid: number,
@@ -137,17 +149,37 @@ const effectXml = (anim: PptxTargetAnimation, nextId: () => number): string => {
   const delay = Math.max(0, Math.round(Number.isFinite(anim.delay) ? anim.delay : 0))
   const effectId = nextId()
   const chunks = [visibilitySetXml(anim.spid, nextId()), ...motionXml(anim, duration, nextId)]
+
+  const isWipe = anim.type === 'wipe'
+  const wipeSubtype = isWipe ? wipeSubtypeForFrom(anim.from) : undefined
+
   if (preset.scale) {
     chunks.push(scaleXml(anim.spid, nextId(), duration, preset.scaleFrom, preset.scaleTo))
   }
-  if (preset.effectFilter === 'wipe') {
-    chunks.push(fadeXml(anim.spid, nextId(), duration, preset.transition ?? 'in', wipeFilterForFrom(anim.from)))
-  } else if (preset.fade) {
+  // Wipe: needs p:animEffect to activate the entrance, but WITHOUT filter
+  // so that presetID=5+presetSubtype controls the effect (not fade).
+  if (isWipe) {
+    chunks.push(wipeEntranceXml(anim.spid, nextId(), duration))
+  }
+  // Non-wipe: standard fade-based animation
+  if (!isWipe && preset.fade) {
     chunks.push(fadeXml(anim.spid, nextId(), duration, preset.transition ?? 'in'))
   }
 
+  // Build cTn attrs: for wipe, override subtype dynamically
+  let subtypeOverride = ''
+  if (isWipe && wipeSubtype !== undefined) {
+    subtypeOverride = ` presetSubtype="${wipeSubtype}"`
+  } else if (preset.presetSubtype !== undefined) {
+    subtypeOverride = ` presetSubtype="${preset.presetSubtype}"`
+  }
+
+  const nodeType = anim.trigger === 'click' ? 'clickEffect' : 'withEffect'
+  const ctn =
+    `id="${effectId}" presetID="${preset.presetId}" presetClass="${preset.presetClass}"${subtypeOverride} fill="hold" grpId="0" nodeType="${nodeType}"`
+
   return `<p:par>
-  <p:cTn ${ctnAttrs(anim, effectId)}>
+  <p:cTn ${ctn}>
     <p:stCondLst>
       <p:cond delay="${delay}"/>
     </p:stCondLst>
@@ -172,11 +204,57 @@ export function buildSlideTimingXml(animations: PptxTargetAnimation[], startNode
     .sort((a, b) => a.order - b.order || a.delay - b.delay || a.spid - b.spid)
   if (ordered.length === 0) return ''
 
+  // Separate load-triggered and click-triggered animations.
+  // In PowerPoint's timing model:
+  //   - withEffect = play simultaneously with the current build step
+  //   - clickEffect = wait for user click before this build step
+  //
+  // Load-triggered animations form one build step (all play on slide load).
+  // Each click-triggered animation forms its own build step (advances on click).
+  const loadAnims = ordered.filter((a) => a.trigger !== 'click')
+  const clickAnims = ordered.filter((a) => a.trigger === 'click')
+
   const rootId = nextId()
   const mainSeqId = nextId()
-  const kickoffId = nextId()
-  const effectGroupId = nextId()
-  const effects = ordered.map((anim) => effectXml(anim, nextId)).join('\n')
+
+  // Build the mainSeq child list: load group first, then click groups
+  const mainSeqChildren: string[] = []
+
+  // Load-triggered group: all play at once on slide load
+  if (loadAnims.length > 0) {
+    const loadGroupId = nextId()
+    const loadEffects = loadAnims.map((anim) => effectXml(anim, nextId)).join('\n')
+    mainSeqChildren.push(`<p:par>
+                  <p:cTn id="${loadGroupId}" fill="hold">
+                    <p:stCondLst>
+                      <p:cond delay="0"/>
+                    </p:stCondLst>
+                    <p:childTnLst>
+                      ${loadEffects}
+                    </p:childTnLst>
+                  </p:cTn>
+                </p:par>`)
+  }
+
+  // Click-triggered groups: each is its own build step.
+  // delay="0" means the step is ready to execute; the clickEffect nodeType
+  // on individual animations tells PowerPoint to pause for a click.
+  // The p:seq container with nextAc="seek" handles step sequencing.
+  for (const anim of clickAnims) {
+    const clickGroupId = nextId()
+    const clickEffect = effectXml(anim, nextId)
+    mainSeqChildren.push(`<p:par>
+                  <p:cTn id="${clickGroupId}" fill="hold">
+                    <p:stCondLst>
+                      <p:cond delay="0"/>
+                    </p:stCondLst>
+                    <p:childTnLst>
+                      ${clickEffect}
+                    </p:childTnLst>
+                  </p:cTn>
+                </p:par>`)
+  }
+
   const buildList = [...new Set(ordered.map((anim) => anim.spid))]
     .map((spid) => `<p:bldP spid="${spid}" grpId="0"/>`)
     .join('\n      ')
@@ -189,28 +267,7 @@ export function buildSlideTimingXml(animations: PptxTargetAnimation[], startNode
           <p:seq concurrent="1" nextAc="seek">
             <p:cTn id="${mainSeqId}" dur="indefinite" nodeType="mainSeq">
               <p:childTnLst>
-                <p:par>
-                  <p:cTn id="${kickoffId}" fill="hold">
-                    <p:stCondLst>
-                      <p:cond delay="indefinite"/>
-                      <p:cond evt="onBegin" delay="0">
-                        <p:tn val="${mainSeqId}"/>
-                      </p:cond>
-                    </p:stCondLst>
-                    <p:childTnLst>
-                      <p:par>
-                        <p:cTn id="${effectGroupId}" fill="hold">
-                          <p:stCondLst>
-                            <p:cond delay="0"/>
-                          </p:stCondLst>
-                          <p:childTnLst>
-                            ${effects}
-                          </p:childTnLst>
-                        </p:cTn>
-                      </p:par>
-                    </p:childTnLst>
-                  </p:cTn>
-                </p:par>
+                ${mainSeqChildren.join('\n                ')}
               </p:childTnLst>
             </p:cTn>
             <p:prevCondLst>

@@ -27,6 +27,15 @@ export const FREEZE_PAGE_FOR_EXPORT_SCRIPT = `
     });
   } catch (_err) {}
 
+  // Kill GSAP animations before freezing — progress to end state so
+  // screenshots capture the final visual, not an animation midpoint.
+  try {
+    if (window.gsap) {
+      window.gsap.globalTimeline.progress(1);
+      window.gsap.killTweensOf('*');
+    }
+  } catch (_err) {}
+
   const waitFrames = (frames) =>
     new Promise((resolve) => {
       let remaining = Math.max(1, Number(frames) || 1);
@@ -555,7 +564,7 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
     const rect = el.getBoundingClientRect();
     if (rect.width < 2 || rect.height < 2) return;
     el.setAttribute('data-pptx-native-anim', '1');
-    traces.push({
+    const trace = {
       type,
       trigger,
       from,
@@ -566,7 +575,14 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
       y: Math.round(rect.top - pageRect.top),
       w: Math.round(rect.width),
       h: Math.round(rect.height)
-    });
+    };
+    // Attach blockId for precise binding in the OOXML writer.
+    var blockId = (el.getAttribute('data-block-id') || '').trim();
+    if (blockId) trace.blockId = blockId;
+    // Attach ease for roundtrip fidelity (PPTX ignores, GSAP re-import uses).
+    var ease = (el.getAttribute('data-anim-easing') || el.getAttribute('data-anim-ease') || '').trim();
+    if (ease) trace.ease = ease;
+    traces.push(trace);
   };
 
   const elements = Array.from(root.querySelectorAll('[data-anim]'));

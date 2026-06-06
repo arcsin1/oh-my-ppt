@@ -1,5 +1,6 @@
 export const SESSION_ASSET_FILES = {
   anime: "anime.v4.js",
+  gsap: "gsap.min.js",
   chart: "chart.v4.js",
   tailwind: "tailwindcss.v3.js",
   katexStyle: "katex/katex.min.css",
@@ -13,6 +14,7 @@ export const SESSION_ASSET_FILE_NAMES = Object.values(SESSION_ASSET_FILES);
 
 export const SESSION_ASSET_SCRIPT_SRCS = {
   anime: `./assets/anime.v4.js`,
+  gsap: `./assets/gsap.min.js`,
   chart: `./assets/chart.v4.js`,
   tailwind: `./assets/tailwindcss.v3.js`,
   katex: `./assets/katex/katex.min.js`,
@@ -27,6 +29,7 @@ export const SESSION_ASSET_STYLE_HREFS = {
 export const buildSessionAssetHeadTags = (): string =>
   [
     `<link rel="stylesheet" href="${SESSION_ASSET_STYLE_HREFS.katex}" />`,
+    `<script src="${SESSION_ASSET_SCRIPT_SRCS.gsap}"></script>`,
     `<script src="${SESSION_ASSET_SCRIPT_SRCS.anime}"></script>`,
     `<script src="${SESSION_ASSET_SCRIPT_SRCS.tailwind}"></script>`,
     `<script src="${SESSION_ASSET_SCRIPT_SRCS.chart}"></script>`,

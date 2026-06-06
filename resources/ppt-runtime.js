@@ -1,10 +1,10 @@
 (function initPptRuntime(global) {
   if (!global || typeof global !== "object") return;
-  // @ohmyppt-ppt-runtime:arcsin1:v2.0.13
+  // @ohmyppt-ppt-runtime:arcsin1:v2.0.14
 
   var ppt = global.PPT && typeof global.PPT === "object" ? global.PPT : (global.PPT = {});
-  if (ppt.__runtimeVersion === "2.0.13") return;
-  ppt.__runtimeVersion = "2.0.13";
+  if (ppt.__runtimeVersion === "2.0.14") return;
+  ppt.__runtimeVersion = "2.0.14";
 
   function resolveSearchParams() {
     try {
@@ -461,6 +461,127 @@
 
   var _activeAnimations = new Set();
 
+  function resolveGsap() {
+    return global.gsap;
+  }
+
+  function translateAnimKey(animeKey, value) {
+    var gsapKey = null;
+    var gsapValue = value;
+    switch (animeKey) {
+      case "translateX":
+        gsapKey = "x";
+        break;
+      case "translateY":
+        gsapKey = "y";
+        break;
+      case "translateZ":
+        gsapKey = "z";
+        break;
+      case "scaleX":
+      case "scaleY":
+      case "scale":
+        gsapKey = animeKey;
+        break;
+      case "rotate":
+      case "rotateX":
+      case "rotateY":
+      case "rotateZ":
+        gsapKey = animeKey === "rotate" ? "rotation" : animeKey;
+        if (typeof gsapValue === "number") gsapValue = gsapValue;
+        else gsapValue = parseFloat(gsapValue) || 0;
+        break;
+      case "opacity":
+        gsapKey = animeKey;
+        break;
+      case "clipPath":
+        gsapKey = "clipPath";
+        break;
+      default:
+        return null;
+    }
+    return { key: gsapKey, value: gsapValue };
+  }
+
+  function mapEasingToGsap(easingName) {
+    var name = String(easingName || "easeOutCubic").trim();
+    switch (name) {
+      case "linear": return "none";
+      case "easeInQuad":      case "easeOutQuad":      case "easeInOutQuad":
+      case "easeInCubic":     case "easeOutCubic":     case "easeInOutCubic":
+      case "easeInQuart":     case "easeOutQuart":     case "easeInOutQuart":
+      case "easeInQuint":     case "easeOutQuint":     case "easeInOutQuint":
+      case "easeInSine":      case "easeOutSine":      case "easeInOutSine":
+      case "easeInExpo":      case "easeOutExpo":      case "easeInOutExpo":
+      case "easeInCirc":      case "easeOutCirc":      case "easeInOutCirc":
+      case "easeInBack":      case "easeOutBack":      case "easeInOutBack":
+      case "easeInElastic":   case "easeOutElastic":   case "easeInOutElastic":
+      case "easeInBounce":    case "easeOutBounce":    case "easeInOutBounce":
+        return name.replace("ease", "power").replace("In", ".in").replace("Out", ".out");
+      default:
+        return "power2.out";
+    }
+  }
+
+  function animateWithGsap(gsapInst, args) {
+    var targets = args[0];
+    var params = args[1];
+    if (!targets || !params || typeof params !== "object") return createCompletedAnimationStub();
+
+    var fromVars = {};
+    var toVars = {};
+
+    // duration in seconds for GSAP
+    if (params.duration) toVars.duration = Number(params.duration) / 1000;
+    if (params.delay) toVars.delay = Number(params.delay) / 1000;
+
+    if (params.easing) {
+      toVars.ease = mapEasingToGsap(params.easing);
+    }
+
+    if (params.loop === true) {
+      toVars.repeat = -1;
+    } else if (typeof params.loop === "number" && params.loop > 0) {
+      toVars.repeat = params.loop;
+    }
+
+    if (params.alternate) toVars.yoyo = true;
+
+    Object.keys(params).forEach(function (key) {
+      var value = params[key];
+      if (key === "targets" || key === "duration" || key === "easing" ||
+          key === "delay" || key === "begin" || key === "complete" ||
+          key === "loop" || key === "alternate" || key === "reversed" ||
+          key === "keyframes" || key === "direction") return;
+
+      if (Array.isArray(value) && value.length >= 2) {
+        var translated = translateAnimKey(key);
+        if (translated) {
+          fromVars[translated.key] = value[0];
+          toVars[translated.key] = value[1];
+        }
+      } else if (typeof value === "number" || typeof value === "string") {
+        var single = translateAnimKey(key);
+        if (single) {
+          toVars[single.key] = value;
+        }
+      }
+    });
+
+    var tween;
+    // For exit animations where opacity goes 1→0, use gsap.to
+    if (fromVars.opacity === 1 && toVars.opacity === 0) {
+      tween = gsapInst.to(targets, toVars);
+    } else {
+      tween = gsapInst.fromTo(targets, fromVars, toVars);
+    }
+
+    trackPrintTask(tween);
+    _activeAnimations.add(tween);
+    tween.then(function () { _activeAnimations.delete(tween); });
+    return tween;
+  }
+
   ppt.animate = function () {
     var args = Array.prototype.slice.call(arguments);
     if (isPrintMode) {
@@ -474,6 +595,13 @@
       return createCompletedAnimationStub();
     }
 
+    // Prefer GSAP as primary animation engine
+    var gsapInst = resolveGsap();
+    if (gsapInst && typeof gsapInst.fromTo === "function") {
+      return animateWithGsap(gsapInst, args);
+    }
+
+    // Fallback to anime.js
     var runtimeAnime = resolveAnime();
     var animation = null;
     if (runtimeAnime && typeof runtimeAnime.animate === "function") {
@@ -481,7 +609,7 @@
     } else if (typeof runtimeAnime === "function") {
       animation = runtimeAnime.apply(null, args);
     } else {
-      throw new Error("anime.js v4 未就绪，无法执行 PPT.animate");
+      throw new Error("No animation engine available. GSAP or anime.js v4 required.");
     }
     if (animation && animation.finished && typeof animation.finished.then === "function") {
       trackPrintTask(animation.finished);
@@ -500,8 +628,13 @@
   };
 
   ppt.stagger = function () {
-    var runtimeAnime = resolveAnime();
+    var gsapInst = resolveGsap();
     var args = Array.prototype.slice.call(arguments);
+    // GSAP timeline stagger is natively handled via gsap.utils.stagger
+    if (gsapInst && typeof gsapInst.utils === "object" && typeof gsapInst.utils.stagger === "function") {
+      return gsapInst.utils.stagger(args[0]);
+    }
+    var runtimeAnime = resolveAnime();
     if (runtimeAnime && typeof runtimeAnime.stagger === "function") {
       return runtimeAnime.stagger.apply(runtimeAnime, args);
     }
@@ -509,8 +642,12 @@
   };
 
   ppt.createTimeline = function () {
-    var runtimeAnime = resolveAnime();
+    var gsapInst = resolveGsap();
     var args = Array.prototype.slice.call(arguments);
+    if (gsapInst && typeof gsapInst.timeline === "function") {
+      return gsapInst.timeline.apply(gsapInst, args);
+    }
+    var runtimeAnime = resolveAnime();
     if (runtimeAnime && typeof runtimeAnime.createTimeline === "function") {
       return runtimeAnime.createTimeline.apply(runtimeAnime, args);
     }
@@ -521,12 +658,20 @@
   };
 
   ppt.stopAnimations = function () {
+    var gsapInst = resolveGsap();
+    if (gsapInst && typeof gsapInst.globalTimeline === "object") {
+      try { gsapInst.globalTimeline.pause(); } catch (_err) {}
+    }
     _activeAnimations.forEach(function (anim) {
       try { if (typeof anim.pause === "function") anim.pause(); } catch (_err) {}
     });
   };
 
   ppt.finishAnimations = function () {
+    var gsapInst = resolveGsap();
+    if (gsapInst && typeof gsapInst.globalTimeline === "object") {
+      try { gsapInst.globalTimeline.progress(1); } catch (_err) {}
+    }
     _activeAnimations.forEach(function (anim) {
       try {
         if (typeof anim.complete === "function") {
@@ -542,6 +687,10 @@
   };
 
   ppt.resumeAnimations = function () {
+    var gsapInst = resolveGsap();
+    if (gsapInst && typeof gsapInst.globalTimeline === "object") {
+      try { gsapInst.globalTimeline.play(); } catch (_err) {}
+    }
     _activeAnimations.forEach(function (anim) {
       try { if (typeof anim.play === "function") anim.play(); } catch (_err) {}
     });

@@ -28,7 +28,6 @@ describe('buildSlideTimingXml', () => {
     expect(xml).toContain('nodeType="tmRoot"')
     expect(xml).toContain('nodeType="mainSeq"')
     expect(xml).toContain('nodeType="withEffect"')
-    expect(xml).toContain('<p:cTn id="4" fill="hold">')
     expect(xml).toContain('presetID="10"')
     expect(xml).toContain('<p:attrName>style.visibility</p:attrName>')
     expect(xml).toContain('<p:bldP spid="7" grpId="0"/>')

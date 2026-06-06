@@ -2,28 +2,28 @@
 
 Deep-dive into how data-anim works, timing internals, trigger mechanics, scripted animation patterns, and composition examples.
 
-## How data-anim maps to anime.js
+## How data-anim maps to GSAP
 
-Each `data-anim` type generates specific anime.js parameters:
+Each `data-anim` type generates specific GSAP parameters via `PPT.animate()` → `gsap.fromTo()`:
 
-| data-anim | Effect | anime.js params |
+| data-anim | Effect | GSAP fromVars → toVars |
 |---|---|---|
-| `fade` | Simple opacity transition | `opacity: [0, 1]` |
-| `fade-up` | Fade + slide up 20px | `opacity: [0, 1]`, `translateY: [20, 0]` |
-| `fade-down` | Fade + slide down 20px | `opacity: [0, 1]`, `translateY: [-20, 0]` |
-| `fade-left` | Fade + slide from right 20px | `opacity: [0, 1]`, `translateX: [20, 0]` |
-| `fade-right` | Fade + slide from left 20px | `opacity: [0, 1]`, `translateX: [-20, 0]` |
-| `scale-in` | Fade + scale from 85% | `opacity: [0, 1]`, `scale: [0.85, 1]` |
-| `slide-up` | Larger slide up 40px | `opacity: [0, 1]`, `translateY: [40, 0]` |
-| `slide-left` | Larger slide from right 40px | `opacity: [0, 1]`, `translateX: [40, 0]` |
-| `fly-in` | Directional entrance, 40px | `opacity: [0, 1]` + translateX/Y based on `from` |
-| `wipe` | Clip-path reveal | `opacity: [0, 1]`, `clipPath: [hidden, 'inset(0%)']` |
-| `zoom-in` | Dramatic scale from 75% | `opacity: [0, 1]`, `scale: [0.75, 1]` |
-| `spin-in` | Rotate + scale | `opacity: [0, 1]`, `rotate: [-12, 0]`, `scale: [0.92, 1]` |
-| `grow-shrink` | Emphasis pulse (no fade) | `scale: [0.9, 1.08, 1]` |
-| `pulse` | Subtle emphasis (no fade) | `scale: [1, 1.06, 1]` |
-| `exit-fade` | Fade out | `opacity: [1, 0]` |
-| `exit-fly` | Fly out in direction | `opacity: [1, 0]` + translate out based on `from` |
+| `fade` | Simple opacity transition | `opacity: 0 → 1` |
+| `fade-up` | Fade + slide up 20px | `opacity: 0 → 1`, `y: 20 → 0` |
+| `fade-down` | Fade + slide down 20px | `opacity: 0 → 1`, `y: -20 → 0` |
+| `fade-left` | Fade + slide from right 20px | `opacity: 0 → 1`, `x: 20 → 0` |
+| `fade-right` | Fade + slide from left 20px | `opacity: 0 → 1`, `x: -20 → 0` |
+| `scale-in` | Fade + scale from 85% | `opacity: 0 → 1`, `scale: 0.85 → 1` |
+| `slide-up` | Larger slide up 40px | `opacity: 0 → 1`, `y: 40 → 0` |
+| `slide-left` | Larger slide from right 40px | `opacity: 0 → 1`, `x: 40 → 0` |
+| `fly-in` | Directional entrance, 40px | `opacity: 0 → 1` + x/y based on `from` |
+| `wipe` | Clip-path reveal | `opacity: 0 → 1`, clip-path animated |
+| `zoom-in` | Dramatic scale from 75% | `opacity: 0 → 1`, `scale: 0.75 → 1` |
+| `spin-in` | Rotate + scale | `opacity: 0 → 1`, `rotation: -12 → 0`, `scale: 0.92 → 1` |
+| `grow-shrink` | Emphasis pulse (no fade) | `scale: 0.9 → 1.08`, yoyo, repeat:1 |
+| `pulse` | Subtle emphasis (no fade) | `scale: 1 → 1.06`, yoyo, repeat:1 |
+| `exit-fade` | Fade out | `opacity: 1 → 0` |
+| `exit-fly` | Fly out in direction | `opacity: 1 → 0` + x/y out based on `from` |
 | `path` | Motion along SVG path | translateX/Y derived from path delta |
 
 ## Attribute defaults and ranges
@@ -33,7 +33,7 @@ Each `data-anim` type generates specific anime.js parameters:
 | `data-anim-trigger` | `load` | `load`, `with`, `after`, `click` |
 | `data-anim-duration` | 500ms | Clamped to 100–5000ms. Prefer 300–1200ms |
 | `data-anim-delay` | 0 | Milliseconds, or `stagger(N)` |
-| `data-anim-easing` | `easeOutCubic` | Any anime.js easing string |
+| `data-anim-easing` | `easeOutCubic` | Any anime.js/GSAP easing string. GSAP-compatible names preferred: `power2.out`, `power3.out`, `back.out`, etc. |
 | `data-anim-from` | Type-dependent | `left`, `right`, `top`, `bottom`, `center` |
 | `data-anim-repeat` | None | Number (max 20) or `infinite` |
 | `data-anim-direction` | `normal` | `normal`, `reverse`, `alternate` |
@@ -226,7 +226,7 @@ Do not manually set `opacity: 0`, `visibility: hidden`, `display: none`, or inli
 
 ## Scripted animation escape hatch
 
-Use `PPT.animate(targets, params)` only when `data-anim` cannot express the motion — complex timelines, synchronized choreography, or custom easing curves.
+Use `PPT.animate(targets, params)` only when `data-anim` cannot express the motion — complex timelines, synchronized choreography, or custom easing curves. PPT.animate delegates to GSAP (`gsap.fromTo`) for high-performance tweening.
 
 ```js
 // Staggered card entrance with custom curve
@@ -235,7 +235,7 @@ PPT.animate(".metric-card", {
   translateY: [30, 0],
   duration: 500,
   delay: PPT.stagger(100),
-  easing: 'easeOutCubic'
+  easing: 'power2.out'
 })
 ```
 
@@ -245,19 +245,17 @@ PPT.animate(".metric-card", {
 |---|---|---|
 | Export to PPTX | Yes, deterministic | Partial |
 | Syntax | HTML attributes | JavaScript |
+| Runtime engine | GSAP (via data-anim config) | GSAP (via gsap.fromTo) |
 | Best for | Standard entrance/emphasis/exit | Complex timelines, synchronized groups |
 | Initial state | Managed automatically | Managed automatically |
 
 ### Timeline for multi-step choreography
 
 ```js
-var tl = PPT.createTimeline(".step-card", {
-  opacity: [0, 1],
-  duration: 400
-})
-tl.add({ targets: ".step-1", translateY: [20, 0] }, 0)
-tl.add({ targets: ".step-2", translateY: [20, 0] }, 200)
-tl.add({ targets: ".step-3", translateY: [20, 0] }, 400)
+var tl = PPT.createTimeline()
+tl.add({ targets: ".step-1", opacity: [0, 1], translateY: [20, 0], duration: 400 })
+tl.add({ targets: ".step-2", opacity: [0, 1], translateY: [20, 0] }, "+=0.2")
+tl.add({ targets: ".step-3", opacity: [0, 1], translateY: [20, 0] }, "+=0.2")
 ```
 
 ### Scripted stagger
@@ -270,20 +268,24 @@ PPT.animate(".card", {
 })
 ```
 
-`PPT.stagger(ms)` is a passthrough to `anime.stagger()` when available, with a built-in fallback.
+`PPT.stagger(ms)` delegates to `gsap.utils.stagger()` when available, with anime.js fallback.
 
 ## Easing selection guide
 
-| Easing | Feel | Best for |
-|---|---|---|
-| `easeOutCubic` (default) | Smooth deceleration | Most entrance animations |
-| `easeOutQuad` | Gentle deceleration | Subtle fades, text |
-| `easeInOutQuad` | Smooth start and end | Movement across distance |
-| `easeOutExpo` | Snappy stop | Dramatic entrances, hero numbers |
-| `spring` | Natural bounce | Playful, emphasis |
+GSAP easing names use the format `{curve}.{type}` (e.g., `power2.out`, `back.inOut`). Legacy anime.js names (`easeOutCubic`, `easeInOutQuad`) are translated automatically.
+
+| Easing | GSAP Name | Feel | Best for |
+|---|---|---|---|
+| easeOutCubic | `power2.out` (default) | Smooth deceleration | Most entrance animations |
+| easeOutQuad | `power1.out` | Gentle deceleration | Subtle fades, text |
+| easeInOutQuad | `power1.inOut` | Smooth start and end | Movement across distance |
+| easeOutExpo | `power4.out` | Snappy stop | Dramatic entrances, hero numbers |
+| easeOutBack | `back.out` | Overshoot and settle | Playful, emphasis |
+| easeOutElastic | `elastic.out` | Bouncy arrival | Attention-grabbing, hero sections |
+| easeOutBounce | `bounce.out` | Gravity bounce | Fun, casual transitions |
 
 ## Print and export behavior
 
-In print mode (`?print=1`), `PPT.animate` does not run anime.js. Instead, it computes the final animated CSS values and applies them as inline styles. This ensures charts and animated elements are fully visible in screenshots and PDF exports.
+In print mode (`?print=1`), `PPT.animate` does not run the animation engine. Instead, it computes the final animated CSS values and applies them as inline styles. This ensures charts and animated elements are fully visible in screenshots and PDF exports. GSAP animations are force-completed to their end state via `gsap.globalTimeline.progress(1)` before capture.
 
 Elements with `data-ppt-anim-initialized="1"` have their animation styles cleared when entering edit mode, so they remain visible and editable.

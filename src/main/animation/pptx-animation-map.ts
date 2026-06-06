@@ -12,7 +12,6 @@ export interface PptxAnimationPreset {
   scaleFrom?: number
   scaleTo?: number
   fade?: boolean
-  effectFilter?: 'wipe'
   transition?: 'in' | 'out'
 }
 
@@ -53,6 +52,11 @@ export const PPTX_ANIMATION_PRESETS: Record<DataAnimType, PptxAnimationPreset> =
     presetSubtype: 8,
     motion: 'fromBottom',
     fade: true
+    // Maps to same PPTX preset as fade-up (presetId=2, subtype=8).
+    // This is correct: GSAP preview also applies opacity fade.
+    // The semantic distinction between "slide" (40px translate) and
+    // "fade-up" (20px translate) is encoded as distance, not preset.
+    // Roundtrip type label may collapse to 'fade-up' — documented limitation.
   },
   'slide-left': {
     presetId: 2,
@@ -60,6 +64,7 @@ export const PPTX_ANIMATION_PRESETS: Record<DataAnimType, PptxAnimationPreset> =
     presetSubtype: 3,
     motion: 'fromRight',
     fade: true
+    // Same rationale: GSAP preview applies opacity fade for slide-left too.
   },
   'fly-in': {
     presetId: 2,
@@ -70,7 +75,10 @@ export const PPTX_ANIMATION_PRESETS: Record<DataAnimType, PptxAnimationPreset> =
   wipe: {
     presetId: 5,
     presetClass: 'entr',
-    effectFilter: 'wipe'
+    presetSubtype: 1
+    // Subtypes: 1=wipeRight(fromLeft), 2=wipeLeft(fromRight), 3=wipeUp(fromBottom), 4=wipeDown(fromTop)
+    // The subtype is set by animation-writer.ts based on data-anim-from,
+    // exactly like directional fades use presetSubtype with presetId=2.
   },
   'zoom-in': {
     presetId: 31,
@@ -122,6 +130,32 @@ export const getPptxAnimationPreset = (
   type: DataAnimType
 ): PptxAnimationPreset | undefined => PPTX_ANIMATION_PRESETS[type]
 
+/** Returns true if the animation type is expected to degrade on PPTX roundtrip. */
+export const hasExactPptxPreset = (type: DataAnimType): boolean => {
+  switch (type) {
+    case 'slide-up':
+    case 'slide-left':
+      // PPTX always adds opacity fade to presetId=2; pure translate is unsupported.
+      return false
+    case 'zoom-in':
+    case 'spin-in':
+      // Both map to presetId=31 scale-in; rotation is lost for spin-in.
+      return false
+    case 'grow-shrink':
+    case 'pulse':
+      // Both map to presetId=6 emph; cannot distinguish in roundtrip.
+      return false
+    case 'fly-in':
+      // fromTrace motion encodes direction in numeric XML, not presetSubtype.
+      return false
+    case 'path':
+      // No semantic PPTX preset; degenerates to fade.
+      return false
+    default:
+      return true
+  }
+}
+
 export const resolveTraceMotion = (from: DataAnimFrom | undefined): Exclude<PptxMotion, 'fromTrace'> => {
   switch (from) {
     case 'left':
@@ -134,21 +168,6 @@ export const resolveTraceMotion = (from: DataAnimFrom | undefined): Exclude<Pptx
     case 'center':
     default:
       return 'fromBottom'
-  }
-}
-
-export const wipeFilterForFrom = (from: DataAnimFrom | undefined): string => {
-  switch (from) {
-    case 'right':
-      return 'wipe(l)'
-    case 'top':
-      return 'wipe(d)'
-    case 'bottom':
-      return 'wipe(u)'
-    case 'left':
-    case 'center':
-    default:
-      return 'wipe(r)'
   }
 }
 
@@ -187,8 +206,33 @@ export const mapPptxPresetToDataAnimType = (args: {
 
 export const mapPptxPresetToDataAnimFrom = (args: {
   presetSubtype?: string
+  presetClass?: string
+  presetId?: string
   effectFilter?: string
 }): DataAnimFrom | undefined => {
+  // Wipe direction (presetId=5):
+  //   subtype 1=wipeRight(fromLeft), 2=wipeLeft(fromRight), 3=wipeUp(fromBottom), 4=wipeDown(fromTop)
+  //   If no subtype, try parsing legacy 'wipe(X)' filter strings.
+  if (args.presetId === '5' && args.presetClass === 'entr') {
+    if (args.presetSubtype) {
+      switch (args.presetSubtype) {
+        case '1': return 'left'
+        case '2': return 'right'
+        case '3': return 'bottom'
+        case '4': return 'top'
+        default:  return 'left'
+      }
+    }
+    // No subtype — try legacy 'wipe(X)' filter (used in older export versions)
+    if (args.effectFilter?.startsWith('wipe')) {
+      if (args.effectFilter.includes('(l)')) return 'right'
+      if (args.effectFilter.includes('(r)')) return 'left'
+      if (args.effectFilter.includes('(u)')) return 'bottom'
+      if (args.effectFilter.includes('(d)')) return 'top'
+    }
+    return 'left'
+  }
+  // Legacy: custom 'wipe(X)' filter strings from older exports
   if (args.effectFilter?.startsWith('wipe')) {
     if (args.effectFilter.includes('(l)')) return 'right'
     if (args.effectFilter.includes('(r)')) return 'left'

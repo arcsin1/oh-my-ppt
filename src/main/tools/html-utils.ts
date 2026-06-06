@@ -100,6 +100,9 @@ const isAllowedRuntimeAsset = (src: string): boolean => {
     clean.endsWith('/assets/anime.v4.js') ||
     clean.endsWith('./assets/anime.v4.js') ||
     clean.endsWith('assets/anime.v4.js') ||
+    clean.endsWith('/assets/gsap.min.js') ||
+    clean.endsWith('./assets/gsap.min.js') ||
+    clean.endsWith('assets/gsap.min.js') ||
     clean.endsWith('/assets/ppt-runtime.js') ||
     clean.endsWith('./assets/ppt-runtime.js') ||
     clean.endsWith('assets/ppt-runtime.js') ||

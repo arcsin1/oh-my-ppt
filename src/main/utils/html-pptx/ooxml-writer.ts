@@ -555,6 +555,8 @@ interface SlideShapePosition {
   y: number
   w: number
   h: number
+  /** blockId from the source HTML element, for precise trace→shape binding. */
+  blockId?: string
 }
 
 const contentOrder = (value: number | undefined, fallback: number): number =>
@@ -595,7 +597,32 @@ function matchAnimationTracesToTargets(
   const claimed = new Set<number>()
   const orderedTraces = [...traces].sort((a, b) => a.order - b.order || a.delay - b.delay)
 
+  // Build blockId → shape lookup for precise binding
+  const shapesByBlockId = new Map<string, SlideShapePosition>()
+  for (const shape of shapePositions) {
+    if (shape.blockId) shapesByBlockId.set(shape.blockId, shape)
+  }
+
   for (const trace of orderedTraces) {
+    // ── Precise: blockId matching ──
+    if (trace.blockId && shapesByBlockId.has(trace.blockId)) {
+      const shape = shapesByBlockId.get(trace.blockId)!
+      if (!claimed.has(shape.pptxId)) {
+        claimed.add(shape.pptxId)
+        animations.push({
+          spid: shape.pptxId,
+          type: trace.type,
+          trigger: trace.trigger,
+          from: trace.from,
+          duration: trace.duration,
+          delay: trace.delay,
+          order: trace.order
+        })
+        continue
+      }
+    }
+
+    // ── Fallback: spatial overlap ──
     const traceBox = pxTraceToInches(trace)
     const traceArea = Math.max(0.0001, traceBox.w * traceBox.h)
     const candidates = shapePositions
@@ -651,8 +678,8 @@ export function buildSlideXml(
   const shapes: string[] = []
   const shapePositions: SlideShapePosition[] = []
 
-  const recordPosition = (pptxId: number, item: { x: number; y: number; w: number; h: number }) => {
-    shapePositions.push({ pptxId, x: item.x, y: item.y, w: item.w, h: item.h })
+  const recordPosition = (pptxId: number, item: { x: number; y: number; w: number; h: number }, blockId?: string) => {
+    shapePositions.push({ pptxId, x: item.x, y: item.y, w: item.w, h: item.h, blockId })
   }
 
   // Background color

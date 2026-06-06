@@ -85,7 +85,7 @@ export const LAYOUT_COLLISION_RULES = [
 export const FRONTEND_CAPABILITIES = [
   '## Runtime capability contract',
   'Available in every /<pageId>.html:',
-  '- Tailwind CSS, anime.js, Chart.js, ppt-runtime.js, and KaTeX are already loaded from local assets.',
+  '- Tailwind CSS, GSAP (GreenSock Animation Platform), anime.js, Chart.js, ppt-runtime.js, and KaTeX are already loaded from local assets.',
   '- Do not add CDN links, remote scripts, duplicate runtime tags, or iframe content.',
   '',
   'Fonts:',
