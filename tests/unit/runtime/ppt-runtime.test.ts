@@ -612,6 +612,28 @@ describe('PPT.executeDataAnim (routed through PPT.animate)', () => {
     animateSpy.mockRestore()
   })
 
+  it('slide-down params include negative y offset for downward reveal', () => {
+    const animateSpy = vi.spyOn(PPT, 'animate' as never)
+    const el = document.getElementById('el1')!
+    const config = [{ targets: el, type: 'slide-down', duration: 500, easing: 'easeOutCubic', delay: 0 }]
+    ;(PPT.executeDataAnim as Function)(config)
+    const params = animateSpy.mock.calls[0][1] as Record<string, unknown>
+    expect(params.opacity).toEqual([0, 1])
+    expect(params.translateY).toEqual([-40, 0])
+    animateSpy.mockRestore()
+  })
+
+  it('slide-right params include negative x offset for rightward reveal', () => {
+    const animateSpy = vi.spyOn(PPT, 'animate' as never)
+    const el = document.getElementById('el1')!
+    const config = [{ targets: el, type: 'slide-right', duration: 500, easing: 'easeOutCubic', delay: 0 }]
+    ;(PPT.executeDataAnim as Function)(config)
+    const params = animateSpy.mock.calls[0][1] as Record<string, unknown>
+    expect(params.opacity).toEqual([0, 1])
+    expect(params.translateX).toEqual([-40, 0])
+    animateSpy.mockRestore()
+  })
+
   it('maps fly-in direction to real translate params', () => {
     const animateSpy = vi.spyOn(PPT, 'animate' as never)
     const el = document.getElementById('el1')!
@@ -654,6 +676,17 @@ describe('PPT.executeDataAnim (routed through PPT.animate)', () => {
     const params = animateSpy.mock.calls[0][1] as Record<string, unknown>
     expect(params.opacity).toEqual([1, 0])
     expect(params.translateY).toEqual([0, 40])
+    animateSpy.mockRestore()
+  })
+
+  it('maps exit-wipe to visible-to-hidden clipPath concealment', () => {
+    const animateSpy = vi.spyOn(PPT, 'animate' as never)
+    const el = document.getElementById('el1')!
+    const config = [{ targets: el, type: 'exit-wipe', from: 'right', duration: 500, easing: 'easeOutCubic', delay: 0 }]
+    ;(PPT.executeDataAnim as Function)(config)
+    const params = animateSpy.mock.calls[0][1] as Record<string, unknown>
+    expect(params.opacity).toEqual([1, 0])
+    expect(params.clipPath).toEqual(['inset(0% 0% 0% 0%)', 'inset(0% 0% 0% 100%)'])
     animateSpy.mockRestore()
   })
 

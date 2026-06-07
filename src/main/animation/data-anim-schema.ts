@@ -6,7 +6,9 @@ export const DATA_ANIM_SUPPORTED_TYPES = [
   'fade-right',
   'scale-in',
   'slide-up',
+  'slide-down',
   'slide-left',
+  'slide-right',
   'fly-in',
   'wipe',
   'zoom-in',
@@ -14,6 +16,7 @@ export const DATA_ANIM_SUPPORTED_TYPES = [
   'grow-shrink',
   'pulse',
   'exit-fade',
+  'exit-wipe',
   'exit-fly',
   'path'
 ] as const

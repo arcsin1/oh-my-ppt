@@ -41,7 +41,7 @@ Add `data-anim` attributes directly on HTML elements. This works in preview and 
 
 ### 2. Supported animation types
 
-`fade`, `fade-up`, `fade-down`, `fade-left`, `fade-right`, `scale-in`, `slide-up`, `slide-left`, `fly-in`, `wipe`, `zoom-in`, `spin-in`, `grow-shrink`, `pulse`, `exit-fade`, `exit-fly`, `path`
+`fade`, `fade-up`, `fade-down`, `fade-left`, `fade-right`, `scale-in`, `slide-up`, `slide-down`, `slide-left`, `slide-right`, `fly-in`, `wipe`, `zoom-in`, `spin-in`, `grow-shrink`, `pulse`, `exit-fade`, `exit-wipe`, `exit-fly`, `path`
 
 ### 3. Attributes
 
@@ -100,6 +100,8 @@ For new content, prefer `data-anim-sequence` so trigger semantics stay separate 
 ```html
 <div data-anim="fly-in" data-anim-from="left">Side metric</div>
 <div data-anim="wipe" data-anim-from="right">Process bar</div>
+<div data-anim="slide-right">Supporting card</div>
+<div data-anim="exit-wipe" data-anim-from="top">Dismissed panel</div>
 <div data-anim="zoom-in">Hero number</div>
 <div data-anim="pulse" data-anim-repeat="2" data-anim-direction="alternate">Key risk</div>
 ```

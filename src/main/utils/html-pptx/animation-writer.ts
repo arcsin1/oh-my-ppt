@@ -72,8 +72,9 @@ const wipeEntranceXml = (
   spid: number,
   id: number,
   duration: number,
-  filter: string
-): string => `<p:animEffect transition="in" filter="${filter}">
+  filter: string,
+  transition: 'in' | 'out' = 'in'
+): string => `<p:animEffect transition="${transition}" filter="${filter}">
   <p:cBhvr>
     <p:cTn id="${id}" dur="${duration}" fill="hold"/>
     ${targetXml(spid)}
@@ -167,8 +168,10 @@ const effectXml = (anim: PptxTargetAnimation, nextId: () => number): string => {
   const chunks = [visibilitySetXml(anim.spid, nextId()), ...motionXml(anim, duration, nextId)]
 
   const isWipe = anim.type === 'wipe'
+  const isExitWipe = anim.type === 'exit-wipe'
   const wipeSubtype = isWipe ? wipeSubtypeForFrom(anim.from) : undefined
-  const wipeFilter = isWipe ? wipeFilterForFrom(anim.from) : undefined
+  const exitWipeSubtype = isExitWipe ? wipeSubtypeForFrom(anim.from) : undefined
+  const wipeFilter = (isWipe || isExitWipe) ? wipeFilterForFrom(anim.from) : undefined
 
   if (preset.scale) {
     chunks.push(scaleXml(anim.spid, nextId(), duration, preset.scaleFrom, preset.scaleTo))
@@ -177,10 +180,13 @@ const effectXml = (anim: PptxTargetAnimation, nextId: () => number): string => {
   // PowerPoint uses filter="wipe(...)" as the actual effect selector; presetSubtype
   // is still kept on cTn so the animation pane and roundtrip metadata keep direction.
   if (isWipe) {
-    chunks.push(wipeEntranceXml(anim.spid, nextId(), duration, wipeFilter || 'wipe(right)'))
+    chunks.push(wipeEntranceXml(anim.spid, nextId(), duration, wipeFilter || 'wipe(right)', 'in'))
+  }
+  if (isExitWipe) {
+    chunks.push(wipeEntranceXml(anim.spid, nextId(), duration, wipeFilter || 'wipe(right)', 'out'))
   }
   // Non-wipe: standard fade-based animation
-  if (!isWipe && preset.fade) {
+  if (!isWipe && !isExitWipe && preset.fade) {
     chunks.push(fadeXml(anim.spid, nextId(), duration, preset.transition ?? 'in'))
   }
 
@@ -188,6 +194,8 @@ const effectXml = (anim: PptxTargetAnimation, nextId: () => number): string => {
   let subtypeOverride = ''
   if (isWipe && wipeSubtype !== undefined) {
     subtypeOverride = ` presetSubtype="${wipeSubtype}"`
+  } else if (isExitWipe && exitWipeSubtype !== undefined) {
+    subtypeOverride = ` presetSubtype="${exitWipeSubtype}"`
   } else if (preset.presetSubtype !== undefined) {
     subtypeOverride = ` presetSubtype="${preset.presetSubtype}"`
   }

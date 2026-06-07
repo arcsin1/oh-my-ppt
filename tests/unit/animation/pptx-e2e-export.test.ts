@@ -1,6 +1,6 @@
 /**
  * End-to-end animation export test: builds real .pptx files, unzips them,
- * and validates roundtrip fidelity for all 17 DataAnimType values.
+ * and validates roundtrip fidelity for all supported DataAnimType values.
  *
  * This test exercises the full OOXML writer pipeline:
  *   HtmlToPptxSlide → buildSlideXml → writePptxDocument → .pptx ZIP → unzip + parse
@@ -221,6 +221,7 @@ describe('PPTX animation E2E', () => {
       { type: 'fly-in', duration: 1000, delay: 500 },
       { type: 'zoom-in', duration: 450, delay: 120 },
       { type: 'exit-fade', duration: 500, delay: 0 },
+      { type: 'exit-wipe', duration: 520, delay: 80 },
       { type: 'grow-shrink', duration: 600, delay: 0 },
       { type: 'wipe', duration: 500, delay: 50 },
       { type: 'spin-in', duration: 900, delay: 300 },
@@ -298,6 +299,30 @@ describe('PPTX animation E2E', () => {
     expect(parsed[1].raw).toContain('presetSubtype="2"')  // from=right
     expect(parsed[2].raw).toContain('presetSubtype="4"')  // from=top
     expect(parsed[3].raw).toContain('presetSubtype="3"')  // from=bottom
+  })
+
+  it('preserves exit wipe animation with correct filter and subtype', async () => {
+    const slides = [
+      createSlideWithAnimation('exit-wipe', 'left', { trigger: 'click' }),
+      createSlideWithAnimation('exit-wipe', 'right', { trigger: 'click' }),
+      createSlideWithAnimation('exit-wipe', 'top', { trigger: 'click' }),
+      createSlideWithAnimation('exit-wipe', 'bottom', { trigger: 'click' }),
+    ]
+
+    const doc = buildFullDocument(slides)
+    const outPath = path.join(TMP_DIR, 'exit-wipe-directions.pptx')
+    await writePptxDocument(outPath, doc)
+
+    const parsed = unzipAndParsePptx(outPath)
+
+    expect(parsed[0].raw).toContain('presetSubtype="1"')
+    expect(parsed[0].raw).toContain('transition="out" filter="wipe(right)"')
+    expect(parsed[1].raw).toContain('presetSubtype="2"')
+    expect(parsed[1].raw).toContain('transition="out" filter="wipe(left)"')
+    expect(parsed[2].raw).toContain('presetSubtype="4"')
+    expect(parsed[2].raw).toContain('transition="out" filter="wipe(down)"')
+    expect(parsed[3].raw).toContain('presetSubtype="3"')
+    expect(parsed[3].raw).toContain('transition="out" filter="wipe(up)"')
   })
 
   it('generates multi-animation slide correctly', async () => {

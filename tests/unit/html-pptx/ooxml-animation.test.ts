@@ -172,7 +172,8 @@ describe('buildSlideXml animation export', () => {
     const slide: HtmlToPptxSlide = {
       texts: [
         { text: 'Wipe', x: 1, y: 1, w: 3, h: 1, fontSize: 24 },
-        { text: 'Exit', x: 1, y: 2.2, w: 3, h: 1, fontSize: 24 }
+        { text: 'Exit Wipe', x: 1, y: 2.2, w: 3, h: 1, fontSize: 24 },
+        { text: 'Exit Fly', x: 1, y: 3.4, w: 3, h: 1, fontSize: 24 }
       ],
       shapes: [],
       images: [],
@@ -191,14 +192,26 @@ describe('buildSlideXml animation export', () => {
           h: 100
         },
         {
-          type: 'exit-fly',
+          type: 'exit-wipe',
           trigger: 'click',
-          from: 'bottom',
+          from: 'top',
           duration: 500,
           delay: 0,
           order: 1,
           x: 100,
           y: 220,
+          w: 300,
+          h: 100
+        },
+        {
+          type: 'exit-fly',
+          trigger: 'click',
+          from: 'bottom',
+          duration: 500,
+          delay: 0,
+          order: 2,
+          x: 100,
+          y: 340,
           w: 300,
           h: 100
         }
@@ -210,6 +223,7 @@ describe('buildSlideXml animation export', () => {
     expect(xml).toContain('presetID="5"')
     expect(xml).toContain('presetSubtype="2"')
     expect(xml).toContain('filter="wipe(left)"')
+    expect(xml).toContain('transition="out" filter="wipe(down)"')
     expect(xml).toContain('presetClass="exit"')
     expect(xml).toContain('nodeType="clickEffect"')
     expect(xml).toContain('<p:cond delay="indefinite"/>')

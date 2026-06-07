@@ -64,8 +64,16 @@ function mapDataAnimToGsap(type: string, from?: string): AnimMapping {
       fromVars.opacity = 0; fromVars.y = 40
       toVars.opacity = 1;   toVars.y = 0
       break
+    case 'slide-down':
+      fromVars.opacity = 0; fromVars.y = -40
+      toVars.opacity = 1;   toVars.y = 0
+      break
     case 'slide-left':
       fromVars.opacity = 0; fromVars.x = 40
+      toVars.opacity = 1;   toVars.x = 0
+      break
+    case 'slide-right':
+      fromVars.opacity = 0; fromVars.x = -40
       toVars.opacity = 1;   toVars.x = 0
       break
     case 'fly-in': {
@@ -115,6 +123,30 @@ function mapDataAnimToGsap(type: string, from?: string): AnimMapping {
     case 'exit-fade':
       fromVars.opacity = 1
       toVars.opacity = 0
+      break
+    case 'exit-wipe':
+      fromVars.opacity = 1
+      fromVars.clipPath =
+        from === 'right'
+          ? 'inset(0% 0% 0% 0%)'
+          : from === 'top'
+            ? 'inset(0% 0% 0% 0%)'
+            : from === 'bottom'
+              ? 'inset(0% 0% 0% 0%)'
+              : from === 'center'
+                ? 'inset(0% 0% 0% 0%)'
+                : 'inset(0% 0% 0% 0%)'
+      toVars.opacity = 0
+      toVars.clipPath =
+        from === 'right'
+          ? 'inset(0% 0% 0% 100%)'
+          : from === 'top'
+            ? 'inset(0% 0% 100% 0%)'
+            : from === 'bottom'
+              ? 'inset(100% 0% 0% 0%)'
+              : from === 'center'
+                ? 'inset(20% 20% 20% 20%)'
+                : 'inset(0% 100% 0% 0%)'
       break
     case 'exit-fly': {
       const exitDir = getFlyDirection(from || 'bottom')
@@ -182,6 +214,16 @@ describe('data-anim → GSAP vars mapping', () => {
     expect(slideUp.y).toBe(40)
   })
 
+  it('maps slide-down with upward starting offset', () => {
+    const { from } = mapDataAnimToGsap('slide-down')
+    expect(from.y).toBe(-40)
+  })
+
+  it('maps slide-right with leftward starting offset', () => {
+    const { from } = mapDataAnimToGsap('slide-right')
+    expect(from.x).toBe(-40)
+  })
+
   it('maps zoom-in with smaller scale from than scale-in', () => {
     const { from: scaleIn } = mapDataAnimToGsap('scale-in')
     const { from: zoomIn } = mapDataAnimToGsap('zoom-in')
@@ -222,6 +264,13 @@ describe('data-anim → GSAP vars mapping', () => {
     expect(topExit.y).toBe(-FLY_DISTANCE)
   })
 
+  it('maps exit-wipe with directional clipPath conceal values', () => {
+    const { from, to } = mapDataAnimToGsap('exit-wipe', 'right')
+    expect(from.clipPath).toBe('inset(0% 0% 0% 0%)')
+    expect(to.clipPath).toBe('inset(0% 0% 0% 100%)')
+    expect(to.opacity).toBe(0)
+  })
+
   it('maps grow-shrink with yoyo repeat', () => {
     const { to } = mapDataAnimToGsap('grow-shrink')
     expect(to.scale).toBe(1.08)
@@ -241,13 +290,13 @@ describe('data-anim → GSAP vars mapping', () => {
     expect(to.clipPath).toBe('inset(0% 0% 0% 0%)')
   })
 
-  it('produces valid GSAP vars for all 17 supported types', () => {
+  it('produces valid GSAP vars for all supported types', () => {
     const types = [
       'fade', 'fade-up', 'fade-down', 'fade-left', 'fade-right',
-      'scale-in', 'slide-up', 'slide-left', 'fly-in',
+      'scale-in', 'slide-up', 'slide-down', 'slide-left', 'slide-right', 'fly-in',
       'wipe', 'zoom-in', 'spin-in',
       'grow-shrink', 'pulse',
-      'exit-fade', 'exit-fly', 'path'
+      'exit-fade', 'exit-wipe', 'exit-fly', 'path'
     ]
 
     for (const type of types) {

@@ -58,6 +58,14 @@ export const PPTX_ANIMATION_PRESETS: Record<DataAnimType, PptxAnimationPreset> =
     // "fade-up" (20px translate) is encoded as distance, not preset.
     // Roundtrip type label may collapse to 'fade-up' — documented limitation.
   },
+  'slide-down': {
+    presetId: 2,
+    presetClass: 'entr',
+    presetSubtype: 1,
+    motion: 'fromTop',
+    fade: true
+    // Same preset family as fade-down; semantic distinction is distance, not preset.
+  },
   'slide-left': {
     presetId: 2,
     presetClass: 'entr',
@@ -65,6 +73,14 @@ export const PPTX_ANIMATION_PRESETS: Record<DataAnimType, PptxAnimationPreset> =
     motion: 'fromRight',
     fade: true
     // Same rationale: GSAP preview applies opacity fade for slide-left too.
+  },
+  'slide-right': {
+    presetId: 2,
+    presetClass: 'entr',
+    presetSubtype: 2,
+    motion: 'fromLeft',
+    fade: true
+    // Same preset family as fade-right; semantic distinction is distance, not preset.
   },
   'fly-in': {
     presetId: 2,
@@ -116,6 +132,12 @@ export const PPTX_ANIMATION_PRESETS: Record<DataAnimType, PptxAnimationPreset> =
     fade: true,
     transition: 'out'
   },
+  'exit-wipe': {
+    presetId: 5,
+    presetClass: 'exit',
+    presetSubtype: 1,
+    transition: 'out'
+  },
   'exit-fly': {
     presetId: 2,
     presetClass: 'exit',
@@ -134,7 +156,9 @@ export const getPptxAnimationPreset = (
 export const hasExactPptxPreset = (type: DataAnimType): boolean => {
   switch (type) {
     case 'slide-up':
+    case 'slide-down':
     case 'slide-left':
+    case 'slide-right':
       // PPTX always adds opacity fade to presetId=2; pure translate is unsupported.
       return false
     case 'zoom-in':
@@ -179,6 +203,7 @@ export const mapPptxPresetToDataAnimType = (args: {
   effectFilter?: string
 }): DataAnimType => {
   if (args.presetClass === 'exit') {
+    if (args.presetId === '5' || args.effectFilter?.startsWith('wipe')) return 'exit-wipe'
     if (args.presetId === '2') return 'exit-fly'
     return 'exit-fade'
   }
@@ -234,6 +259,20 @@ export const mapPptxPresetToDataAnimFrom = (args: {
     }
     const fromFilter = fromWipeFilter(args.effectFilter)
     if (fromFilter) return fromFilter
+    return 'left'
+  }
+  if (args.presetId === '5' && args.presetClass === 'exit') {
+    const fromFilter = fromWipeFilter(args.effectFilter)
+    if (fromFilter) return fromFilter
+    if (args.presetSubtype) {
+      switch (args.presetSubtype) {
+        case '1': return 'left'
+        case '2': return 'right'
+        case '3': return 'bottom'
+        case '4': return 'top'
+        default: return 'left'
+      }
+    }
     return 'left'
   }
   const legacyWipeFrom = fromWipeFilter(args.effectFilter)

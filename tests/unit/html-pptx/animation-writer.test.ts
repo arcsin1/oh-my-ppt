@@ -69,6 +69,15 @@ describe('buildSlideTimingXml', () => {
     expect(xml).toContain('filter="wipe(left)"')
   })
 
+  it('emits exit wipe effects with transition out and directional subtype', () => {
+    const xml = buildSlideTimingXml([makeAnim({ type: 'exit-wipe', from: 'top', trigger: 'click' })])
+
+    expect(xml).toContain('presetID="5"')
+    expect(xml).toContain('presetSubtype="4"')
+    expect(xml).toContain('transition="out" filter="wipe(down)"')
+    expect(xml).toContain('nodeType="clickEffect"')
+  })
+
   it('deduplicates build-list entries for repeated target shapes', () => {
     const xml = buildSlideTimingXml([
       makeAnim({ spid: 9, order: 0 }),

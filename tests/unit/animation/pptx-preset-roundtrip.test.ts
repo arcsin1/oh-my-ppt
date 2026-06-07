@@ -2,7 +2,7 @@
  * @vitest-environment node
  *
  * Roundtrip: export PPTX timing XML → re-import → verify fidelity.
- * Covers all 17 DataAnimType values for the export+import pipeline.
+ * Covers all supported DataAnimType values for the export+import pipeline.
  */
 import { describe, it, expect } from 'vitest'
 import {
@@ -59,7 +59,7 @@ describe('PPTX animation preset coverage', () => {
   it('all entrance presets use presetClass entr', () => {
     const entranceTypes: DataAnimType[] = [
       'fade', 'fade-up', 'fade-down', 'fade-left', 'fade-right',
-      'scale-in', 'slide-up', 'slide-left', 'fly-in',
+      'scale-in', 'slide-up', 'slide-down', 'slide-left', 'slide-right', 'fly-in',
       'wipe', 'zoom-in', 'spin-in', 'path'
     ]
 
@@ -75,6 +75,7 @@ describe('PPTX animation preset coverage', () => {
 
   it('exit presets use presetClass exit', () => {
     expect(PPTX_ANIMATION_PRESETS['exit-fade']!.presetClass).toBe('exit')
+    expect(PPTX_ANIMATION_PRESETS['exit-wipe']!.presetClass).toBe('exit')
     expect(PPTX_ANIMATION_PRESETS['exit-fly']!.presetClass).toBe('exit')
   })
 })
@@ -123,6 +124,18 @@ describe('PPTX animation roundtrip (export → import)', () => {
     expect(plan.animations[0].from).toBe('right')
   })
 
+  it('roundtrips slide-down (maps to same presetId=2 as fade-down)', () => {
+    const plan = roundtrip('slide-down')
+    expect(plan.animations[0].type).toBe('fade-down')
+    expect(plan.animations[0].from).toBe('top')
+  })
+
+  it('roundtrips slide-right (maps to same presetId=2 as fade-right)', () => {
+    const plan = roundtrip('slide-right')
+    expect(plan.animations[0].type).toBe('fade-right')
+    expect(plan.animations[0].from).toBe('left')
+  })
+
   it('roundtrips scale-in (presetId=31)', () => {
     const plan = roundtrip('scale-in', { duration: 600 })
     expect(plan.animations[0].type).toBe('scale-in')
@@ -162,6 +175,12 @@ describe('PPTX animation roundtrip (export → import)', () => {
   it('roundtrips exit-fade', () => {
     const plan = roundtrip('exit-fade')
     expect(plan.animations[0].type).toBe('exit-fade')
+  })
+
+  it('roundtrips exit-wipe with direction', () => {
+    const plan = roundtrip('exit-wipe', { from: 'right' })
+    expect(plan.animations[0].type).toBe('exit-wipe')
+    expect(plan.animations[0].from).toBe('right')
   })
 
   it('roundtrips exit-fly with direction', () => {

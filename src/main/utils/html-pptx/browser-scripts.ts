@@ -512,7 +512,9 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
     'fade-right',
     'scale-in',
     'slide-up',
+    'slide-down',
     'slide-left',
+    'slide-right',
     'fly-in',
     'wipe',
     'zoom-in',
@@ -520,6 +522,7 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
     'grow-shrink',
     'pulse',
     'exit-fade',
+    'exit-wipe',
     'exit-fly',
     'path'
   ]);
@@ -553,8 +556,11 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
   };
   const defaultFrom = (type) => {
     if (type === 'fade-down') return 'top';
+    if (type === 'slide-down') return 'top';
     if (type === 'fade-left' || type === 'slide-left') return 'right';
+    if (type === 'slide-right') return 'left';
     if (type === 'fade-right') return 'left';
+    if (type === 'wipe' || type === 'exit-wipe') return 'left';
     return 'bottom';
   };
   const normalizeFrom = (value, fallback) => {

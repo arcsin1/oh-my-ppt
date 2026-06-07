@@ -15,7 +15,9 @@ Each `data-anim` type generates a normalized motion description. The runtime exe
 | `fade-right` | Fade + slide from left 20px | `opacity: 0 → 1`, `x: -20 → 0` |
 | `scale-in` | Fade + scale from 85% | `opacity: 0 → 1`, `scale: 0.85 → 1` |
 | `slide-up` | Larger slide up 40px | `opacity: 0 → 1`, `y: 40 → 0` |
+| `slide-down` | Larger slide down 40px | `opacity: 0 → 1`, `y: -40 → 0` |
 | `slide-left` | Larger slide from right 40px | `opacity: 0 → 1`, `x: 40 → 0` |
+| `slide-right` | Larger slide from left 40px | `opacity: 0 → 1`, `x: -40 → 0` |
 | `fly-in` | Directional entrance, 40px | `opacity: 0 → 1` + x/y based on `from` |
 | `wipe` | Clip-path reveal | `opacity: 0 → 1`, clip-path animated |
 | `zoom-in` | Dramatic scale from 75% | `opacity: 0 → 1`, `scale: 0.75 → 1` |
@@ -23,6 +25,7 @@ Each `data-anim` type generates a normalized motion description. The runtime exe
 | `grow-shrink` | Emphasis pulse (no fade) | `scale: 0.9 → 1.08`, yoyo, repeat:1 |
 | `pulse` | Subtle emphasis (no fade) | `scale: 1 → 1.06`, yoyo, repeat:1 |
 | `exit-fade` | Fade out | `opacity: 1 → 0` |
+| `exit-wipe` | Directional wipe out | `opacity: 1 → 0`, clip-path concealed by `from` |
 | `exit-fly` | Fly out in direction | `opacity: 1 → 0` + x/y out based on `from` |
 | `path` | Motion along SVG path | translateX/Y derived from path delta |
 
@@ -137,8 +140,8 @@ Click is for explicit presentation control. Do not use click for timelines, proc
 The runtime handles hidden states automatically. Here's how:
 
 - **load/with/after triggers**: no hidden state applied. The element animates from the `[from, to]` values directly.
-- **click-triggered entrance animations** (fade, fade-up, slide-up, zoom-in, etc.): the runtime sets `opacity: 0` and an appropriate `transform` inline, then marks the element with `data-ppt-anim-initialized="1"`.
-- **click-triggered emphasis/exit animations** (pulse, grow-shrink, exit-fade): no hidden state — the element is already visible.
+- **click-triggered entrance animations** (fade, fade-up, slide-up, slide-down, slide-left, slide-right, zoom-in, etc.): the runtime sets `opacity: 0` and an appropriate `transform` inline, then marks the element with `data-ppt-anim-initialized="1"`.
+- **click-triggered emphasis/exit animations** (pulse, grow-shrink, exit-fade, exit-wipe, exit-fly): no hidden state — the element is already visible.
 
 Do not manually set `opacity: 0`, `visibility: hidden`, `display: none`, or inline `opacity:0` on animated elements. The runtime handles this, and manual hidden states conflict with the animation system.
 
@@ -151,6 +154,7 @@ Do not manually set `opacity: 0`, `visibility: hidden`, `display: none`, or inli
 | Subtle fade-in | `fade` | For text blocks, annotations |
 | Standard card entrance | `fade-up` | Default choice for most elements |
 | Directional emphasis | `fly-in` + `from` | Metrics flying in from the side |
+| Strong directional entrance | `slide-down` / `slide-right` | When fade-up/left is too subtle but wipe is too hard-edged |
 | Dramatic hero reveal | `zoom-in` | Key numbers, hero images |
 | Slide-in bar | `wipe` + `from` | Progress bars, timeline segments |
 | Playful entrance | `spin-in` | Use sparingly for emphasis |
@@ -167,6 +171,7 @@ Do not manually set `opacity: 0`, `visibility: hidden`, `display: none`, or inli
 | Goal | Type | Notes |
 |---|---|---|
 | Simple fade-out | `exit-fade` | Replacing content |
+| Directional wipe-out | `exit-wipe` + `from` | Remove banners, process bars, transient callouts |
 | Fly off screen | `exit-fly` + `from` | Dramatic exits |
 
 ## Composition patterns
