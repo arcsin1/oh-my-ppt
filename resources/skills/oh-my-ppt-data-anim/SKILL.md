@@ -59,6 +59,12 @@ Add `data-anim` attributes directly on HTML elements. This works in preview and 
 | `data-anim-direction` | `normal`, `reverse`, `alternate` | |
 | `data-anim-path` | SVG path selector or string | for `path` type |
 
+### 3.5 Fidelity-aware defaults
+
+- Prefer these types by default when editable PPTX fidelity matters most: `fade`, `fade-up`, `fade-down`, `fade-left`, `fade-right`, `scale-in`, `wipe`, `exit-fade`.
+- Use `slide-up`, `slide-down`, `slide-left`, `slide-right`, `fly-in`, and `exit-wipe` when directional emphasis matters more than exact roundtrip labels.
+- Use `zoom-in`, `spin-in`, `grow-shrink`, `pulse`, and `path` only intentionally. They remain supported, but PPTX export or re-import fidelity is weaker.
+
 ### 4. Trigger patterns
 
 **stagger(N)** — repeated items appearing in sequence:

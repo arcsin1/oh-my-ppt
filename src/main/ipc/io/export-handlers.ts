@@ -17,6 +17,9 @@ import {
   type HtmlToPptxSlide
 } from '../../utils/html-pptx'
 import {
+  collectPptxFidelityWarnings
+} from '../../animation/pptx-animation-map'
+import {
   captureHtmlPageToPptxImageSlide,
   extractHtmlPageToPptxSlide
 } from '../../utils/html-pptx/renderer'
@@ -223,6 +226,12 @@ const writeMacAppZip = (
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true })
   }
+}
+
+const collectAnimationFidelityWarnings = (slides: HtmlToPptxSlide[]): string[] => {
+  return collectPptxFidelityWarnings(
+    slides.flatMap((slide) => (slide.animationTraces || []).map((trace) => trace.type))
+  )
 }
 
 export function registerExportHandlers(ctx: IpcContext): void {
@@ -474,6 +483,7 @@ export function registerExportHandlers(ctx: IpcContext): void {
         if (pagesWithoutText > 0) {
           warnings.push(`${pages.length} 页中有 ${pagesWithoutText} 页未提取到可编辑文本。`)
         }
+        warnings.push(...collectAnimationFidelityWarnings(slides))
       }
 
       // Collect embedded fonts (editable mode only). The user-facing behavior is

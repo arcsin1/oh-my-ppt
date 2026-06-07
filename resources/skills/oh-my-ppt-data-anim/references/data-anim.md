@@ -43,6 +43,14 @@ Each `data-anim` type generates a normalized motion description. The runtime exe
 | `data-anim-repeat` | None | Number (max 20) or `infinite` |
 | `data-anim-direction` | `normal` | `normal`, `reverse`, `alternate` |
 
+## Fidelity-aware defaults
+
+- **Best editable/export fidelity**: `fade`, `fade-up`, `fade-down`, `fade-left`, `fade-right`, `scale-in`, `wipe`, `exit-fade`
+- **Stable but approximate**: `slide-up`, `slide-down`, `slide-left`, `slide-right`, `fly-in`, `exit-wipe`
+- **Supported but weaker roundtrip fidelity**: `zoom-in`, `spin-in`, `grow-shrink`, `pulse`, `path`
+
+When the user does not ask for a specific effect, prefer the first group. Use the second group when direction itself is part of the message. Use the third group only when the semantic trade-off is acceptable.
+
 ## How stagger() works
 
 `stagger(N)` and `data-anim-stagger="N"` both use per-trigger-group counters. Within the same trigger group (all `load` elements share one counter, all `click` elements share another):

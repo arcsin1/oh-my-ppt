@@ -2,6 +2,7 @@ import type { DataAnimFrom, DataAnimType } from './data-anim-schema'
 
 export type PptxPresetClass = 'entr' | 'emph' | 'exit'
 export type PptxMotion = 'fromTop' | 'fromBottom' | 'fromLeft' | 'fromRight' | 'fromTrace'
+export type PptxFidelityTier = 'exact' | 'approximate' | 'degraded'
 
 export interface PptxAnimationPreset {
   presetId: number
@@ -178,6 +179,74 @@ export const hasExactPptxPreset = (type: DataAnimType): boolean => {
     default:
       return true
   }
+}
+
+export const getPptxFidelityTier = (type: DataAnimType): PptxFidelityTier => {
+  switch (type) {
+    case 'slide-up':
+    case 'slide-down':
+    case 'slide-left':
+    case 'slide-right':
+    case 'fly-in':
+    case 'wipe':
+    case 'exit-wipe':
+      return 'approximate'
+    case 'zoom-in':
+    case 'spin-in':
+    case 'grow-shrink':
+    case 'pulse':
+    case 'path':
+      return 'degraded'
+    default:
+      return 'exact'
+  }
+}
+
+export const getPptxFidelityNote = (type: DataAnimType): string | null => {
+  switch (type) {
+    case 'slide-up':
+    case 'slide-down':
+    case 'slide-left':
+    case 'slide-right':
+      return `${type} 会映射到 PowerPoint 的 fade + directional motion 预设，方向保留但纯位移语义会折叠`
+    case 'fly-in':
+      return 'fly-in 会保留方向性位移，但回导时可能折叠为 fade-* 语义'
+    case 'wipe':
+      return 'wipe 在预览中使用 clip-path，在 PPTX 中使用 native wipe preset，视觉接近但不逐像素一致'
+    case 'exit-wipe':
+      return 'exit-wipe 在预览中使用 clip-path conceal，在 PPTX 中使用 native wipe exit preset，视觉接近但不逐像素一致'
+    case 'zoom-in':
+      return 'zoom-in 会折叠到 scale-in 预设，缩放意图保留但类型标签无法精确保真'
+    case 'spin-in':
+      return 'spin-in 的旋转分量在 PPTX 中会丢失，只保留缩放/淡入语义'
+    case 'grow-shrink':
+    case 'pulse':
+      return `${type} 会映射到同一 emphasis preset，回导时两者会折叠为同类强调动画`
+    case 'path':
+      return 'path 缺少可编辑 PPTX 等价物，当前会退化为基础 entrance 语义'
+    default:
+      return null
+  }
+}
+
+export const collectPptxFidelityWarnings = (types: Iterable<DataAnimType>): string[] => {
+  const warnings: string[] = []
+  const seen = new Set<DataAnimType>()
+
+  for (const type of types) {
+    if (seen.has(type)) continue
+    seen.add(type)
+
+    const tier = getPptxFidelityTier(type)
+    if (tier === 'exact') continue
+
+    const note = getPptxFidelityNote(type)
+    if (!note) continue
+
+    warnings.push(`动画 ${type} 为 ${tier} 保真度：${note}`)
+  }
+
+  return warnings
 }
 
 export const resolveTraceMotion = (from: DataAnimFrom | undefined): Exclude<PptxMotion, 'fromTrace'> => {

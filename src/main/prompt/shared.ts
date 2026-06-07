@@ -99,6 +99,8 @@ export const FRONTEND_CAPABILITIES = [
   'Animations:',
   `- Animation rules are in the skill ${DATA_ANIM_SKILL_NAME}. ${formatSkillUsageRequirement(DATA_ANIM_SKILL_NAME)}`,
   '- Use data-anim by default. For scripted motion, use PPT.animate(...) or PPT.createTimeline(...). Do not call gsap.* or access window.gsap/globalThis.gsap directly.',
+  '- Prefer export-stable animation types by default: fade, fade-up/down/left/right, scale-in, wipe, exit-fade. Use slide-*, fly-in, and exit-wipe only when directional emphasis matters.',
+  '- Use weaker-roundtrip types (zoom-in, spin-in, grow-shrink, pulse, path) only when the user explicitly wants that trade-off or when exact PPTX roundtrip labels are not important.',
   '',
   'Validation:',
   '- Use \\( \\) or $$ $$ for math; do not use single-dollar inline math.'
