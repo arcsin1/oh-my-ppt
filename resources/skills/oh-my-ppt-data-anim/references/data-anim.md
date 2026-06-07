@@ -31,8 +31,10 @@ Each `data-anim` type generates a normalized motion description. The runtime exe
 | Attribute | Default | Range / Notes |
 |---|---|---|
 | `data-anim-trigger` | `load` | `load`, `with`, `after`, `click` |
+| `data-anim-sequence` | unset | `with`, `after`. Preferred load-order control for new content. |
 | `data-anim-duration` | 500ms | Clamped to 100–5000ms. Prefer 300–1200ms |
 | `data-anim-delay` | 0 | Milliseconds, or `stagger(N)` |
+| `data-anim-stagger` | unset | Millisecond gap. Preferred over `stagger(N)` for new content. |
 | `data-anim-easing` | `easeOutCubic` | Prefer GSAP-compatible names: `power2.out`, `power3.out`, `back.out`, etc. Legacy anime.js names are translated. |
 | `data-anim-from` | Type-dependent | `left`, `right`, `top`, `bottom`, `center` |
 | `data-anim-repeat` | None | Number (max 20) or `infinite` |
@@ -40,7 +42,7 @@ Each `data-anim` type generates a normalized motion description. The runtime exe
 
 ## How stagger() works
 
-`stagger(N)` uses per-trigger-group counters. Within the same trigger group (all `load` elements share one counter, all `click` elements share another):
+`stagger(N)` and `data-anim-stagger="N"` both use per-trigger-group counters. Within the same trigger group (all `load` elements share one counter, all `click` elements share another):
 
 - 1st element with `stagger(100)` → delay = 0
 - 2nd element with `stagger(100)` → delay = 100
@@ -56,6 +58,14 @@ This creates a cascade without needing to manually specify each delay.
 <!-- delay: 120 -->
 <div data-anim="fade-up" data-anim-delay="stagger(120)">Card C</div>
 <!-- delay: 240 -->
+```
+
+Preferred new syntax:
+
+```html
+<div data-anim="fade-up" data-anim-stagger="120">Card A</div>
+<div data-anim="fade-up" data-anim-stagger="120">Card B</div>
+<div data-anim="fade-up" data-anim-stagger="120">Card C</div>
 ```
 
 Good stagger values:
@@ -102,6 +112,14 @@ Starts after the previous animation finishes (previous delay + duration). Use fo
 ```
 
 The runtime tracks `lastSequenceEnd` internally. Each `after` element's effective delay = previous element's delay + duration.
+
+For new content, prefer `data-anim-sequence="with|after"` and keep `data-anim-trigger` focused on actual trigger semantics:
+
+```html
+<div data-anim="fade-up">Step 1: Identify</div>
+<div data-anim="fade" data-anim-sequence="with" data-anim-delay="80">Supporting note</div>
+<div data-anim="fade-up" data-anim-sequence="after">Step 2: Analyze</div>
+```
 
 ### click
 

@@ -1002,6 +1002,14 @@
     return "load";
   }
 
+  function normalizeAnimSequence(sequence) {
+    var normalized = String(sequence || "").trim().toLowerCase();
+    if (normalized === "after-previous") return "after";
+    if (normalized === "with-previous") return "with";
+    if (normalized === "with" || normalized === "after") return normalized;
+    return "";
+  }
+
   function normalizeAnimSide(side, fallback) {
     var normalized = String(side || fallback || "bottom").trim().toLowerCase();
     if (normalized === "up" || normalized === "top") return "top";
@@ -1147,14 +1155,22 @@
 
       var trigger = normalizeAnimTrigger(el.getAttribute("data-anim-trigger") || "load");
       var effectiveTrigger = trigger === "click" ? "click" : "load";
+      var sequence = normalizeAnimSequence(el.getAttribute("data-anim-sequence") || "");
       var from = normalizeAnimSide(el.getAttribute("data-anim-from"), defaultAnimSideForType(type));
       var duration = Number(el.getAttribute("data-anim-duration")) || 500;
       var easing = (el.getAttribute("data-anim-easing") || "easeOutCubic").trim();
       var delayRaw = (el.getAttribute("data-anim-delay") || "0").trim();
+      var staggerAttr = (el.getAttribute("data-anim-stagger") || "").trim();
       var delay = 0;
       var boundedDuration = Math.max(100, Math.min(5000, duration));
 
-      if (delayRaw.indexOf("stagger") === 0) {
+      if (staggerAttr) {
+        var gap = Number(staggerAttr) || 50;
+        var groupKey = effectiveTrigger;
+        if (staggerCounters[groupKey] === undefined) staggerCounters[groupKey] = 0;
+        delay = staggerCounters[groupKey] * gap;
+        staggerCounters[groupKey] += 1;
+      } else if (delayRaw.indexOf("stagger") === 0) {
         var match = delayRaw.match(/stagger\s*\(\s*(\d+)\s*\)/);
         var gap = match ? Number(match[1]) : 50;
         var groupKey = effectiveTrigger;
@@ -1165,12 +1181,14 @@
         delay = Number(delayRaw) || 0;
       }
 
+      var sequencingMode = effectiveTrigger === "load" ? (sequence || trigger) : trigger;
+
       if (effectiveTrigger === "load") {
-        if (trigger === "after") {
+        if (sequencingMode === "after") {
           delay += lastSequenceEnd;
           lastSequenceStart = delay;
           lastSequenceEnd = Math.max(lastSequenceEnd, delay + boundedDuration);
-        } else if (trigger === "with") {
+        } else if (sequencingMode === "with") {
           delay += lastSequenceStart;
           lastSequenceEnd = Math.max(lastSequenceEnd, delay + boundedDuration);
         } else {
@@ -1194,6 +1212,8 @@
         duration: boundedDuration,
         easing: easing,
         delay: delay,
+        sequence: effectiveTrigger === "load" && sequence ? sequence : undefined,
+        stagger: staggerAttr ? Math.max(1, Number(staggerAttr) || 50) : undefined,
         repeat: normalizeAnimRepeat(el.getAttribute("data-anim-repeat")),
         direction: (el.getAttribute("data-anim-direction") || "normal").trim().toLowerCase(),
         path: (el.getAttribute("data-anim-path") || "").trim(),

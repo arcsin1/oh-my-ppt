@@ -508,6 +508,40 @@ describe('PPT.scanDataAnim', () => {
     expect(Number(result.all[1].delay)).toBeGreaterThan(0)
   })
 
+  it('supports data-anim-stagger as a declarative stagger shortcut', () => {
+    document.body.innerHTML = `
+      <div class="ppt-page-root">
+        <div data-anim="fade-up" data-anim-stagger="80" id="a">A</div>
+        <div data-anim="fade-up" data-anim-stagger="80" id="b">B</div>
+        <div data-anim="fade-up" data-anim-stagger="80" id="c">C</div>
+      </div>
+    `
+
+    const result = (PPT.scanDataAnim as Function)(document.querySelector('.ppt-page-root')) as {
+      all: Array<Record<string, unknown>>
+    }
+
+    expect(result.all.map((item) => item.delay)).toEqual([0, 80, 160])
+    expect(result.all.map((item) => item.stagger)).toEqual([80, 80, 80])
+  })
+
+  it('supports data-anim-sequence to control load ordering without overloading trigger', () => {
+    document.body.innerHTML = `
+      <div class="ppt-page-root">
+        <div data-anim="fade-up" data-anim-duration="400" id="lead">Lead</div>
+        <div data-anim="fade-up" data-anim-sequence="with" data-anim-delay="50" data-anim-duration="300" id="with">With</div>
+        <div data-anim="fade-up" data-anim-sequence="after" data-anim-delay="20" data-anim-duration="200" id="after">After</div>
+      </div>
+    `
+
+    const result = (PPT.scanDataAnim as Function)(document.querySelector('.ppt-page-root')) as {
+      all: Array<Record<string, unknown>>
+    }
+
+    expect(result.all[1]).toMatchObject({ trigger: 'load', effectiveTrigger: 'load', sequence: 'with', delay: 50 })
+    expect(result.all[2]).toMatchObject({ trigger: 'load', effectiveTrigger: 'load', sequence: 'after', delay: 420 })
+  })
+
   it('does not hide click-triggered emphasis or exit animations before playback', () => {
     document.body.innerHTML = `
       <div class="ppt-page-root">

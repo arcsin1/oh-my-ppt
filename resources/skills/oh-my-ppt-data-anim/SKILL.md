@@ -49,8 +49,10 @@ Add `data-anim` attributes directly on HTML elements. This works in preview and 
 |---|---|---|
 | `data-anim` | type from supported list | required |
 | `data-anim-trigger` | `load`, `click`, `with`, `after` | omit for `load` |
+| `data-anim-sequence` | `with`, `after` | preferred load-order control without overloading trigger |
 | `data-anim-from` | `left`, `right`, `top`, `bottom`, `center` | direction/origin |
 | `data-anim-delay` | ms or `stagger(N)` | stagger for repeated items |
+| `data-anim-stagger` | ms | declarative stagger gap; preferred over `stagger(N)` for new content |
 | `data-anim-duration` | ms | prefer 300–1200 |
 | `data-anim-easing` | GSAP-compatible or legacy anime.js easing | prefer `power2.out`; legacy `easeOutCubic` is translated |
 | `data-anim-repeat` | number or `infinite` | use `infinite` only when user asks |
@@ -65,6 +67,12 @@ Add `data-anim` attributes directly on HTML elements. This works in preview and 
 <div data-anim="fade-up" data-anim-delay="stagger(90)">Point 2</div>
 ```
 
+**data-anim-stagger="N"** — same sequence, cleaner contract for new pages:
+```html
+<div data-anim="fade-up" data-anim-stagger="90">Point 1</div>
+<div data-anim="fade-up" data-anim-stagger="90">Point 2</div>
+```
+
 **with** — group starts together with previous animated element:
 ```html
 <h2 data-anim="fade-up">Market Signal</h2>
@@ -76,6 +84,13 @@ Add `data-anim` attributes directly on HTML elements. This works in preview and 
 <div data-anim="fade-up">1. First</div>
 <div data-anim="fade-up" data-anim-trigger="after">2. Second</div>
 <div data-anim="fade-up" data-anim-trigger="after">3. Third</div>
+```
+
+For new content, prefer `data-anim-sequence` so trigger semantics stay separate from load ordering:
+```html
+<div data-anim="fade-up">1. First</div>
+<div data-anim="fade-up" data-anim-sequence="with" data-anim-delay="80">Subtitle with first</div>
+<div data-anim="fade-up" data-anim-sequence="after">2. Second</div>
 ```
 
 **click** — only for explicit presentation control (step-by-step, one-by-one reveal). Use `load`, `stagger`, `with`, or `after` for timelines, processes, steps, and flows.
