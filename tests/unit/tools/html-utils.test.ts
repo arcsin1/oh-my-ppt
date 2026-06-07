@@ -92,6 +92,26 @@ describe('validateHtmlContent animation validation', () => {
     `)
 
     expect(result.valid).toBe(true)
+    expect(result.warnings).toContain(
+      '检测到 PPT.animate/PPT.createTimeline；该接口适合预览编排，但 editable PPTX 导出只对 data-anim 提供稳定 native roundtrip，如需可编辑导出请优先改写为 data-anim。'
+    )
+  })
+
+  it('warns when declarative motion uses weaker PPTX fidelity types', () => {
+    const result = validateHtmlContent(`
+      <div>
+        <div data-anim="slide-up">Approximate</div>
+        <div data-anim="path">Degraded</div>
+      </div>
+    `)
+
+    expect(result.valid).toBe(true)
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('动画 slide-up 为 approximate 保真度'),
+        expect.stringContaining('动画 path 为 degraded 保真度')
+      ])
+    )
   })
 })
 

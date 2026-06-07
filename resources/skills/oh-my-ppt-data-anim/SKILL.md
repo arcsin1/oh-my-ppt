@@ -128,6 +128,7 @@ PPT.animate(".card", {
 - Targets is the first argument (a CSS selector string or DOM element), not an object property.
 - Create timelines with `var tl = PPT.createTimeline(); tl.add({ targets: selector, ...params }, position)`.
 - Use `PPT.stagger(ms)` for staggered scripted delays.
+- Treat `PPT.animate(...)` / `PPT.createTimeline(...)` as preview-first escape hatches. Stable editable PPTX roundtrip is guaranteed only for `data-anim`.
 
 ## Hard rules
 

@@ -14,5 +14,7 @@ describe('shared prompt animation guidance', () => {
     expect(sharedPromptSource).toContain("DATA_ANIM_DIRECTIONAL_EMPHASIS_TYPES.join(', ')")
     expect(sharedPromptSource).toContain("DATA_ANIM_WEAKER_ROUNDTRIP_TYPES.join(', ')")
     expect(sharedPromptSource).toContain('Use weaker-roundtrip types (')
+    expect(sharedPromptSource).toContain('preview choreography matters more than editable PPTX roundtrip')
+    expect(sharedPromptSource).toContain('preview-first escape hatches')
   })
 })

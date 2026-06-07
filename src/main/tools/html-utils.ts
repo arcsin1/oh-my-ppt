@@ -10,7 +10,8 @@ import {
   DATA_ANIM_SKILL_NAME,
   formatSkillUsageRequirement,
 } from '../skills/skill-contract'
-import { DATA_ANIM_SUPPORTED_TYPES } from '../animation/data-anim-schema'
+import { DATA_ANIM_SUPPORTED_TYPES, type DataAnimType } from '../animation/data-anim-schema'
+import { collectPptxFidelityWarnings } from '../animation/pptx-animation-map'
 
 // ── HTML parsing ──
 
@@ -93,6 +94,7 @@ const FIXED_PIXEL_HEIGHT_CLASS_RE = /^h-\[\s*(?!0+(?:\.0+)?px\b)\d+(?:\.\d+)?px\
 const FIXED_HEIGHT_STYLE_RE =
   /(?:^|;)\s*height\s*:\s*(?!\s*(?:auto|0(?:px|rem|em|%)?|100%|inherit|initial|unset)\b)[^;]+/i
 export const PAGE_PLACEHOLDER_TEXT = '等待模型填充这一页内容'
+const PPT_SCRIPTED_MOTION_RE = /PPT\.(?:animate|createTimeline)\s*\(/m
 
 export const isPlaceholderPageHtml = (html: string): boolean =>
   html.includes(PAGE_PLACEHOLDER_TEXT) || /data-placeholder-page\s*=\s*["']1["']/i.test(html)
@@ -146,8 +148,11 @@ const hasUnstableHeightClass = (classRaw: string): boolean =>
         /^max-h-/.test(className)
     )
 
-export const validateHtmlContent = (html: string): { valid: boolean; errors: string[] } => {
+export const validateHtmlContent = (
+  html: string
+): { valid: boolean; errors: string[]; warnings: string[] } => {
   const errors: string[] = []
+  const warnings: string[] = []
   const animationCallScanHtml = html.replace(
     /\bdata-anim-delay\s*=\s*(["'])stagger\s*\(\s*\d+\s*\)\1/gi,
     'data-anim-delay=$1__DATA_ANIM_STAGGER__$1'
@@ -156,7 +161,7 @@ export const validateHtmlContent = (html: string): { valid: boolean; errors: str
     new RegExp(`(^|[^\\w$.])${fnName}\\s*\\(`, 'm').test(animationCallScanHtml)
   if (!html || html.trim().length === 0) {
     errors.push('HTML 内容为空')
-    return { valid: false, errors }
+    return { valid: false, errors, warnings }
   }
   // Creative fragment mode: content must be a fragment, while write tools add page semantics.
   if (/<!doctype[\s>]/i.test(html)) {
@@ -275,8 +280,12 @@ export const validateHtmlContent = (html: string): { valid: boolean; errors: str
   try {
     const $ = cheerio.load(html, { scriptingEnabled: false })
     const unsupportedAnimTypes = new Set<string>()
+    const declaredAnimTypes = new Set<DataAnimType>()
     $('[data-anim]').each((_, node) => {
       const type = ($(node).attr('data-anim') || '').trim().toLowerCase()
+      if (type && type !== 'none' && VALID_DATA_ANIM_VALUES.has(type)) {
+        declaredAnimTypes.add(type as DataAnimType)
+      }
       if (type && !VALID_DATA_ANIM_VALUES.has(type)) unsupportedAnimTypes.add(type)
     })
     if (unsupportedAnimTypes.size > 0) {
@@ -284,6 +293,7 @@ export const validateHtmlContent = (html: string): { valid: boolean; errors: str
         `data-anim 类型不受支持：${Array.from(unsupportedAnimTypes).join(', ')}。修改动画前请先 ${formatSkillUsageRequirement(DATA_ANIM_SKILL_NAME)}`
       )
     }
+    warnings.push(...collectPptxFidelityWarnings(declaredAnimTypes))
     const blockIds = new Map<string, number>()
     $('[data-block-id]').each((_, node) => {
       const id = ($(node).attr('data-block-id') || '').trim()
@@ -299,7 +309,16 @@ export const validateHtmlContent = (html: string): { valid: boolean; errors: str
   } catch {
     errors.push('HTML 片段结构解析失败')
   }
-  return { valid: errors.length === 0, errors }
+  if (PPT_SCRIPTED_MOTION_RE.test(html)) {
+    warnings.push(
+      '检测到 PPT.animate/PPT.createTimeline；该接口适合预览编排，但 editable PPTX 导出只对 data-anim 提供稳定 native roundtrip，如需可编辑导出请优先改写为 data-anim。'
+    )
+  }
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings: Array.from(new Set(warnings))
+  }
 }
 
 export const validatePersistedPageHtml = (

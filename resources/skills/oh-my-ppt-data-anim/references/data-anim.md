@@ -274,11 +274,13 @@ PPT.animate(".metric-card", {
 
 | | data-anim | PPT.animate |
 |---|---|---|
-| Export to PPTX | Yes, deterministic | Partial |
+| Export to PPTX | Yes, deterministic and editable | Partial, preview-first |
 | Syntax | HTML attributes | JavaScript |
 | Runtime engine | Internal PPT bridge | Internal PPT bridge |
 | Best for | Standard entrance/emphasis/exit | Complex timelines, synchronized groups |
 | Initial state | Managed automatically | Managed automatically |
+
+If editable PPTX roundtrip matters, treat `PPT.animate(...)` and `PPT.createTimeline(...)` as fallback-only authoring paths. The native PPTX pipeline only guarantees stable semantic roundtrip for `data-anim`.
 
 ### Timeline for multi-step choreography
 
