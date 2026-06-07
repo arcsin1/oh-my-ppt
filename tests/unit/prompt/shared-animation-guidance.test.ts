@@ -10,8 +10,9 @@ const sharedPromptSource = fs.readFileSync(
 describe('shared prompt animation guidance', () => {
   it('steers the model toward export-stable animation types first', () => {
     expect(sharedPromptSource).toContain('Prefer export-stable animation types by default')
-    expect(sharedPromptSource).toContain('fade, fade-up/down/left/right, scale-in, wipe, exit-fade')
-    expect(sharedPromptSource).toContain('Use slide-*, fly-in, and exit-wipe only when directional emphasis matters')
-    expect(sharedPromptSource).toContain('Use weaker-roundtrip types (zoom-in, spin-in, grow-shrink, pulse, path)')
+    expect(sharedPromptSource).toContain("DATA_ANIM_EXPORT_STABLE_TYPES.join(', ')")
+    expect(sharedPromptSource).toContain("DATA_ANIM_DIRECTIONAL_EMPHASIS_TYPES.join(', ')")
+    expect(sharedPromptSource).toContain("DATA_ANIM_WEAKER_ROUNDTRIP_TYPES.join(', ')")
+    expect(sharedPromptSource).toContain('Use weaker-roundtrip types (')
   })
 })

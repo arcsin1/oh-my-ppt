@@ -23,6 +23,52 @@ export const DATA_ANIM_SUPPORTED_TYPES = [
 
 export type DataAnimType = (typeof DATA_ANIM_SUPPORTED_TYPES)[number]
 
+export const DATA_ANIM_APPROXIMATE_TYPES = [
+  'slide-up',
+  'slide-down',
+  'slide-left',
+  'slide-right',
+  'fly-in',
+  'wipe',
+  'exit-wipe'
+] as const satisfies readonly DataAnimType[]
+
+export const DATA_ANIM_DEGRADED_TYPES = [
+  'zoom-in',
+  'spin-in',
+  'grow-shrink',
+  'pulse',
+  'path'
+] as const satisfies readonly DataAnimType[]
+
+export const DATA_ANIM_EXPORT_STABLE_TYPES = [
+  'fade',
+  'fade-up',
+  'fade-down',
+  'fade-left',
+  'fade-right',
+  'scale-in',
+  'wipe',
+  'exit-fade'
+] as const satisfies readonly DataAnimType[]
+
+export const DATA_ANIM_DIRECTIONAL_EMPHASIS_TYPES = [
+  'slide-up',
+  'slide-down',
+  'slide-left',
+  'slide-right',
+  'fly-in',
+  'exit-wipe'
+] as const satisfies readonly DataAnimType[]
+
+export const DATA_ANIM_WEAKER_ROUNDTRIP_TYPES = [
+  'zoom-in',
+  'spin-in',
+  'grow-shrink',
+  'pulse',
+  'path'
+] as const satisfies readonly DataAnimType[]
+
 export const DATA_ANIM_FROM_VALUES = ['left', 'right', 'top', 'bottom', 'center'] as const
 export type DataAnimFrom = (typeof DATA_ANIM_FROM_VALUES)[number]
 

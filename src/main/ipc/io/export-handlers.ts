@@ -17,7 +17,7 @@ import {
   type HtmlToPptxSlide
 } from '../../utils/html-pptx'
 import {
-  collectPptxFidelityWarnings
+  collectPptxFidelityWarningsByScope
 } from '../../animation/pptx-animation-map'
 import {
   captureHtmlPageToPptxImageSlide,
@@ -229,8 +229,13 @@ const writeMacAppZip = (
 }
 
 const collectAnimationFidelityWarnings = (slides: HtmlToPptxSlide[]): string[] => {
-  return collectPptxFidelityWarnings(
-    slides.flatMap((slide) => (slide.animationTraces || []).map((trace) => trace.type))
+  return collectPptxFidelityWarningsByScope(
+    slides.map((slide, index) => ({
+      label: slide.title?.trim()
+        ? `第 ${index + 1} 页《${slide.title.trim()}》`
+        : `第 ${index + 1} 页`,
+      types: (slide.animationTraces || []).map((trace) => trace.type)
+    }))
   )
 }
 

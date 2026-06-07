@@ -1,8 +1,16 @@
-import type { DataAnimFrom, DataAnimType } from './data-anim-schema'
+import {
+  DATA_ANIM_APPROXIMATE_TYPES,
+  DATA_ANIM_DEGRADED_TYPES,
+  type DataAnimFrom,
+  type DataAnimType
+} from './data-anim-schema'
 
 export type PptxPresetClass = 'entr' | 'emph' | 'exit'
 export type PptxMotion = 'fromTop' | 'fromBottom' | 'fromLeft' | 'fromRight' | 'fromTrace'
 export type PptxFidelityTier = 'exact' | 'approximate' | 'degraded'
+
+const APPROXIMATE_TYPE_SET = new Set<DataAnimType>(DATA_ANIM_APPROXIMATE_TYPES)
+const DEGRADED_TYPE_SET = new Set<DataAnimType>(DATA_ANIM_DEGRADED_TYPES)
 
 export interface PptxAnimationPreset {
   presetId: number
@@ -155,51 +163,13 @@ export const getPptxAnimationPreset = (
 
 /** Returns true if the animation type is expected to degrade on PPTX roundtrip. */
 export const hasExactPptxPreset = (type: DataAnimType): boolean => {
-  switch (type) {
-    case 'slide-up':
-    case 'slide-down':
-    case 'slide-left':
-    case 'slide-right':
-      // PPTX always adds opacity fade to presetId=2; pure translate is unsupported.
-      return false
-    case 'zoom-in':
-    case 'spin-in':
-      // Both map to presetId=31 scale-in; rotation is lost for spin-in.
-      return false
-    case 'grow-shrink':
-    case 'pulse':
-      // Both map to presetId=6 emph; cannot distinguish in roundtrip.
-      return false
-    case 'fly-in':
-      // fromTrace motion encodes direction in numeric XML, not presetSubtype.
-      return false
-    case 'path':
-      // No semantic PPTX preset; degenerates to fade.
-      return false
-    default:
-      return true
-  }
+  return !APPROXIMATE_TYPE_SET.has(type) && !DEGRADED_TYPE_SET.has(type)
 }
 
 export const getPptxFidelityTier = (type: DataAnimType): PptxFidelityTier => {
-  switch (type) {
-    case 'slide-up':
-    case 'slide-down':
-    case 'slide-left':
-    case 'slide-right':
-    case 'fly-in':
-    case 'wipe':
-    case 'exit-wipe':
-      return 'approximate'
-    case 'zoom-in':
-    case 'spin-in':
-    case 'grow-shrink':
-    case 'pulse':
-    case 'path':
-      return 'degraded'
-    default:
-      return 'exact'
-  }
+  if (APPROXIMATE_TYPE_SET.has(type)) return 'approximate'
+  if (DEGRADED_TYPE_SET.has(type)) return 'degraded'
+  return 'exact'
 }
 
 export const getPptxFidelityNote = (type: DataAnimType): string | null => {
@@ -244,6 +214,26 @@ export const collectPptxFidelityWarnings = (types: Iterable<DataAnimType>): stri
     if (!note) continue
 
     warnings.push(`动画 ${type} 为 ${tier} 保真度：${note}`)
+  }
+
+  return warnings
+}
+
+export interface PptxFidelityWarningScope {
+  label?: string
+  types: Iterable<DataAnimType>
+}
+
+export const collectPptxFidelityWarningsByScope = (
+  scopes: Iterable<PptxFidelityWarningScope>
+): string[] => {
+  const warnings: string[] = []
+
+  for (const scope of scopes) {
+    const prefix = scope.label ? `${scope.label}：` : ''
+    warnings.push(
+      ...collectPptxFidelityWarnings(scope.types).map((warning) => `${prefix}${warning}`)
+    )
   }
 
   return warnings
