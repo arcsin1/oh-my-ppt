@@ -104,4 +104,29 @@ describe('parsePptxSlideAnimationPlan', () => {
       sourceName: 'Outro'
     })
   })
+
+  it('imports Office-recognized wipe filters when subtype is absent', () => {
+    const xml = `<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:sp><p:nvSpPr><p:cNvPr id="4" name="Panel"/></p:nvSpPr></p:sp>
+  </p:spTree></p:cSld>
+  <p:timing><p:tnLst>
+    <p:par><p:cTn id="20" presetID="5" presetClass="entr" nodeType="withEffect">
+      <p:childTnLst><p:animEffect transition="in" filter="wipe(left)">
+        <p:cBhvr><p:cTn id="21" dur="600"/><p:tgtEl><p:spTgt spid="4"/></p:tgtEl></p:cBhvr>
+      </p:animEffect></p:childTnLst>
+    </p:cTn></p:par>
+  </p:tnLst></p:timing>
+</p:sld>`
+
+    const plan = parsePptxSlideAnimationPlan(xml, null, { width: 960, height: 540 })
+
+    expect(plan.animations[0]).toMatchObject({
+      type: 'wipe',
+      from: 'right',
+      trigger: 'load',
+      duration: 600,
+      sourceName: 'Panel'
+    })
+  })
 })

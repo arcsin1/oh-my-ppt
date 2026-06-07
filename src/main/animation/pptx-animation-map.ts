@@ -210,6 +210,15 @@ export const mapPptxPresetToDataAnimFrom = (args: {
   presetId?: string
   effectFilter?: string
 }): DataAnimFrom | undefined => {
+  const fromWipeFilter = (filter: string | undefined): DataAnimFrom | undefined => {
+    if (!filter?.startsWith('wipe')) return undefined
+    if (filter.includes('(l)') || filter.includes('(left)')) return 'right'
+    if (filter.includes('(r)') || filter.includes('(right)')) return 'left'
+    if (filter.includes('(u)') || filter.includes('(up)')) return 'bottom'
+    if (filter.includes('(d)') || filter.includes('(down)')) return 'top'
+    return undefined
+  }
+
   // Wipe direction (presetId=5):
   //   subtype 1=wipeRight(fromLeft), 2=wipeLeft(fromRight), 3=wipeUp(fromBottom), 4=wipeDown(fromTop)
   //   If no subtype, try parsing legacy 'wipe(X)' filter strings.
@@ -223,22 +232,12 @@ export const mapPptxPresetToDataAnimFrom = (args: {
         default:  return 'left'
       }
     }
-    // No subtype — try legacy 'wipe(X)' filter (used in older export versions)
-    if (args.effectFilter?.startsWith('wipe')) {
-      if (args.effectFilter.includes('(l)')) return 'right'
-      if (args.effectFilter.includes('(r)')) return 'left'
-      if (args.effectFilter.includes('(u)')) return 'bottom'
-      if (args.effectFilter.includes('(d)')) return 'top'
-    }
+    const fromFilter = fromWipeFilter(args.effectFilter)
+    if (fromFilter) return fromFilter
     return 'left'
   }
-  // Legacy: custom 'wipe(X)' filter strings from older exports
-  if (args.effectFilter?.startsWith('wipe')) {
-    if (args.effectFilter.includes('(l)')) return 'right'
-    if (args.effectFilter.includes('(r)')) return 'left'
-    if (args.effectFilter.includes('(u)')) return 'bottom'
-    if (args.effectFilter.includes('(d)')) return 'top'
-  }
+  const legacyWipeFrom = fromWipeFilter(args.effectFilter)
+  if (legacyWipeFrom) return legacyWipeFrom
   switch (args.presetSubtype) {
     case '1':
       return 'top'

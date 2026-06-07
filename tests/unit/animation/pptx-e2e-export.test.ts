@@ -13,7 +13,6 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import {
-  buildSlideXml,
   writePptxDocument
 } from '../../../src/main/utils/html-pptx/ooxml-writer'
 import type { HtmlToPptxSlide, HtmlToPptxDocument } from '../../../src/main/utils/html-pptx/types'

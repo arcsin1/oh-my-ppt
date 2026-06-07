@@ -616,6 +616,33 @@
     return tween;
   }
 
+  function isGsapExitOpacityTween(vars) {
+    return vars && vars.fromVars && vars.toVars &&
+      vars.fromVars.opacity === 1 && vars.toVars.opacity === 0;
+  }
+
+  function addGsapTweenToTimeline(timeline, gsapInst, targets, vars, position) {
+    if (isGsapExitOpacityTween(vars)) {
+      if (timeline && typeof timeline.to === "function") {
+        timeline.to(targets, vars.toVars, position);
+        return;
+      }
+      var exitTween = gsapInst.to(targets, vars.toVars);
+      trackActiveGsapTween(exitTween);
+      if (timeline && typeof timeline.add === "function") timeline.add(exitTween, position);
+      return;
+    }
+
+    if (timeline && typeof timeline.fromTo === "function") {
+      timeline.fromTo(targets, vars.fromVars, vars.toVars, position);
+      return;
+    }
+
+    var tween = gsapInst.fromTo(targets, vars.fromVars, vars.toVars);
+    trackActiveGsapTween(tween);
+    if (timeline && typeof timeline.add === "function") timeline.add(tween, position);
+  }
+
   function animateWithGsap(gsapInst, args) {
     var targets = args[0];
     var params = args[1];
@@ -627,7 +654,7 @@
 
     var tween;
     // For exit animations where opacity goes 1→0, use gsap.to
-    if (fromVars.opacity === 1 && toVars.opacity === 0) {
+    if (isGsapExitOpacityTween(vars)) {
       tween = gsapInst.to(targets, toVars);
     } else {
       tween = gsapInst.fromTo(targets, fromVars, toVars);
@@ -663,7 +690,7 @@
     } else if (typeof runtimeAnime === "function") {
       animation = runtimeAnime.apply(null, args);
     } else {
-      throw new Error("No animation engine available. GSAP or anime.js v4 required.");
+      throw new Error("GSAP 或 anime.js v4 未就绪，无法执行 PPT.animate");
     }
     if (animation && animation.finished && typeof animation.finished.then === "function") {
       trackPrintTask(animation.finished);
@@ -722,13 +749,7 @@
           var tweenParams = Object.assign({}, params);
           delete tweenParams.targets;
           var vars = buildGsapVarsFromPptParams(tweenParams);
-          if (timeline && typeof timeline.fromTo === "function") {
-            timeline.fromTo(targets, vars.fromVars, vars.toVars, position);
-          } else {
-            var tween = gsapInst.fromTo(targets, vars.fromVars, vars.toVars);
-            trackActiveGsapTween(tween);
-            if (timeline && typeof timeline.add === "function") timeline.add(tween, position);
-          }
+          addGsapTweenToTimeline(timeline, gsapInst, targets, vars, position);
           return this;
         },
         play: function () {
@@ -777,8 +798,19 @@
           anim.complete();
           return;
         }
-        if (typeof anim.seek === "function" && Number.isFinite(Number(anim.duration))) {
-          anim.seek(Number(anim.duration));
+        if (typeof anim.totalProgress === "function") {
+          anim.totalProgress(1);
+          if (typeof anim.pause === "function") anim.pause();
+          return;
+        }
+        if (typeof anim.progress === "function") {
+          anim.progress(1);
+          if (typeof anim.pause === "function") anim.pause();
+          return;
+        }
+        var duration = typeof anim.duration === "function" ? Number(anim.duration()) : Number(anim.duration);
+        if (typeof anim.seek === "function" && Number.isFinite(duration)) {
+          anim.seek(duration);
         }
         if (typeof anim.pause === "function") anim.pause();
       } catch (_err) {}
