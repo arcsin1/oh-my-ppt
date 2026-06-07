@@ -17,15 +17,15 @@
 | data-anim type | GSAP Properties | PPTX presetId | PPTX subtype | PPTX motion | PPTX scale | Fidelity | Notes |
 |---------------|-----------------|---------------|-------------|------------|-----------|----------|-------|
 | `fade` | `opacity: 0→1` | 10 | — | — | — | **Exact** | Simplest mapping. No motion, no scale. |
-| `fade-up` | `opacity: 0→1, y: 40→0` | 2 | 8 | fromBottom | — | **Good** | PPTX uses built-in fade+translate. y=40px in GSAP ≈ PPTX's built-in distance. |
-| `fade-down` | `opacity: 0→1, y: -40→0` | 2 | 1 | fromTop | — | **Good** | Same as fade-up, reversed direction. |
-| `fade-left` | `opacity: 0→1, x: 40→0` | 2 | 3 | fromRight | — | **Good** | PPTX subtype 3 = "from right" (element enters from right = moves left). Direction naming is inverted relative to GSAP. |
-| `fade-right` | `opacity: 0→1, x: -40→0` | 2 | 2 | fromLeft | — | **Good** | PPTX subtype 2 = "from left" (element enters from left = moves right). |
+| `fade-up` | `opacity: 0→1, y: 20→0` | 2 | 8 | fromBottom | — | **Good** | Runtime uses a lighter 20px offset than `slide-up`; PPTX still maps to the same entrance preset family. |
+| `fade-down` | `opacity: 0→1, y: -20→0` | 2 | 1 | fromTop | — | **Good** | Same as fade-up, reversed direction. |
+| `fade-left` | `opacity: 0→1, x: 20→0` | 2 | 3 | fromRight | — | **Good** | PPTX subtype 3 = "from right" (element enters from right = moves left). Direction naming is inverted relative to GSAP. |
+| `fade-right` | `opacity: 0→1, x: -20→0` | 2 | 2 | fromLeft | — | **Good** | PPTX subtype 2 = "from left" (element enters from left = moves right). |
 | `scale-in` | `opacity: 0→1, scale: 0.85→1` | 31 | — | — | 0.85→1.0 | **Approximate** | PPTX preset 31 uses fixed scale curve; GSAP uses configurable from-value. |
-| `slide-up` | `y: 40→0` (no opacity) | 2 | 8 | fromBottom | — | **Approximate** | **BUG in v2.0**: Mapped with `fade: true`, making it identical to fade-up. Should have `fade: false` for semantic distinction. PPTX does not natively support translate-only entrance (always paired with fade), so this is an approximation. |
-| `slide-left` | `x: 40→0` (no opacity) | 2 | 3 | fromRight | — | **Approximate** | Same issue as slide-up. PPTX always adds fade to presetId=2 entrances. |
+| `slide-up` | `opacity: 0→1, y: 40→0` | 2 | 8 | fromBottom | — | **Approximate** | Runtime intentionally keeps the fade component, but with a larger travel distance than `fade-up`. PPTX still collapses both to the same preset family. |
+| `slide-left` | `opacity: 0→1, x: 40→0` | 2 | 3 | fromRight | — | **Approximate** | Same trade-off as `slide-up`: larger travel than `fade-left`, but no PPTX preset can preserve the distinction exactly. |
 | `fly-in` | `opacity: 0→1, direction-based translate` | 2 | — | fromTrace | — | **Good** | Direction resolved from `data-anim-from`. PPTX uses actual motion path, GSAP uses directional translate. |
-| `wipe` | `opacity: 0→1, edge reveal` | 5 | — | — | — | **Approximate** | PPTX has native wipe with configurable direction. GSAP would need clip-path for equivalent. Current GSAP implementation uses fade+translate as approximation. |
+| `wipe` | `opacity: 0→1, clipPath edge reveal` | 5 | direction-based | — | — | **Approximate** | Runtime uses directional `clipPath` reveal values. PPTX export uses native wipe `presetSubtype` instead of clip-path, so the semantic is preserved but the rendering engine differs. |
 | `zoom-in` | `opacity: 0→1, scale: 0.75→1` | 31 | — | — | 0.75→1.0 | **Approximate** | PPTX scale preset 31 has fixed zoom curve; GSAP 0.75 from-value is configurable. |
 | `spin-in` | `opacity: 0→1, scale: 0.92→1, rotation: -15°→0` | 31 | — | — | 0.92→1.0 | **Degraded** | PPTX preset 31 has **no rotation component**. The spin effect is entirely lost in export. GSAP's rotation is not represented. |
 | `path` | `opacity: 0→1` (degraded) | 10 | — | — | — | **Play-Only** | **SEMANTIC EMPTY**: Mapped as simple fade in v2.0. No path data exists in the protocol. Should be deprecated or implemented with motion-path support. |
@@ -48,11 +48,11 @@
 
 | `data-anim-from` | GSAP Translate Origin | PPTX Motion | Wipe Filter |
 |-----------------|----------------------|-------------|-------------|
-| `top` | `y: -40` (from above) | fromTop | wipe(d) |
-| `bottom` | `y: 40` (from below) | fromBottom | wipe(u) |
-| `left` | `x: 40` (from left) | fromLeft | wipe(r) |
-| `right` | `x: -40` (from right) | fromRight | wipe(l) |
-| `center` | no translation | fromBottom (fallback) | wipe(r) (fallback) |
+| `top` | `y: -40` (from above) | fromTop | reveal from top edge |
+| `bottom` | `y: 40` (from below) | fromBottom | reveal from bottom edge |
+| `left` | `x: 40` (from left) | fromLeft | reveal from left edge |
+| `right` | `x: -40` (from right) | fromRight | reveal from right edge |
+| `center` | no translation | fromBottom (fallback) | inset reveal fallback |
 
 **WARNING**: The semantic inversion in PPTX naming is a known trap.
 - `data-anim-from="left"` means "fly in FROM the left side" → GSAP `x: 40` (positive offset) → PPTX `fromLeft` motion.

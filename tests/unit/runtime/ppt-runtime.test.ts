@@ -702,6 +702,26 @@ describe('PPT GSAP bridge', () => {
     expect(gsap.fromTo.mock.calls[2][2]).toMatchObject({ ease: 'none' })
   })
 
+  it('maps symmetric three-step emphasis arrays to GSAP yoyo repeat semantics', () => {
+    const { PPT, gsap } = setupRuntimeWithGsap()
+
+    ;(PPT.animate as Function)('#el1', {
+      scale: [0.9, 1.08, 0.9],
+      duration: 600
+    })
+
+    expect(gsap.fromTo).toHaveBeenCalledWith(
+      '#el1',
+      { scale: 0.9 },
+      expect.objectContaining({
+        duration: 0.6,
+        scale: 1.08,
+        repeat: 1,
+        yoyo: true
+      })
+    )
+  })
+
   it('passes PPT.stagger options to GSAP in seconds', () => {
     const { PPT, gsap } = setupRuntimeWithGsap()
 
@@ -755,6 +775,38 @@ describe('PPT GSAP bridge', () => {
     expect(gsap.globalTimeline.progress).toHaveBeenCalledWith(1)
     expect(timelineInstance.pause).toHaveBeenCalled()
     expect(timelineInstance.play).toHaveBeenCalled()
+  })
+
+  it('removes completed GSAP timelines from the active runtime set', () => {
+    const timelineThen = vi.fn((resolve?: () => void) => {
+      if (typeof resolve === 'function') resolve()
+      return Promise.resolve()
+    })
+    const timelineInstance = {
+      fromTo: vi.fn(),
+      add: vi.fn(),
+      pause: vi.fn(),
+      play: vi.fn(),
+      restart: vi.fn(),
+      then: timelineThen
+    }
+    const gsap = {
+      fromTo: vi.fn(),
+      to: vi.fn(),
+      timeline: vi.fn(() => timelineInstance),
+      utils: { stagger: vi.fn() },
+      globalTimeline: { pause: vi.fn(), play: vi.fn(), progress: vi.fn() },
+      killTweensOf: vi.fn()
+    }
+    const runtime = setupRuntime()
+    ;(globalThis as Record<string, unknown>).gsap = gsap
+    ;(runtime.PPT as { __runtimeVersion?: string | null }).__runtimeVersion = null
+    new Function(runtimeSrc)()
+    const PPT = (globalThis as Record<string, unknown>).PPT as Record<string, unknown>
+
+    ;(PPT.createTimeline as Function)({ paused: true })
+    ;(PPT.stopAnimations as Function)()
+    expect(timelineInstance.pause).not.toHaveBeenCalled()
   })
 
   it('uses gsap.to for visible-to-hidden exit opacity', () => {

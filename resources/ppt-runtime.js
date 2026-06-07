@@ -581,7 +581,15 @@
           key === "loop" || key === "alternate" || key === "reversed" ||
           key === "keyframes" || key === "direction") return;
 
-      if (Array.isArray(value) && value.length >= 2) {
+      if (Array.isArray(value) && value.length >= 3 && value[0] === value[value.length - 1]) {
+        var looped = translateAnimKey(key);
+        if (looped) {
+          fromVars[looped.key] = value[0];
+          toVars[looped.key] = value[1];
+          if (toVars.repeat === undefined) toVars.repeat = 1;
+          if (toVars.yoyo === undefined) toVars.yoyo = true;
+        }
+      } else if (Array.isArray(value) && value.length >= 2) {
         var translated = translateAnimKey(key);
         if (translated) {
           fromVars[translated.key] = value[0];
@@ -702,7 +710,7 @@
     var args = Array.prototype.slice.call(arguments);
     if (gsapInst && typeof gsapInst.timeline === "function") {
       var timeline = gsapInst.timeline.apply(gsapInst, args);
-      _activeAnimations.add(timeline);
+      trackActiveGsapTween(timeline);
       return {
         add: function (params, position) {
           if (!params || typeof params !== "object") {

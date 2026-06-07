@@ -36,6 +36,39 @@ describe('buildSlideXml animation export', () => {
     expect(xml).toContain('<p:spTgt spid="3"/>')
   })
 
+  it('uses blockId-first binding across multiple exported targets with the same source block', () => {
+    const slide: HtmlToPptxSlide = {
+      texts: [
+        { text: 'Title', x: 1, y: 0.5, w: 6, h: 0.8, fontSize: 36, blockId: 'hero' }
+      ],
+      shapes: [
+        { x: 0.8, y: 0.4, w: 6.4, h: 1.2, fill: 'FFFFFF', blockId: 'hero' }
+      ],
+      images: [],
+      tables: [],
+      animationTraces: [
+        {
+          type: 'fade-up',
+          trigger: 'load',
+          duration: 500,
+          delay: 0,
+          order: 0,
+          x: 100,
+          y: 40,
+          w: 900,
+          h: 220,
+          blockId: 'hero'
+        }
+      ]
+    }
+
+    const xml = buildSlideXml(slide, new Map(), 1)
+
+    expect(xml).toContain('<p:bldP spid="2" grpId="0"/>')
+    expect(xml).toContain('<p:bldP spid="3" grpId="0"/>')
+    expect(xml.match(/<p:bldP spid="\d+" grpId="0"\/>/g)).toHaveLength(2)
+  })
+
   it('keeps transition and timing after clrMapOvr for valid slide child ordering', () => {
     const slide: HtmlToPptxSlide = {
       texts: [{ text: 'Slide', x: 1, y: 1, w: 5, h: 1, fontSize: 24 }],

@@ -23,6 +23,7 @@ export interface HtmlToPptxTextBox {
   y: number
   w: number
   h: number
+  blockId?: string
   fontSize: number
   fontFace?: string
   color?: string
@@ -62,6 +63,7 @@ export interface HtmlToPptxShape {
   y: number
   w: number
   h: number
+  blockId?: string
   fill?: string
   transparency?: number
   radius?: number
@@ -78,6 +80,7 @@ export interface HtmlToPptxImage {
   y: number
   w: number
   h: number
+  blockId?: string
   alt?: string
   rotate?: number
   opacity?: number
@@ -111,6 +114,7 @@ export interface HtmlToPptxTable {
   y: number
   w: number
   h: number
+  blockId?: string
   colWidths: number[]
   rowHeights: number[]
   rows: HtmlToPptxTableCell[][]

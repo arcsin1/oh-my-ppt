@@ -10,7 +10,8 @@ import { describe, it, expect } from 'vitest'
 // This is the same switch/case that executeDataAnimConfig uses,
 // but translated to GSAP's API shape (fromVars + toVars for gsap.fromTo).
 
-type GsapVars = Record<string, number>
+type GsapScalar = number | string | boolean
+type GsapVars = Record<string, GsapScalar>
 
 interface AnimMapping {
   from: GsapVars
@@ -82,7 +83,18 @@ function mapDataAnimToGsap(type: string, from?: string): AnimMapping {
     }
     case 'wipe':
       fromVars.opacity = 0
+      fromVars.clipPath =
+        from === 'right'
+          ? 'inset(0% 0% 0% 100%)'
+          : from === 'top'
+            ? 'inset(0% 0% 100% 0%)'
+            : from === 'bottom'
+              ? 'inset(100% 0% 0% 0%)'
+              : from === 'center'
+                ? 'inset(20% 20% 20% 20%)'
+                : 'inset(0% 100% 0% 0%)'
       toVars.opacity = 1
+      toVars.clipPath = 'inset(0% 0% 0% 0%)'
       break
     case 'zoom-in':
       fromVars.opacity = 0; fromVars.scale = 0.75
@@ -94,11 +106,11 @@ function mapDataAnimToGsap(type: string, from?: string): AnimMapping {
       break
     case 'grow-shrink':
       fromVars.scale = 0.9
-      toVars.scale = 1.08; toVars.yoyo = 1; toVars.repeat = 1
+      toVars.scale = 1.08; toVars.yoyo = true; toVars.repeat = 1
       break
     case 'pulse':
       fromVars.scale = 1
-      toVars.scale = 1.06; toVars.yoyo = 1; toVars.repeat = 1
+      toVars.scale = 1.06; toVars.yoyo = true; toVars.repeat = 1
       break
     case 'exit-fade':
       fromVars.opacity = 1
@@ -213,14 +225,20 @@ describe('data-anim → GSAP vars mapping', () => {
   it('maps grow-shrink with yoyo repeat', () => {
     const { to } = mapDataAnimToGsap('grow-shrink')
     expect(to.scale).toBe(1.08)
-    expect(to.yoyo).toBe(1)
+    expect(to.yoyo).toBe(true)
     expect(to.repeat).toBe(1)
   })
 
   it('maps pulse with yoyo repeat (emphasis type)', () => {
     const { to } = mapDataAnimToGsap('pulse')
     expect(to.scale).toBe(1.06)
-    expect(to.yoyo).toBe(1)
+    expect(to.yoyo).toBe(true)
+  })
+
+  it('maps wipe with directional clipPath reveal values', () => {
+    const { from, to } = mapDataAnimToGsap('wipe', 'right')
+    expect(from.clipPath).toBe('inset(0% 0% 0% 100%)')
+    expect(to.clipPath).toBe('inset(0% 0% 0% 0%)')
   })
 
   it('produces valid GSAP vars for all 17 supported types', () => {
