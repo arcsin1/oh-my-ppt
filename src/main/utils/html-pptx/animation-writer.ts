@@ -36,6 +36,21 @@ const wipeSubtypeForFrom = (from: string | undefined): number => {
   }
 }
 
+/** Compute Office animEffect filter value for wipe. */
+const wipeFilterForFrom = (from: string | undefined): string => {
+  switch (from) {
+    case 'right':
+      return 'wipe(left)'
+    case 'top':
+      return 'wipe(down)'
+    case 'bottom':
+      return 'wipe(up)'
+    case 'left':
+    default:
+      return 'wipe(right)'
+  }
+}
+
 const visibilitySetXml = (spid: number, id: number): string => `<p:set>
   <p:cBhvr>
     <p:cTn id="${id}" dur="1" fill="hold">
@@ -56,8 +71,9 @@ const visibilitySetXml = (spid: number, id: number): string => `<p:set>
 const wipeEntranceXml = (
   spid: number,
   id: number,
-  duration: number
-): string => `<p:animEffect transition="in">
+  duration: number,
+  filter: string
+): string => `<p:animEffect transition="in" filter="${filter}">
   <p:cBhvr>
     <p:cTn id="${id}" dur="${duration}" fill="hold"/>
     ${targetXml(spid)}
@@ -152,14 +168,16 @@ const effectXml = (anim: PptxTargetAnimation, nextId: () => number): string => {
 
   const isWipe = anim.type === 'wipe'
   const wipeSubtype = isWipe ? wipeSubtypeForFrom(anim.from) : undefined
+  const wipeFilter = isWipe ? wipeFilterForFrom(anim.from) : undefined
 
   if (preset.scale) {
     chunks.push(scaleXml(anim.spid, nextId(), duration, preset.scaleFrom, preset.scaleTo))
   }
   // Wipe: needs p:animEffect to activate the entrance, but WITHOUT filter
-  // so that presetID=5+presetSubtype controls the effect (not fade).
+  // PowerPoint uses filter="wipe(...)" as the actual effect selector; presetSubtype
+  // is still kept on cTn so the animation pane and roundtrip metadata keep direction.
   if (isWipe) {
-    chunks.push(wipeEntranceXml(anim.spid, nextId(), duration))
+    chunks.push(wipeEntranceXml(anim.spid, nextId(), duration, wipeFilter || 'wipe(right)'))
   }
   // Non-wipe: standard fade-based animation
   if (!isWipe && preset.fade) {
@@ -237,16 +255,16 @@ export function buildSlideTimingXml(animations: PptxTargetAnimation[], startNode
   }
 
   // Click-triggered groups: each is its own build step.
-  // delay="0" means the step is ready to execute; the clickEffect nodeType
-  // on individual animations tells PowerPoint to pause for a click.
-  // The p:seq container with nextAc="seek" handles step sequencing.
+  // The outer wrapper must wait indefinitely for the next click; otherwise
+  // PowerPoint eagerly starts the build on slide load and click-trigger
+  // semantics are lost.
   for (const anim of clickAnims) {
     const clickGroupId = nextId()
     const clickEffect = effectXml(anim, nextId)
     mainSeqChildren.push(`<p:par>
                   <p:cTn id="${clickGroupId}" fill="hold">
                     <p:stCondLst>
-                      <p:cond delay="0"/>
+                      <p:cond delay="indefinite"/>
                     </p:stCondLst>
                     <p:childTnLst>
                       ${clickEffect}

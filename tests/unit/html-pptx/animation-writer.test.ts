@@ -58,6 +58,15 @@ describe('buildSlideTimingXml', () => {
     const xml = buildSlideTimingXml([makeAnim({ trigger: 'click' })])
 
     expect(xml).toContain('nodeType="clickEffect"')
+    expect(xml).toContain('<p:cond delay="indefinite"/>')
+  })
+
+  it('emits wipe effects with an Office-recognized wipe filter', () => {
+    const xml = buildSlideTimingXml([makeAnim({ type: 'wipe', from: 'right' })])
+
+    expect(xml).toContain('presetID="5"')
+    expect(xml).toContain('presetSubtype="2"')
+    expect(xml).toContain('filter="wipe(left)"')
   })
 
   it('deduplicates build-list entries for repeated target shapes', () => {

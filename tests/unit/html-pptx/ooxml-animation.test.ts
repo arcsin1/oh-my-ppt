@@ -209,8 +209,10 @@ describe('buildSlideXml animation export', () => {
 
     expect(xml).toContain('presetID="5"')
     expect(xml).toContain('presetSubtype="2"')
+    expect(xml).toContain('filter="wipe(left)"')
     expect(xml).toContain('presetClass="exit"')
     expect(xml).toContain('nodeType="clickEffect"')
+    expect(xml).toContain('<p:cond delay="indefinite"/>')
     expect(xml).toContain('val="#ppt_y+#ppt_h/2"')
   })
 })
