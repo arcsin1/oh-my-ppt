@@ -2,11 +2,11 @@
 
 Deep-dive into how data-anim works, timing internals, trigger mechanics, scripted animation patterns, and composition examples.
 
-## How data-anim maps to GSAP
+## How data-anim maps to runtime motion
 
-Each `data-anim` type generates specific GSAP parameters via `PPT.animate()` → `gsap.fromTo()`:
+Each `data-anim` type generates a normalized motion description. The runtime executes it through the internal `PPT.*` bridge:
 
-| data-anim | Effect | GSAP fromVars → toVars |
+| data-anim | Effect | Runtime from → to values |
 |---|---|---|
 | `fade` | Simple opacity transition | `opacity: 0 → 1` |
 | `fade-up` | Fade + slide up 20px | `opacity: 0 → 1`, `y: 20 → 0` |
@@ -33,7 +33,7 @@ Each `data-anim` type generates specific GSAP parameters via `PPT.animate()` →
 | `data-anim-trigger` | `load` | `load`, `with`, `after`, `click` |
 | `data-anim-duration` | 500ms | Clamped to 100–5000ms. Prefer 300–1200ms |
 | `data-anim-delay` | 0 | Milliseconds, or `stagger(N)` |
-| `data-anim-easing` | `easeOutCubic` | Any anime.js/GSAP easing string. GSAP-compatible names preferred: `power2.out`, `power3.out`, `back.out`, etc. |
+| `data-anim-easing` | `easeOutCubic` | Prefer GSAP-compatible names: `power2.out`, `power3.out`, `back.out`, etc. Legacy anime.js names are translated. |
 | `data-anim-from` | Type-dependent | `left`, `right`, `top`, `bottom`, `center` |
 | `data-anim-repeat` | None | Number (max 20) or `infinite` |
 | `data-anim-direction` | `normal` | `normal`, `reverse`, `alternate` |
@@ -226,7 +226,7 @@ Do not manually set `opacity: 0`, `visibility: hidden`, `display: none`, or inli
 
 ## Scripted animation escape hatch
 
-Use `PPT.animate(targets, params)` only when `data-anim` cannot express the motion — complex timelines, synchronized choreography, or custom easing curves. PPT.animate delegates to GSAP (`gsap.fromTo`) for high-performance tweening.
+Use `PPT.animate(targets, params)` only when `data-anim` cannot express the motion — complex timelines, synchronized choreography, or custom easing curves. PPT.animate delegates to the internal GSAP bridge for high-performance tweening.
 
 ```js
 // Staggered card entrance with custom curve
@@ -245,7 +245,7 @@ PPT.animate(".metric-card", {
 |---|---|---|
 | Export to PPTX | Yes, deterministic | Partial |
 | Syntax | HTML attributes | JavaScript |
-| Runtime engine | GSAP (via data-anim config) | GSAP (via gsap.fromTo) |
+| Runtime engine | Internal PPT bridge | Internal PPT bridge |
 | Best for | Standard entrance/emphasis/exit | Complex timelines, synchronized groups |
 | Initial state | Managed automatically | Managed automatically |
 
@@ -258,6 +258,8 @@ tl.add({ targets: ".step-2", opacity: [0, 1], translateY: [20, 0] }, "+=0.2")
 tl.add({ targets: ".step-3", opacity: [0, 1], translateY: [20, 0] }, "+=0.2")
 ```
 
+Do not call `gsap.timeline()` directly. `PPT.createTimeline().add(...)` accepts the Oh My PPT `{ targets, ...params }` shape and delegates to the internal runtime bridge.
+
 ### Scripted stagger
 
 ```js
@@ -268,7 +270,7 @@ PPT.animate(".card", {
 })
 ```
 
-`PPT.stagger(ms)` delegates to `gsap.utils.stagger()` when available, with anime.js fallback.
+`PPT.stagger(ms)` delegates through the internal runtime bridge and keeps millisecond-based PPT API semantics.
 
 ## Easing selection guide
 
@@ -286,6 +288,6 @@ GSAP easing names use the format `{curve}.{type}` (e.g., `power2.out`, `back.inO
 
 ## Print and export behavior
 
-In print mode (`?print=1`), `PPT.animate` does not run the animation engine. Instead, it computes the final animated CSS values and applies them as inline styles. This ensures charts and animated elements are fully visible in screenshots and PDF exports. GSAP animations are force-completed to their end state via `gsap.globalTimeline.progress(1)` before capture.
+In print mode (`?print=1`), `PPT.animate` does not run the animation engine. Instead, it computes the final animated CSS values and applies them as inline styles. This ensures charts and animated elements are fully visible in screenshots and PDF exports. Any active internal runtime animations are force-completed before capture.
 
 Elements with `data-ppt-anim-initialized="1"` have their animation styles cleared when entering edit mode, so they remain visible and editable.

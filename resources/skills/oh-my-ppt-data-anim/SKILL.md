@@ -52,7 +52,7 @@ Add `data-anim` attributes directly on HTML elements. This works in preview and 
 | `data-anim-from` | `left`, `right`, `top`, `bottom`, `center` | direction/origin |
 | `data-anim-delay` | ms or `stagger(N)` | stagger for repeated items |
 | `data-anim-duration` | ms | prefer 300–1200 |
-| `data-anim-easing` | anime.js easing | prefer `easeOutQuad`, `easeOutCubic`, `easeInOutQuad` |
+| `data-anim-easing` | GSAP-compatible or legacy anime.js easing | prefer `power2.out`; legacy `easeOutCubic` is translated |
 | `data-anim-repeat` | number or `infinite` | use `infinite` only when user asks |
 | `data-anim-direction` | `normal`, `reverse`, `alternate` | |
 | `data-anim-path` | SVG path selector or string | for `path` type |
@@ -103,13 +103,14 @@ PPT.animate(".card", {
 ```
 
 - Targets is the first argument (a CSS selector string or DOM element), not an object property.
-- Create timelines with `PPT.createTimeline(targets, params)`.
+- Create timelines with `var tl = PPT.createTimeline(); tl.add({ targets: selector, ...params }, position)`.
 - Use `PPT.stagger(ms)` for staggered scripted delays.
 
 ## Hard rules
 
 - Prefer no animation, `load`, `stagger`, `with`, or `after` before `click`.
 - Use `PPT.animate(selector, params)` — targets is the first argument, not an object property. Call `PPT.animate(...)`, never `anime(...)` or `anime.timeline(...)`.
+- GSAP is an internal engine. Never call `gsap.*`, `window.gsap`, or `globalThis.gsap` from slide fragments.
 - The runtime handles initial hidden states automatically. Do not set `opacity-0`, `invisible`, `visibility:hidden`, `display:none`, or inline `opacity:0` on animated elements.
 - Use only the supported data-anim types listed above.
 
@@ -119,7 +120,7 @@ When animation is broken or not playing:
 
 1. **Check the type value**: must be from the supported list. Values like `typewriter`, `glitch-in`, `path-draw` are not supported.
 2. **Check for conflicting initial states**: remove any manual `opacity-0`, `invisible`, `visibility:hidden`, `display:none`, or inline `opacity:0` — the runtime sets these automatically.
-3. **Check for direct anime() calls**: replace `anime(...)` or `anime.timeline(...)` with `PPT.animate(...)` or `PPT.createTimeline(...)`.
+3. **Check for direct engine calls**: replace `anime(...)`, `anime.timeline(...)`, or `gsap.*` with `data-anim`, `PPT.animate(...)`, or `PPT.createTimeline(...)`.
 4. **Check targets argument format**: `PPT.animate` takes targets as the first argument, not as an object property like `{ targets: ".card" }`.
 
 ## Chart animation boundary

@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio'
-import type { AnyNode } from 'domhandler'
+
+type CheerioSelection = ReturnType<cheerio.CheerioAPI>
 
 const CREATIVE_FRAGMENT_SECTION_CLASS = 'h-full min-h-0 overflow-hidden'
 const CREATIVE_FRAGMENT_MAIN_CLASS = 'h-full min-h-0'
@@ -53,7 +54,7 @@ const allocateBlockId = (base: string, used: Set<string>): string => {
   return candidate
 }
 
-const directTextContent = (el: cheerio.Cheerio<AnyNode>): string =>
+const directTextContent = (el: CheerioSelection): string =>
   el
     .contents()
     .toArray()
@@ -63,7 +64,7 @@ const directTextContent = (el: cheerio.Cheerio<AnyNode>): string =>
     .replace(/\s+/g, ' ')
     .trim()
 
-const hasVisualChild = (el: cheerio.Cheerio<AnyNode>): boolean =>
+const hasVisualChild = (el: CheerioSelection): boolean =>
   el.find('canvas,svg,img,picture,video,table,figure').length > 0
 
 const blockIdBaseForTag = (tagName: string, titleAvailable: boolean): string => {
@@ -77,7 +78,7 @@ const blockIdBaseForTag = (tagName: string, titleAvailable: boolean): string => 
 
 const blockIdBaseForVisualElement = (
   tagName: string,
-  el: cheerio.Cheerio<AnyNode>
+  el: CheerioSelection
 ): string => {
   if (tagName === 'figure') return 'figure'
   if (tagName === 'table') return 'table'
@@ -90,7 +91,7 @@ const blockIdBaseForVisualElement = (
 
 export const normalizeCreativePageFragment = (html: string): string => {
   const $ = cheerio.load(html.trim(), { scriptingEnabled: false }, false)
-  let scaffold: cheerio.Cheerio<AnyNode> = $('section[data-page-scaffold]').first()
+  let scaffold: CheerioSelection = $('section[data-page-scaffold]').first()
 
   if (!scaffold.length) {
     const originalNodes = $.root().contents().toArray()
@@ -113,7 +114,7 @@ export const normalizeCreativePageFragment = (html: string): string => {
     )
   }
 
-  let content: cheerio.Cheerio<AnyNode> = scaffold
+  let content: CheerioSelection = scaffold
     .find('main[data-role="content"], main[data-block-id="content"], main')
     .first()
   if (!content.length) {
@@ -196,7 +197,7 @@ export const normalizeCreativePageFragment = (html: string): string => {
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li', 'blockquote', 'figcaption', 'td', 'th',
     'figure', 'table', 'pre', 'hr'
   ])
-  const hasOnlyInlineOrTextChildren = (el: cheerio.Cheerio<AnyNode>): boolean => {
+  const hasOnlyInlineOrTextChildren = (el: CheerioSelection): boolean => {
     const children = el.children().toArray()
     return children.every((child) => {
       if (child.type !== 'tag') return true

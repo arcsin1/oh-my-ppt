@@ -199,7 +199,7 @@ if (window.gsap) {
 
 Each `DataAnimType` × 4 directions × `{ duration: 300, 500, 1000 }` × `{ delay: 0, 200, 500 }`.
 
-Total: 18 × 4 × 3 × 3 = **648 combinatorial cases**.  
+Total: 17 × 4 × 3 × 3 = **612 combinatorial cases**.
 Practical reduction: test each type with default params, then test parametric extremes on a representative subset (fade, fade-up, fly-in).
 
 #### 2.2 New test files
@@ -207,7 +207,7 @@ Practical reduction: test each type with default params, then test parametric ex
 ```
 tests/unit/animation/
   gsap-data-anim-mapping.test.ts    ← GSAP vars generation correctness
-  pptx-preset-roundtrip.test.ts     ← Export → Import fidelity (all 18 types)
+  pptx-preset-roundtrip.test.ts     ← Export → Import fidelity (all 17 types)
   gsap-timeline-to-pptx.test.ts     ← Timeline XML structural validation
   animation-visual-regression.test.ts ← Pixel-diff test harness (Phase 3)
 ```
@@ -235,7 +235,7 @@ For each animation type, the roundtrip test:
 
 #### 3.1 Acceptance criteria
 
-For each of the 18 animation types, the exported PPTX must meet these criteria when opened in Microsoft PowerPoint (desktop):
+For each of the 17 animation types, the exported PPTX must meet these criteria when opened in Microsoft PowerPoint (desktop):
 
 1. Animation entry visible in Animation Pane
 2. Animation type label matches the declared type (e.g., "Fade" for `fade`)
@@ -302,10 +302,101 @@ GSAP supports infinite easing curves (including custom). PPTX supports approxima
 
 ---
 
-## 6. Summary
+## 6. Follow-up Development Strategy
+
+This section is the gate for follow-up PRs. Do not split or extend the work
+until the current PR satisfies the contract and verification requirements below.
+
+### 6.1 Public animation contract
+
+GSAP is an internal playback engine, not an AI-facing authoring API.
+
+The public contract has three tiers:
+
+| Tier | API | Export expectation | Policy |
+|------|-----|-------------------|--------|
+| 1 | `data-anim` attributes | Native editable PPTX where supported | Default and preferred |
+| 2 | `PPT.animate(...)` / `PPT.createTimeline(...)` | Exportable only for the documented supported subset | Controlled escape hatch |
+| 3 | Direct `gsap.*` / `window.gsap` / `globalThis.gsap` | No stable export contract | Disallowed in generated slide fragments |
+
+This avoids a false promise that arbitrary GSAP code can roundtrip to PPTX. The
+runtime may use GSAP internally, but generated HTML should depend on the stable
+Oh My PPT contract.
+
+### 6.2 Skill model
+
+`oh-my-ppt-data-anim` remains the source of truth for exportable animations.
+
+If a GSAP-specific skill is added, it must be a dependent advanced skill, not a
+competing contract. Its job is to explain controlled choreography through
+`PPT.animate(...)` and `PPT.createTimeline(...)`, plus the degradation rules. It
+must not teach direct `gsap.to(...)`, `gsap.fromTo(...)`, `gsap.timeline(...)`,
+plugin registration, or global timeline manipulation.
+
+### 6.3 Validator gates
+
+The page validator must reject contract violations at the write edge:
+
+1. Direct GSAP access: `gsap.*`, `window.gsap`, `globalThis.gsap`.
+2. Direct anime.js access except legacy runtime assets managed by the app.
+3. Unsupported `data-anim` values. Unknown values must not silently coerce to a
+   fallback type during generation validation.
+4. Manual default-hidden states on animated content unless they are introduced
+   by the runtime/export freeze path.
+5. Timeline calls whose shape is not supported by the `PPT.*` wrapper contract.
+
+Validation belongs at the write/import boundary. Runtime fallback behavior can
+remain forgiving for old decks, but new generated fragments must fail fast.
+
+### 6.4 PR split order
+
+After the current PR is proven robust, split follow-up work in this order:
+
+1. Runtime contract PR: asset loading, prompt wording, skill docs, validator
+   gates, and actual-runtime tests for `data-anim` and `PPT.*`.
+2. PPTX native export PR: OOXML writer/importer, fixture generator,
+   deterministic reference artifacts, and PowerPoint verification checklist.
+3. Advanced/play-only PR: Lottie, motion path, GSAP plugins, video/GIF export,
+   and explicit non-editable degradation UX.
+
+The split should follow ownership boundaries. Do not split by file type if that
+leaves a PR with prompts that advertise behavior the validator or runtime does
+not enforce.
+
+### 6.5 Verification gates before follow-up work
+
+The current PR is not ready for follow-up unless all of these are true:
+
+1. Tests execute the real `resources/ppt-runtime.js` GSAP path with a mocked
+   GSAP object. Tests that copy the runtime switch logic are not sufficient.
+2. `DATA_ANIM_SUPPORTED_TYPES`, runtime `DATA_ANIM_TYPES`, skill docs, fixture
+   names, and PR copy agree on the same type count and semantics.
+3. Unknown animation types are rejected by generation-time validation and only
+   legacy runtime playback may degrade them.
+4. `PPT.createTimeline(...)` either exposes an Oh My PPT-compatible wrapper or
+   its examples use real GSAP timeline methods (`to`, `from`, `fromTo`, `set`).
+5. Stagger, easing, repeat, and yoyo semantics are tested against the actual
+   runtime bridge, not inferred from copied mapping code.
+6. Reference PPTX generation is deterministic or deliberately excluded from
+   normal dirty-state expectations.
+7. Click-trigger, wipe direction, exit visibility, and slide transition XML have
+   a manual Microsoft PowerPoint verification record. ZIP/XML self-parsing does
+   not prove PowerPoint behavior.
+8. No unrelated lockfile or generated artifact churn is present in the final PR.
+
+### 6.6 Non-goals for this line of work
+
+The editable PPTX path does not support arbitrary GSAP plugins, scroll-driven
+motion, custom easing curves, or real motion paths. Those belong in play-only
+mode unless a specific editable OOXML mapping is implemented and verified in
+PowerPoint.
+
+---
+
+## 7. Summary
 
 1. **GSAP replaces anime.js as the runtime engine**, sharing the same `data-anim` protocol with the PPTX export pipeline. One animation description, two execution backends.
-2. **Editable mode covers the intersection of GSAP and PPTX preset spaces** — approximately 15 of the 18 current types are within acceptable fidelity. `path`, `grow-shrink`, and `pulse` have documented degradation.
+2. **Editable mode covers the intersection of GSAP and PPTX preset spaces**. The current 17-type set includes exact mappings, approximate mappings, and documented degraded mappings such as `path`, `grow-shrink`, and `pulse`.
 3. **Element binding must migrate from spatial overlap to attribute matching** (`data-block-id`). This is the highest-risk correctness issue in the current export pipeline.
 4. **Acceptance is measured by visual comparison**, not XML attribute validation. Ground truth = GSAP preview. Acceptance = PPTX playback L2 distance < threshold.
 5. **Play-only mode is the strategic escape hatch** for GSAP features that exceed PPTX capabilities. It should be designed into the protocol from the start, even if implementation is deferred.

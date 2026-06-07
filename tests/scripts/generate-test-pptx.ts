@@ -53,14 +53,14 @@ function makeSlide(
 }
 
 async function main() {
-  // ── File 1: All 18 types, one per slide ──
+  // ── File 1: All 17 editable/exportable types, one per slide ──
   const allSlides = DATA_ANIM_SUPPORTED_TYPES.map((t) =>
     makeSlide(`data-anim="${t}"`, t)
   )
-  await writePptxDocument(resolve(OUT_DIR, '01-all-18-types.pptx'), {
-    title: 'All 18 Animation Types', slides: allSlides
+  await writePptxDocument(resolve(OUT_DIR, '01-all-17-types.pptx'), {
+    title: 'All 17 Animation Types', slides: allSlides
   })
-  console.log('[OK] 01-all-18-types.pptx')
+  console.log('[OK] 01-all-17-types.pptx')
 
   // ── File 2: Directional fly-in × 5 ──
   const directions: DataAnimFrom[] = ['left','right','top','bottom','center']

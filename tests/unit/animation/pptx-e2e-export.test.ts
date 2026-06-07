@@ -1,6 +1,6 @@
 /**
  * End-to-end animation export test: builds real .pptx files, unzips them,
- * and validates roundtrip fidelity for all 18 DataAnimType values.
+ * and validates roundtrip fidelity for all 17 DataAnimType values.
  *
  * This test exercises the full OOXML writer pipeline:
  *   HtmlToPptxSlide → buildSlideXml → writePptxDocument → .pptx ZIP → unzip + parse

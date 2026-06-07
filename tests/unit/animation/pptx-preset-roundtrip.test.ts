@@ -2,7 +2,7 @@
  * @vitest-environment node
  *
  * Roundtrip: export PPTX timing XML → re-import → verify fidelity.
- * Covers all 18 DataAnimType values for the export+import pipeline.
+ * Covers all 17 DataAnimType values for the export+import pipeline.
  */
 import { describe, it, expect } from 'vitest'
 import {

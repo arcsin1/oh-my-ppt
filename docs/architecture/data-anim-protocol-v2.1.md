@@ -20,7 +20,7 @@ Define the animation description protocol that bridges:
 ></div>
 ```
 
-### Supported types (18)
+### Supported types (17)
 
 ```
 Entrance:   fade, fade-up, fade-down, fade-left, fade-right,
@@ -101,6 +101,8 @@ export interface DataAnimConfig {
 3. **Deprecate `path` type**: Mark as "play-only" with a deprecation warning. It currently maps to `fade` in PPTX, which is misleading. Either implement path support via motion-path or remove.
 
 4. **Add explicit `data-anim-editable` marker**: Boolean attribute that signals whether this animation is expected to export as editable PPTX. If absent, `editable=true` is the default for all types except those marked play-only.
+
+5. **Keep Lottie out of the editable set**: `lottie` may exist as a legacy runtime hook, but it is not part of `DATA_ANIM_SUPPORTED_TYPES` until play-only export is implemented.
 
 ### Backward compatibility
 

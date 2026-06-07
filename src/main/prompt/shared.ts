@@ -85,7 +85,7 @@ export const LAYOUT_COLLISION_RULES = [
 export const FRONTEND_CAPABILITIES = [
   '## Runtime capability contract',
   'Available in every /<pageId>.html:',
-  '- Tailwind CSS, GSAP (GreenSock Animation Platform), anime.js, Chart.js, ppt-runtime.js, and KaTeX are already loaded from local assets.',
+  '- Tailwind CSS, Chart.js, ppt-runtime.js, and KaTeX are already loaded from local assets. GSAP is loaded only as the internal animation engine behind PPT.*.',
   '- Do not add CDN links, remote scripts, duplicate runtime tags, or iframe content.',
   '',
   'Fonts:',
@@ -98,6 +98,7 @@ export const FRONTEND_CAPABILITIES = [
   '',
   'Animations:',
   `- Animation rules are in the skill ${DATA_ANIM_SKILL_NAME}. ${formatSkillUsageRequirement(DATA_ANIM_SKILL_NAME)}`,
+  '- Use data-anim by default. For scripted motion, use PPT.animate(...) or PPT.createTimeline(...). Do not call gsap.* or access window.gsap/globalThis.gsap directly.',
   '',
   'Validation:',
   '- Use \\( \\) or $$ $$ for math; do not use single-dollar inline math.'

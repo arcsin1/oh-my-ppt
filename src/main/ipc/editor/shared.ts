@@ -1,6 +1,10 @@
 import * as cheerio from 'cheerio'
 import { nanoid } from 'nanoid'
-import type { AnyNode } from 'domhandler'
+
+type CheerioSelection = ReturnType<cheerio.CheerioAPI>
+type CheerioNode = ReturnType<CheerioSelection['contents']> extends cheerio.Cheerio<infer Node>
+  ? Node
+  : never
 
 // ─── 共享锁 ───────────────────────────────────────────────
 
@@ -225,7 +229,7 @@ export function allocateBlockId(): string {
   return 'select-arcsin1-' + nanoid(8)
 }
 
-export function assertAnchorableElement(target: cheerio.Cheerio<AnyNode>): void {
+export function assertAnchorableElement(target: CheerioSelection): void {
   const node = target.get(0)
   const tagName = String((node as { tagName?: string })?.tagName || '').toLowerCase()
   if (!tagName || BLOCKED_TAGS.has(tagName)) {
@@ -339,7 +343,7 @@ export function patchDraggedElementStyle(
 
 export function hasOnlyEditableTextChildren(
   $: cheerio.CheerioAPI,
-  target: cheerio.Cheerio<AnyNode>
+  target: CheerioSelection
 ): boolean {
   return target
     .children()
@@ -368,7 +372,7 @@ export function patchElementProperties(
   }
 ): string {
   const $ = cheerio.load(html, { scriptingEnabled: false })
-  let target: cheerio.Cheerio<AnyNode>
+  let target: CheerioSelection
   try {
     target = $(selector).first()
   } catch {
@@ -457,7 +461,7 @@ export function patchTextNodeTarget(
 ): boolean {
   const target = normalizeTextNodeTarget(textTarget)
   if (!target) return false
-  let parent: cheerio.Cheerio<AnyNode>
+  let parent: CheerioSelection
   try {
     parent = $(target.parentSelector).first()
   } catch {
@@ -465,7 +469,7 @@ export function patchTextNodeTarget(
   }
   if (!parent || parent.length === 0) return false
   const node = parent.contents().get(target.textNodeIndex) as
-    | (AnyNode & { type?: string; data?: string })
+    | (CheerioNode & { type?: string; data?: string })
     | undefined
   if (!node || node.type !== 'text') return false
   node.data = text
@@ -544,7 +548,7 @@ export function patchGenericElementProperties(
   }
 ): string {
   const $ = cheerio.load(html, { scriptingEnabled: false })
-  let target: cheerio.Cheerio<AnyNode>
+  let target: CheerioSelection
   try {
     target = $(selector).first()
   } catch {
@@ -639,7 +643,7 @@ export function ensureElementAnchorInHtml(
   }
 ): { html: string; selector: string; blockId: string; changed: boolean } {
   const $ = cheerio.load(html, { scriptingEnabled: false })
-  let target: cheerio.Cheerio<AnyNode>
+  let target: CheerioSelection
   try {
     target = $(args.selector).first()
   } catch {

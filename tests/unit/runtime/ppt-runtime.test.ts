@@ -67,6 +67,7 @@ function setupRuntime(options?: { search?: string; parent?: { postMessage: Retur
   const existingPPT = (globalThis as Record<string, unknown>).PPT as Record<string, unknown> | undefined
   if (existingPPT) existingPPT.__runtimeVersion = null
   ;(globalThis as Record<string, unknown>).anime = anime
+  delete (globalThis as Record<string, unknown>).gsap
   window.history.replaceState(null, '', `/page.html${options?.search || ''}`)
   try {
     Object.defineProperty(window, 'parent', {
@@ -81,6 +82,60 @@ function setupRuntime(options?: { search?: string; parent?: { postMessage: Retur
 
   const PPT = (globalThis as Record<string, unknown>).PPT as Record<string, unknown>
   return { PPT, anime, animations }
+}
+
+function setupRuntimeWithGsap() {
+  const fromTo = vi.fn((_targets: unknown, _fromVars: unknown, _toVars: unknown) => {
+    const tween = {
+      then: vi.fn((resolve?: () => void) => {
+        if (typeof resolve === 'function') resolve()
+        return Promise.resolve()
+      }),
+      pause: vi.fn(),
+      play: vi.fn(),
+      complete: vi.fn()
+    }
+    return tween
+  })
+  const to = vi.fn((_targets: unknown, _toVars: unknown) => {
+    const tween = {
+      then: vi.fn((resolve?: () => void) => {
+        if (typeof resolve === 'function') resolve()
+        return Promise.resolve()
+      }),
+      pause: vi.fn(),
+      play: vi.fn(),
+      complete: vi.fn()
+    }
+    return tween
+  })
+  const timelineInstance = {
+    fromTo: vi.fn(),
+    add: vi.fn(),
+    pause: vi.fn(),
+    play: vi.fn(),
+    restart: vi.fn()
+  }
+  const gsap = {
+    fromTo,
+    to,
+    timeline: vi.fn(() => timelineInstance),
+    utils: {
+      stagger: vi.fn((_gap: number, _options?: Record<string, unknown>) => vi.fn())
+    },
+    globalTimeline: {
+      pause: vi.fn(),
+      play: vi.fn(),
+      progress: vi.fn()
+    },
+    killTweensOf: vi.fn()
+  }
+  const runtime = setupRuntime()
+  ;(globalThis as Record<string, unknown>).gsap = gsap
+  ;(runtime.PPT as { __runtimeVersion?: string | null }).__runtimeVersion = null
+  new Function(runtimeSrc)()
+  const PPT = (globalThis as Record<string, unknown>).PPT as Record<string, unknown>
+  return { PPT, gsap, timelineInstance }
 }
 
 // ── Helper: typed clicks access ──
@@ -607,6 +662,110 @@ describe('PPT.animate tracks animations for stop/resume', () => {
     ;(PPT.stopAnimations as Function)()
     const pauseCalls = animations.filter(a => a.pause.mock.calls.length > 0)
     expect(pauseCalls.length).toBeGreaterThan(0)
+  })
+})
+
+describe('PPT GSAP bridge', () => {
+  it('routes PPT.animate through real GSAP adapter with valid easing names', () => {
+    const { PPT, gsap } = setupRuntimeWithGsap()
+
+    ;(PPT.animate as Function)('#el1', {
+      opacity: [0, 1],
+      translateY: [20, 0],
+      duration: 500,
+      delay: 200,
+      easing: 'easeOutCubic'
+    })
+
+    expect(gsap.fromTo).toHaveBeenCalledWith(
+      '#el1',
+      { opacity: 0, y: 20 },
+      {
+        duration: 0.5,
+        delay: 0.2,
+        ease: 'power2.out',
+        opacity: 1,
+        y: 0
+      }
+    )
+  })
+
+  it('maps supported legacy and GSAP easing values explicitly', () => {
+    const { PPT, gsap } = setupRuntimeWithGsap()
+
+    ;(PPT.animate as Function)('#el1', { opacity: [0, 1], easing: 'easeInOutQuad' })
+    ;(PPT.animate as Function)('#el1', { opacity: [0, 1], easing: 'back.out' })
+    ;(PPT.animate as Function)('#el1', { opacity: [0, 1], easing: 'linear' })
+
+    expect(gsap.fromTo.mock.calls[0][2]).toMatchObject({ ease: 'power1.inOut' })
+    expect(gsap.fromTo.mock.calls[1][2]).toMatchObject({ ease: 'back.out' })
+    expect(gsap.fromTo.mock.calls[2][2]).toMatchObject({ ease: 'none' })
+  })
+
+  it('passes PPT.stagger options to GSAP in seconds', () => {
+    const { PPT, gsap } = setupRuntimeWithGsap()
+
+    ;(PPT.stagger as Function)(80, { start: 200, from: 'center' })
+
+    expect(gsap.utils.stagger).toHaveBeenCalledWith(0.08, {
+      start: 0.2,
+      from: 'center'
+    })
+  })
+
+  it('keeps PPT.createTimeline add syntax while adapting to GSAP timeline.fromTo', () => {
+    const { PPT, gsap, timelineInstance } = setupRuntimeWithGsap()
+
+    const timeline = (PPT.createTimeline as Function)({ paused: true })
+    timeline.add(
+      {
+        targets: '.step-1',
+        opacity: [0, 1],
+        translateY: [20, 0],
+        duration: 400,
+        easing: 'power2.out'
+      },
+      '+=0.2'
+    )
+
+    expect(gsap.timeline).toHaveBeenCalledWith({ paused: true })
+    expect(timelineInstance.fromTo).toHaveBeenCalledWith(
+      '.step-1',
+      { opacity: 0, y: 20 },
+      {
+        duration: 0.4,
+        ease: 'power2.out',
+        opacity: 1,
+        y: 0
+      },
+      '+=0.2'
+    )
+  })
+
+  it('tracks GSAP timelines for runtime stop, resume, and finish controls', () => {
+    const { PPT, gsap, timelineInstance } = setupRuntimeWithGsap()
+
+    ;(PPT.createTimeline as Function)({ paused: true })
+    ;(PPT.stopAnimations as Function)()
+    ;(PPT.resumeAnimations as Function)()
+    ;(PPT.finishAnimations as Function)()
+
+    expect(gsap.globalTimeline.pause).toHaveBeenCalled()
+    expect(gsap.globalTimeline.play).toHaveBeenCalled()
+    expect(gsap.globalTimeline.progress).toHaveBeenCalledWith(1)
+    expect(timelineInstance.pause).toHaveBeenCalled()
+    expect(timelineInstance.play).toHaveBeenCalled()
+  })
+
+  it('uses gsap.to for visible-to-hidden exit opacity', () => {
+    const { PPT, gsap } = setupRuntimeWithGsap()
+
+    ;(PPT.animate as Function)('#el1', { opacity: [1, 0], duration: 300 })
+
+    expect(gsap.to).toHaveBeenCalledWith('#el1', {
+      duration: 0.3,
+      opacity: 0
+    })
   })
 })
 

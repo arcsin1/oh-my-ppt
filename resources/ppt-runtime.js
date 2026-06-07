@@ -506,37 +506,64 @@
   function mapEasingToGsap(easingName) {
     var name = String(easingName || "easeOutCubic").trim();
     switch (name) {
+      case "none":
       case "linear": return "none";
-      case "easeInQuad":      case "easeOutQuad":      case "easeInOutQuad":
-      case "easeInCubic":     case "easeOutCubic":     case "easeInOutCubic":
-      case "easeInQuart":     case "easeOutQuart":     case "easeInOutQuart":
-      case "easeInQuint":     case "easeOutQuint":     case "easeInOutQuint":
-      case "easeInSine":      case "easeOutSine":      case "easeInOutSine":
-      case "easeInExpo":      case "easeOutExpo":      case "easeInOutExpo":
-      case "easeInCirc":      case "easeOutCirc":      case "easeInOutCirc":
-      case "easeInBack":      case "easeOutBack":      case "easeInOutBack":
-      case "easeInElastic":   case "easeOutElastic":   case "easeInOutElastic":
-      case "easeInBounce":    case "easeOutBounce":    case "easeInOutBounce":
-        return name.replace("ease", "power").replace("In", ".in").replace("Out", ".out");
+      case "easeInQuad": return "power1.in";
+      case "easeOutQuad": return "power1.out";
+      case "easeInOutQuad": return "power1.inOut";
+      case "easeInCubic": return "power2.in";
+      case "easeOutCubic": return "power2.out";
+      case "easeInOutCubic": return "power2.inOut";
+      case "easeInQuart": return "power3.in";
+      case "easeOutQuart": return "power3.out";
+      case "easeInOutQuart": return "power3.inOut";
+      case "easeInQuint": return "power4.in";
+      case "easeOutQuint": return "power4.out";
+      case "easeInOutQuint": return "power4.inOut";
+      case "easeInSine": return "sine.in";
+      case "easeOutSine": return "sine.out";
+      case "easeInOutSine": return "sine.inOut";
+      case "easeInExpo": return "expo.in";
+      case "easeOutExpo": return "expo.out";
+      case "easeInOutExpo": return "expo.inOut";
+      case "easeInCirc": return "circ.in";
+      case "easeOutCirc": return "circ.out";
+      case "easeInOutCirc": return "circ.inOut";
+      case "easeInBack": return "back.in";
+      case "easeOutBack": return "back.out";
+      case "easeInOutBack": return "back.inOut";
+      case "easeInElastic": return "elastic.in";
+      case "easeOutElastic": return "elastic.out";
+      case "easeInOutElastic": return "elastic.inOut";
+      case "easeInBounce": return "bounce.in";
+      case "easeOutBounce": return "bounce.out";
+      case "easeInOutBounce": return "bounce.inOut";
       default:
+        if (/^(?:power[1-4]|back|elastic|bounce|sine|expo|circ)\.(?:in|out|inOut)$/.test(name)) return name;
         return "power2.out";
     }
   }
 
-  function animateWithGsap(gsapInst, args) {
-    var targets = args[0];
-    var params = args[1];
-    if (!targets || !params || typeof params !== "object") return createCompletedAnimationStub();
-
+  function buildGsapVarsFromPptParams(params) {
     var fromVars = {};
     var toVars = {};
 
-    // duration in seconds for GSAP
-    if (params.duration) toVars.duration = Number(params.duration) / 1000;
-    if (params.delay) toVars.delay = Number(params.delay) / 1000;
+    // duration/delay in the PPT API are milliseconds; GSAP uses seconds.
+    if (params.duration) {
+      var duration = Number(params.duration);
+      if (Number.isFinite(duration)) toVars.duration = duration / 1000;
+    }
+    if (params.delay) {
+      if (typeof params.delay === "function") {
+        toVars.delay = params.delay;
+      } else {
+        var delay = Number(params.delay);
+        if (Number.isFinite(delay)) toVars.delay = delay / 1000;
+      }
+    }
 
-    if (params.easing) {
-      toVars.ease = mapEasingToGsap(params.easing);
+    if (params.easing || params.ease) {
+      toVars.ease = mapEasingToGsap(params.easing || params.ease);
     }
 
     if (params.loop === true) {
@@ -549,7 +576,7 @@
 
     Object.keys(params).forEach(function (key) {
       var value = params[key];
-      if (key === "targets" || key === "duration" || key === "easing" ||
+      if (key === "targets" || key === "duration" || key === "easing" || key === "ease" ||
           key === "delay" || key === "begin" || key === "complete" ||
           key === "loop" || key === "alternate" || key === "reversed" ||
           key === "keyframes" || key === "direction") return;
@@ -568,6 +595,28 @@
       }
     });
 
+    return { fromVars: fromVars, toVars: toVars };
+  }
+
+  function trackActiveGsapTween(tween) {
+    if (!tween) return tween;
+    trackPrintTask(tween);
+    _activeAnimations.add(tween);
+    if (typeof tween.then === "function") {
+      tween.then(function () { _activeAnimations.delete(tween); }, function () { _activeAnimations.delete(tween); });
+    }
+    return tween;
+  }
+
+  function animateWithGsap(gsapInst, args) {
+    var targets = args[0];
+    var params = args[1];
+    if (!targets || !params || typeof params !== "object") return createCompletedAnimationStub();
+
+    var vars = buildGsapVarsFromPptParams(params);
+    var fromVars = vars.fromVars;
+    var toVars = vars.toVars;
+
     var tween;
     // For exit animations where opacity goes 1→0, use gsap.to
     if (fromVars.opacity === 1 && toVars.opacity === 0) {
@@ -576,10 +625,7 @@
       tween = gsapInst.fromTo(targets, fromVars, toVars);
     }
 
-    trackPrintTask(tween);
-    _activeAnimations.add(tween);
-    tween.then(function () { _activeAnimations.delete(tween); });
-    return tween;
+    return trackActiveGsapTween(tween);
   }
 
   ppt.animate = function () {
@@ -632,7 +678,17 @@
     var args = Array.prototype.slice.call(arguments);
     // GSAP timeline stagger is natively handled via gsap.utils.stagger
     if (gsapInst && typeof gsapInst.utils === "object" && typeof gsapInst.utils.stagger === "function") {
-      return gsapInst.utils.stagger(args[0]);
+      var gapMs = Number(args[0] || 0);
+      var normalizedArgs = [Number.isFinite(gapMs) ? gapMs / 1000 : 0];
+      if (args[1] && typeof args[1] === "object") {
+        var options = Object.assign({}, args[1]);
+        if (options.start !== undefined) {
+          var startMs = Number(options.start);
+          if (Number.isFinite(startMs)) options.start = startMs / 1000;
+        }
+        normalizedArgs.push(options);
+      }
+      return gsapInst.utils.stagger.apply(gsapInst.utils, normalizedArgs);
     }
     var runtimeAnime = resolveAnime();
     if (runtimeAnime && typeof runtimeAnime.stagger === "function") {
@@ -645,7 +701,42 @@
     var gsapInst = resolveGsap();
     var args = Array.prototype.slice.call(arguments);
     if (gsapInst && typeof gsapInst.timeline === "function") {
-      return gsapInst.timeline.apply(gsapInst, args);
+      var timeline = gsapInst.timeline.apply(gsapInst, args);
+      _activeAnimations.add(timeline);
+      return {
+        add: function (params, position) {
+          if (!params || typeof params !== "object") {
+            if (timeline && typeof timeline.add === "function") timeline.add(params, position);
+            return this;
+          }
+          var targets = params.targets;
+          if (!targets) return this;
+          var tweenParams = Object.assign({}, params);
+          delete tweenParams.targets;
+          var vars = buildGsapVarsFromPptParams(tweenParams);
+          if (timeline && typeof timeline.fromTo === "function") {
+            timeline.fromTo(targets, vars.fromVars, vars.toVars, position);
+          } else {
+            var tween = gsapInst.fromTo(targets, vars.fromVars, vars.toVars);
+            trackActiveGsapTween(tween);
+            if (timeline && typeof timeline.add === "function") timeline.add(tween, position);
+          }
+          return this;
+        },
+        play: function () {
+          if (timeline && typeof timeline.play === "function") timeline.play.apply(timeline, arguments);
+          return this;
+        },
+        pause: function () {
+          if (timeline && typeof timeline.pause === "function") timeline.pause.apply(timeline, arguments);
+          return this;
+        },
+        restart: function () {
+          if (timeline && typeof timeline.restart === "function") timeline.restart.apply(timeline, arguments);
+          return this;
+        },
+        raw: timeline
+      };
     }
     var runtimeAnime = resolveAnime();
     if (runtimeAnime && typeof runtimeAnime.createTimeline === "function") {

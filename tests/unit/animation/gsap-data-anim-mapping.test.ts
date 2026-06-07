@@ -223,7 +223,7 @@ describe('data-anim → GSAP vars mapping', () => {
     expect(to.yoyo).toBe(1)
   })
 
-  it('produces valid GSAP vars for all 18 supported types', () => {
+  it('produces valid GSAP vars for all 17 supported types', () => {
     const types = [
       'fade', 'fade-up', 'fade-down', 'fade-left', 'fade-right',
       'scale-in', 'slide-up', 'slide-left', 'fly-in',
