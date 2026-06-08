@@ -5,6 +5,7 @@ directories:
 files:
   - '!**/.DS_Store'
   - '!**/._*'
+  - '!resources/ffmpeg/**'
   - '!**/.vscode/*'
   - '!**/.idea/**'
   - '!**/.git/**'
@@ -38,6 +39,7 @@ files:
 asarUnpack:
   - resources/**
   - node_modules/@node-rs/**/*.node
+afterPack: build/after-pack.cjs
 extraResources:
   - from: build/icons/icon.ico
     to: icons/icon.ico

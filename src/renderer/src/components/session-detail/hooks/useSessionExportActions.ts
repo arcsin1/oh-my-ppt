@@ -55,8 +55,7 @@ export function useSessionExportActions(sessionId: string): {
   const {
     success: toastSuccess,
     error: toastError,
-    info: toastInfo,
-    warning: toastWarning
+    info: toastInfo
   } = useToastStore()
   const selectedPageId = useSessionDetailUiStore((state) => state.selectedPageId)
   const currentPages = useGenerateStore((state) => state.currentPages)
@@ -86,7 +85,7 @@ export function useSessionExportActions(sessionId: string): {
         return
       }
       if (Array.isArray(result.warnings) && result.warnings.length > 0) {
-        toastWarning(t('sessionDetail.exportDonePages', { count: result.pageCount || 0 }), {
+        toastSuccess(t('sessionDetail.exportSuccessPages', { count: result.pageCount || 0 }), {
           description: result.warnings[0]
         })
         return
@@ -118,7 +117,7 @@ export function useSessionExportActions(sessionId: string): {
         return
       }
       if (Array.isArray(result.warnings) && result.warnings.length > 0) {
-        toastWarning(t('sessionDetail.pngExported', { count: result.pageCount || 0 }), {
+        toastSuccess(t('sessionDetail.pngExported', { count: result.pageCount || 0 }), {
           description: t('sessionDetail.pageLoadNotice')
         })
         return
@@ -150,7 +149,7 @@ export function useSessionExportActions(sessionId: string): {
         return
       }
       if (Array.isArray(result.warnings) && result.warnings.length > 0) {
-        toastWarning(t('sessionDetail.videoExported', { count: result.pageCount || 0 }), {
+        toastSuccess(t('sessionDetail.videoExported', { count: result.pageCount || 0 }), {
           description: result.warnings[0]
         })
         return
@@ -191,7 +190,7 @@ export function useSessionExportActions(sessionId: string): {
       }
       const exportNotice = getPptxExportNotice(result.warnings, t)
       if (exportNotice) {
-        toastWarning(t('sessionDetail.pptxExported', { count: result.pageCount || 0 }), {
+        toastSuccess(t('sessionDetail.pptxExported', { count: result.pageCount || 0 }), {
           description: exportNotice
         })
         return

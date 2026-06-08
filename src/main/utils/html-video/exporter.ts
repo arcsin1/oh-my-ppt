@@ -398,13 +398,9 @@ const platformArchKey = (): string => `${process.platform}-${process.arch}`
 const bundledFfmpegFileName = (): string => (process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg')
 
 const resourceRoots = (): string[] => {
-  const roots = is.dev
+  return is.dev
     ? [path.join(process.cwd(), 'resources')]
-    : [
-        path.join(process.resourcesPath, 'ffmpeg'),
-        path.join(process.resourcesPath, 'app.asar.unpacked', 'resources')
-      ]
-  return roots
+    : [path.join(process.resourcesPath, 'app.asar.unpacked', 'resources')]
 }
 
 const candidateBundledFfmpegPaths = (): string[] => {
@@ -413,19 +409,27 @@ const candidateBundledFfmpegPaths = (): string[] => {
   const candidates: string[] = []
   for (const root of resourceRoots()) {
     if (path.basename(root) === 'ffmpeg') {
+      candidates.push(path.join(root, fileName))
       candidates.push(path.join(root, key, fileName))
       continue
     }
+    candidates.push(path.join(root, 'ffmpeg', fileName))
     candidates.push(path.join(root, 'ffmpeg', key, fileName))
   }
 
-  // Compatibility for the current checked-in arm64 resource name.
+  const legacyFileNames: string[] = []
   if (process.platform === 'darwin' && process.arch === 'arm64') {
+    legacyFileNames.push('ffmpeg-arm')
+  } else if (process.platform === 'darwin' && process.arch === 'x64') {
+    legacyFileNames.push('ffmpeg-intel')
+  }
+
+  for (const legacyFileName of legacyFileNames) {
     for (const root of resourceRoots()) {
       if (path.basename(root) === 'ffmpeg') {
-        candidates.push(path.join(root, 'ffmpeg-arm'))
+        candidates.push(path.join(root, legacyFileName))
       } else {
-        candidates.push(path.join(root, 'ffmpeg', 'ffmpeg-arm'))
+        candidates.push(path.join(root, 'ffmpeg', legacyFileName))
       }
     }
   }
