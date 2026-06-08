@@ -20,12 +20,20 @@ import {
   captureHtmlPageToPptxImageSlide,
   extractHtmlPageToPptxSlide
 } from '../../utils/html-pptx/renderer'
+import {
+  exportHtmlPagesToVideo,
+  normalizeVideoExportFps,
+  normalizeVideoExportSecondsPerPage
+} from '../../utils/html-video/exporter'
 
 type PptxExportPayload = {
   sessionId?: unknown
   imageOnly?: unknown
   embedFonts?: unknown
   pageId?: unknown
+  fps?: unknown
+  captureFps?: unknown
+  secondsPerPage?: unknown
 }
 
 const parseSessionId = (payload: unknown): string => {
@@ -541,6 +549,110 @@ export function registerExportHandlers(ctx: IpcContext): void {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       log.error('[export:pptx] failed', {
+        sessionId,
+        message
+      })
+      throw error
+    }
+  })
+
+  ipcMain.handle('export:video', async (event, payload: unknown) => {
+    const sessionId = parseSessionId(payload)
+    if (!sessionId) {
+      throw new Error('sessionId 不能为空')
+    }
+    const requestedPageId = parseExportPageId(payload)
+    const fps = normalizeVideoExportFps(
+      payload && typeof payload === 'object' ? (payload as PptxExportPayload).fps : undefined
+    )
+    const secondsPerPage = normalizeVideoExportSecondsPerPage(
+      payload && typeof payload === 'object'
+        ? (payload as PptxExportPayload).secondsPerPage
+        : undefined
+    )
+
+    const { session, pages: allPages, projectDir } = await resolveSessionPageFiles(sessionId)
+    const pages = requestedPageId
+      ? allPages.filter((page) => page.id === requestedPageId)
+      : allPages
+    if (requestedPageId && pages.length === 0) {
+      throw new Error(`页面不存在：${requestedPageId}`)
+    }
+    const sessionTitle =
+      typeof session.title === 'string' && session.title.trim().length > 0
+        ? session.title.trim()
+        : `ohmyppt-${sessionId}`
+    const singlePage = requestedPageId && pages.length === 1 ? pages[0] : null
+    const singlePageTitle = singlePage
+      ? singlePage.title.trim() || `P${String(singlePage.pageNumber).padStart(2, '0')}`
+      : ''
+    const sanitizedBaseName = sanitizeExportBaseName(
+      singlePage ? `【Video】${singlePageTitle}` : `【Video】${sessionTitle}`,
+      `ohmyppt-${sessionId}`
+    )
+
+    const ownerWindow =
+      BrowserWindow.fromWebContents(event.sender) ?? BrowserWindow.getFocusedWindow() ?? mainWindow
+    const saveResult = await dialog.showSaveDialog(ownerWindow, {
+      title: '导出视频',
+      defaultPath: path.join(path.dirname(projectDir), `${sanitizedBaseName}.mp4`),
+      filters: [{ name: 'MP4 Video', extensions: ['mp4'] }],
+      properties: ['createDirectory', 'showOverwriteConfirmation']
+    })
+
+    if (saveResult.canceled || !saveResult.filePath) {
+      return { success: false, cancelled: true }
+    }
+
+    try {
+      log.info('[export:video] starting', {
+        sessionId,
+        pageCount: pages.length,
+        filePath: saveResult.filePath,
+        fps,
+        secondsPerPage,
+        sessionPageId: requestedPageId || undefined
+      })
+      const exported = await exportHtmlPagesToVideo({
+        pages,
+        outputPath: saveResult.filePath,
+        tempRootDir: path.dirname(projectDir),
+        fps,
+        captureFps:
+          payload && typeof payload === 'object'
+            ? normalizeVideoExportFps((payload as PptxExportPayload).captureFps)
+            : undefined,
+        secondsPerPage,
+        timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS,
+        settleMs: EXPORT_CAPTURE_SETTLE_MS,
+        waitForPrintReadySignal
+      })
+      const project = await db.getProject(sessionId)
+      if (project?.id) {
+        await db.updateProjectStatus(project.id, 'exported')
+      }
+
+      log.info('[export:video] completed', {
+        sessionId,
+        pageCount: exported.pageCount,
+        frameCount: exported.frameCount,
+        durationMs: exported.durationMs,
+        filePath: saveResult.filePath,
+        warningCount: exported.warnings.length
+      })
+      shell.showItemInFolder(saveResult.filePath)
+      return {
+        success: true,
+        cancelled: false,
+        path: saveResult.filePath,
+        pageCount: exported.pageCount,
+        durationMs: exported.durationMs,
+        frameCount: exported.frameCount,
+        warnings: exported.warnings
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      log.error('[export:video] failed', {
         sessionId,
         message
       })

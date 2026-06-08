@@ -591,6 +591,7 @@ export const zh = {
     toolbarExportPptxEditable: '可编辑 PPTX',
     toolbarExportPptxImageOnly: '纯图 PPTX',
     toolbarExportPng: 'PNG 图片',
+    toolbarExportVideo: 'MP4 视频',
     toolbarExportPdf: 'PDF 文件',
     toolbarExportSlidePack: '演示预览包',
     toolbarExportSlidePackDesc: '独立打开的演示预览包',
@@ -810,6 +811,9 @@ export const zh = {
     exportPngStart: '正在导出 PNG 图片',
     exportPngDescription: '会将所有页面按顺序保存为高清图片，适合发文档、Notion 或社媒。',
     pngExported: 'PNG 已导出（{count} 张）',
+    exportVideoStart: '正在导出 MP4 视频',
+    exportVideoDescription: '当前版本会将每页导出为静态视频片段，完成后自动打开文件位置。',
+    videoExported: '视频已导出（{count} 页）',
     pptxPreparingEditable: '正在准备可编辑 PPTX',
     pptxPreparingEditableDescription:
       '导出时间可能因为字体导出时间很长，请等待。尽量保留所有元素可编辑，包括文字、形状、图片和表格。',

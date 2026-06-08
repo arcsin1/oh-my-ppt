@@ -36,6 +36,7 @@ interface SessionDetailUiStore {
   isExportingPdf: boolean
   isExportingPng: boolean
   isExportingPptx: boolean
+  isExportingVideo: boolean
   isExportingSlidePack: boolean
   isExportingSessionZip: boolean
   interactionMode: InteractionMode
@@ -87,6 +88,7 @@ interface SessionDetailUiStore {
   setIsExportingPdf: (isExporting: boolean) => void
   setIsExportingPng: (isExporting: boolean) => void
   setIsExportingPptx: (isExporting: boolean) => void
+  setIsExportingVideo: (isExporting: boolean) => void
   setIsExportingSlidePack: (isExporting: boolean) => void
   setIsExportingSessionZip: (isExporting: boolean) => void
   setInteractionMode: (mode: InteractionMode) => void
@@ -148,6 +150,7 @@ export const useSessionDetailUiStore = create<SessionDetailUiStore>((set) => ({
   isExportingPdf: false,
   isExportingPng: false,
   isExportingPptx: false,
+  isExportingVideo: false,
   isExportingSlidePack: false,
   isExportingSessionZip: false,
   interactionMode: 'preview' as InteractionMode,
@@ -235,6 +238,7 @@ export const useSessionDetailUiStore = create<SessionDetailUiStore>((set) => ({
   setIsExportingPdf: (isExportingPdf) => set({ isExportingPdf }),
   setIsExportingPng: (isExportingPng) => set({ isExportingPng }),
   setIsExportingPptx: (isExportingPptx) => set({ isExportingPptx }),
+  setIsExportingVideo: (isExportingVideo) => set({ isExportingVideo }),
   setIsExportingSlidePack: (isExportingSlidePack) => set({ isExportingSlidePack }),
   setIsExportingSessionZip: (isExportingSessionZip) => set({ isExportingSessionZip }),
   setInteractionMode: (interactionMode) => set({ interactionMode }),

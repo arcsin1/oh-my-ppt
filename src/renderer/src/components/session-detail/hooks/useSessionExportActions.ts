@@ -10,6 +10,10 @@ type PptxExportOptions = {
   pageId?: string
 }
 
+type VideoExportOptions = {
+  pageId?: string
+}
+
 function getPptxExportNotice(
   warnings: string[] | undefined,
   t: ReturnType<typeof useT>
@@ -38,6 +42,7 @@ function getPptxExportNotice(
 export function useSessionExportActions(sessionId: string): {
   exportPdf: () => Promise<void>
   exportPng: () => Promise<void>
+  exportVideo: (options?: VideoExportOptions) => Promise<void>
   exportPptx: (options?: PptxExportOptions) => Promise<void>
   exportSlidePack: () => Promise<void>
   exportSessionZip: () => Promise<void>
@@ -123,6 +128,38 @@ export function useSessionExportActions(sessionId: string): {
       toastError(error instanceof Error ? error.message : t('sessionDetail.exportFailed'))
     } finally {
       useSessionDetailUiStore.getState().setIsExportingPng(false)
+    }
+  }
+
+  const exportVideo = async (options?: VideoExportOptions): Promise<void> => {
+    const detailState = useSessionDetailUiStore.getState()
+    if (!sessionId || detailState.isExportingVideo) return
+    detailState.setIsExportingVideo(true)
+    toastInfo(t('sessionDetail.exportVideoStart'), {
+      description: t('sessionDetail.exportVideoDescription'),
+      duration: 5000
+    })
+    try {
+      const result = await ipc.exportVideo(sessionId, options)
+      if (result.cancelled) {
+        toastInfo(t('sessionDetail.exportCancelled'))
+        return
+      }
+      if (!result.success || !result.path) {
+        toastError(t('sessionDetail.exportFailed'))
+        return
+      }
+      if (Array.isArray(result.warnings) && result.warnings.length > 0) {
+        toastWarning(t('sessionDetail.videoExported', { count: result.pageCount || 0 }), {
+          description: result.warnings[0]
+        })
+        return
+      }
+      toastSuccess(t('sessionDetail.videoExported', { count: result.pageCount || 0 }))
+    } catch (error) {
+      toastError(error instanceof Error ? error.message : t('sessionDetail.exportFailed'))
+    } finally {
+      useSessionDetailUiStore.getState().setIsExportingVideo(false)
     }
   }
 
@@ -273,6 +310,7 @@ export function useSessionExportActions(sessionId: string): {
   return {
     exportPdf,
     exportPng,
+    exportVideo,
     exportPptx,
     exportSlidePack,
     exportSessionZip,

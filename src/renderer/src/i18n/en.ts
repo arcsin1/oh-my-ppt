@@ -621,6 +621,7 @@ Business presentations, product introductions, project summaries — formal but 
     toolbarExportPptxEditable: 'Editable PPTX',
     toolbarExportPptxImageOnly: 'Image PPTX',
     toolbarExportPng: 'PNG Image',
+    toolbarExportVideo: 'MP4 Video',
     toolbarExportPdf: 'PDF File',
     toolbarExportSlidePack: 'Slide Pack',
     toolbarExportSlidePackDesc: 'Standalone preview pack',
@@ -848,6 +849,10 @@ Business presentations, product introductions, project summaries — formal but 
     exportPngDescription:
       'All pages will be saved as high-resolution images, suitable for docs, Notion, or social posts.',
     pngExported: 'PNG exported ({count} images)',
+    exportVideoStart: 'Exporting MP4 video',
+    exportVideoDescription:
+      'This version exports each page as a static video segment and opens the file location when complete.',
+    videoExported: 'Video exported ({count} pages)',
     pptxPreparingEditable: 'Preparing editable PPTX',
     pptxPreparingEditableDescription:
       'Export may take longer while fonts are embedded. Please wait. Preserving all elements editable where possible, including text, shapes, images, and tables.',
