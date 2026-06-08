@@ -472,10 +472,14 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
     if (!hasBorder && !isSmallBadge && rect.width * rect.height < minShapeArea) continue;
     if (rect.width < 12 || rect.height < 12) continue;
     const minSide = Math.min(rect.width, rect.height);
+    const radiusPx = Math.max(0, Math.min(radius, minSide / 2));
+    const radiusAdj = radiusPx > 0 && minSide > 0
+      ? Math.max(0, Math.min(50000, Math.round((radiusPx / minSide) * 100000)))
+      : 0;
     const shapeType =
-      radius > 0 && Math.abs(rect.width - rect.height) < 1.5 && radius >= minSide / 2 - 0.5
+      radiusPx > 0 && Math.abs(rect.width - rect.height) < 1.5 && radiusPx >= minSide / 2 - 0.5
         ? 'ellipse'
-        : radius > 0
+        : radiusPx > 0
           ? 'roundRect'
           : 'rect';
     shapes.push({
@@ -488,6 +492,7 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
       fill,
       transparency: fill ? transparencyFor(style.backgroundColor, opacity) : 100,
       radius,
+      radiusAdj,
       shapeType,
       rotate: parseRotate(style),
       border: hasBorder
@@ -1346,6 +1351,7 @@ export const normalizeExtractedHtmlToPptxSlide = (
         fill,
         transparency: clamp(Number(row.transparency ?? 0), 0, 100),
         radius: clamp(Number(row.radius ?? 0), 0, 100),
+        radiusAdj: clamp(Number(row.radiusAdj ?? 0), 0, 50000),
         border: borderColor
           ? {
               color: borderColor,

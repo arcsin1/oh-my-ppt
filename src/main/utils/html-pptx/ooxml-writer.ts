@@ -255,7 +255,12 @@ function buildShapeXml(id: number, shape: HtmlToPptxShape): string {
   // Geometry
   let geomXml: string
   if (preset === 'roundRect' && shape.radius) {
-    const adj = Math.min(50000, Math.max(0, Math.round(shape.radius * 500)))
+    const fallbackRadiusIn = shape.radius / 120
+    const fallbackAdj =
+      Math.min(shape.w, shape.h) > 0
+        ? Math.round((fallbackRadiusIn / Math.min(shape.w, shape.h)) * 100000)
+        : 0
+    const adj = Math.min(50000, Math.max(0, Math.round(shape.radiusAdj || fallbackAdj)))
     geomXml = `<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val ${adj}"/></a:avLst></a:prstGeom>`
   } else {
     geomXml = `<a:prstGeom prst="${preset}"><a:avLst/></a:prstGeom>`

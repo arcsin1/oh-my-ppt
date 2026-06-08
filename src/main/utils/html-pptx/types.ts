@@ -65,6 +65,7 @@ export interface HtmlToPptxShape {
   fill?: string
   transparency?: number
   radius?: number
+  radiusAdj?: number
   border?: HtmlToPptxBorder
   shapeType?: HtmlToPptxShapeType
   rotate?: number

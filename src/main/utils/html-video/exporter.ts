@@ -550,6 +550,8 @@ const runFfmpeg = async (args: {
       String(args.fps),
       '-c:v',
       'libx264',
+      '-threads',
+      '0',
       '-pix_fmt',
       'yuv420p',
       '-crf',

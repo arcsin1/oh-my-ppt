@@ -6,6 +6,7 @@ import path from 'path'
 import { execFileSync } from 'child_process'
 import { is } from '@electron-toolkit/utils'
 import { nanoid } from 'nanoid'
+import pLimit from 'p-limit'
 import { zipSync } from 'fflate'
 import { PDFDocument } from 'pdf-lib'
 import type { IpcContext } from '../context'
@@ -35,6 +36,18 @@ type PptxExportPayload = {
   captureFps?: unknown
   secondsPerPage?: unknown
 }
+
+const EXPORT_PAGE_RENDER_CONCURRENCY = Math.max(1, Math.min(2, os.cpus().length || 1))
+
+const mapPageBatch = async <T, R>(
+  items: T[],
+  worker: (item: T, index: number) => Promise<R>
+): Promise<R[]> => {
+  const limit = pLimit(EXPORT_PAGE_RENDER_CONCURRENCY)
+  return Promise.all(items.map((item, index) => limit(() => worker(item, index))))
+}
+
+const isString = (value: unknown): value is string => typeof value === 'string'
 
 const parseSessionId = (payload: unknown): string => {
   if (
@@ -276,25 +289,31 @@ export function registerExportHandlers(ctx: IpcContext): void {
       const pdfPageWidth = 16 * 72
       const pdfPageHeight = 9 * 72
 
-      for (const page of pages) {
-        log.info('[export:pdf] render page', {
-          sessionId,
-          pageId: page.pageId,
-          htmlPath: page.htmlPath
-        })
-        const rendered = await renderPageToPdfBuffer({
-          page,
-          timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS
-        })
-        if (rendered.warning) warnings.push(rendered.warning)
-        const embeddedImage = await mergedPdf.embedPng(rendered.pngBuffer)
-        const pageDoc = mergedPdf.addPage([pdfPageWidth, pdfPageHeight])
-        pageDoc.drawImage(embeddedImage, {
-          x: 0,
-          y: 0,
-          width: pdfPageWidth,
-          height: pdfPageHeight
-        })
+      for (let start = 0; start < pages.length; start += EXPORT_PAGE_RENDER_CONCURRENCY) {
+        const pageBatch = pages.slice(start, start + EXPORT_PAGE_RENDER_CONCURRENCY)
+        const renderedPages = await mapPageBatch(pageBatch, async (page) => {
+            log.info('[export:pdf] render page', {
+              sessionId,
+              pageId: page.pageId,
+              htmlPath: page.htmlPath
+            })
+            return renderPageToPdfBuffer({
+              page,
+              timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS
+            })
+          })
+
+        for (const rendered of renderedPages) {
+          if (rendered.warning) warnings.push(rendered.warning)
+          const embeddedImage = await mergedPdf.embedPng(rendered.pngBuffer)
+          const pageDoc = mergedPdf.addPage([pdfPageWidth, pdfPageHeight])
+          pageDoc.drawImage(embeddedImage, {
+            x: 0,
+            y: 0,
+            width: pdfPageWidth,
+            height: pdfPageHeight
+          })
+        }
       }
 
       const outputBytes = await mergedPdf.save()
@@ -355,21 +374,25 @@ export function registerExportHandlers(ctx: IpcContext): void {
 
     try {
       await fs.promises.mkdir(outputDir, { recursive: true })
-      for (const page of pages) {
-        log.info('[export:png] render page', {
-          sessionId,
-          pageId: page.pageId,
-          htmlPath: page.htmlPath
-        })
-        const rendered = await renderPageToPdfBuffer({
-          page,
-          timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS
-        })
-        if (rendered.warning) warnings.push(rendered.warning)
-        await fs.promises.writeFile(
-          path.join(outputDir, buildPngFileName(page.pageNumber, page.title)),
-          rendered.pngBuffer
-        )
+      for (let start = 0; start < pages.length; start += EXPORT_PAGE_RENDER_CONCURRENCY) {
+        const pageBatch = pages.slice(start, start + EXPORT_PAGE_RENDER_CONCURRENCY)
+        const batchWarnings = await mapPageBatch(pageBatch, async (page) => {
+            log.info('[export:png] render page', {
+              sessionId,
+              pageId: page.pageId,
+              htmlPath: page.htmlPath
+            })
+            const rendered = await renderPageToPdfBuffer({
+              page,
+              timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS
+            })
+            await fs.promises.writeFile(
+              path.join(outputDir, buildPngFileName(page.pageNumber, page.title)),
+              rendered.pngBuffer
+            )
+            return rendered.warning
+          })
+        warnings.push(...batchWarnings.filter(isString))
       }
 
       const project = await db.getProject(sessionId)
@@ -450,31 +473,36 @@ export function registerExportHandlers(ctx: IpcContext): void {
 
     try {
       const slides: HtmlToPptxSlide[] = []
-      for (const page of pages) {
-        const mode = imageOnly ? 'image' : 'editable'
-        log.info('[export:pptx] extract page', {
-          sessionId,
-          sessionPageId: page.id,
-          pageId: page.pageId,
-          htmlPath: page.htmlPath,
-          mode,
-          singlePage: Boolean(requestedPageId)
-        })
-        const extracted = imageOnly
-          ? await captureHtmlPageToPptxImageSlide({
-              page,
-              timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS,
-              settleMs: EXPORT_CAPTURE_SETTLE_MS,
-              waitForPrintReadySignal
+      for (let start = 0; start < pages.length; start += EXPORT_PAGE_RENDER_CONCURRENCY) {
+        const pageBatch = pages.slice(start, start + EXPORT_PAGE_RENDER_CONCURRENCY)
+        const extractedPages = await mapPageBatch(pageBatch, async (page) => {
+            const mode = imageOnly ? 'image' : 'editable'
+            log.info('[export:pptx] extract page', {
+              sessionId,
+              sessionPageId: page.id,
+              pageId: page.pageId,
+              htmlPath: page.htmlPath,
+              mode,
+              singlePage: Boolean(requestedPageId)
             })
-          : await extractHtmlPageToPptxSlide({
-              page,
-              timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS,
-              settleMs: EXPORT_CAPTURE_SETTLE_MS,
-              waitForPrintReadySignal
-            })
-        slides.push(extracted.slide)
-        if (extracted.warning) warnings.push(extracted.warning)
+            return imageOnly
+              ? captureHtmlPageToPptxImageSlide({
+                  page,
+                  timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS,
+                  settleMs: EXPORT_CAPTURE_SETTLE_MS,
+                  waitForPrintReadySignal
+                })
+              : extractHtmlPageToPptxSlide({
+                  page,
+                  timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS,
+                  settleMs: EXPORT_CAPTURE_SETTLE_MS,
+                  waitForPrintReadySignal
+                })
+          })
+        for (const extracted of extractedPages) {
+          slides.push(extracted.slide)
+          if (extracted.warning) warnings.push(extracted.warning)
+        }
       }
 
       if (!imageOnly) {
