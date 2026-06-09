@@ -38,6 +38,10 @@ export interface HtmlToPptxTextBox {
   paragraphSpacingBefore?: number
   paragraphSpacingAfter?: number
   verticalAlign?: 'top' | 'middle' | 'bottom'
+  paddingLeft?: number
+  paddingRight?: number
+  paddingTop?: number
+  paddingBottom?: number
   bullet?: {
     type: 'bullet' | 'number'
     level?: number

@@ -193,6 +193,10 @@ function buildTextShape(id: number, tb: HtmlToPptxTextBox): string {
     : '<a:noAutofit/>'
   const anchor =
     tb.verticalAlign === 'middle' ? 'ctr' : tb.verticalAlign === 'bottom' ? 'b' : 't'
+  const lIns = inToEmu(Math.max(0, tb.paddingLeft ?? 0))
+  const rIns = inToEmu(Math.max(0, tb.paddingRight ?? 0))
+  const tIns = inToEmu(Math.max(0, tb.paddingTop ?? 0))
+  const bIns = inToEmu(Math.max(0, tb.paddingBottom ?? 0))
 
   return `<p:sp>
     <p:nvSpPr>
@@ -209,7 +213,7 @@ function buildTextShape(id: number, tb: HtmlToPptxTextBox): string {
       <a:noFill/>
     </p:spPr>
     <p:txBody>
-      <a:bodyPr wrap="${wrap}" lIns="0" tIns="0" rIns="0" bIns="0" anchor="${anchor}">${autoFit}</a:bodyPr>
+      <a:bodyPr wrap="${wrap}" lIns="${lIns}" tIns="${tIns}" rIns="${rIns}" bIns="${bIns}" anchor="${anchor}">${autoFit}</a:bodyPr>
       <a:lstStyle/>
 ${paragraphs}
     </p:txBody>

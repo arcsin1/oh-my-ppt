@@ -414,6 +414,264 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
       delete item.paintId;
     });
   };
+  const splitCssShadowList = (value) => {
+    const parts = [];
+    let current = '';
+    let depth = 0;
+    for (const char of String(value || '')) {
+      if (char === '(') depth += 1;
+      else if (char === ')') depth = Math.max(0, depth - 1);
+      if (char === ',' && depth === 0) {
+        if (current.trim()) parts.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    if (current.trim()) parts.push(current.trim());
+    return parts;
+  };
+  const tailwindRingWidthPxMap = new Map([
+    ['ring', 3],
+    ['ring-0', 0],
+    ['ring-1', 1],
+    ['ring-2', 2],
+    ['ring-4', 4],
+    ['ring-8', 8]
+  ]);
+  const tailwindBorderWidthPxMap = new Map([
+    ['border', 1],
+    ['border-0', 0],
+    ['border-2', 2],
+    ['border-4', 4],
+    ['border-8', 8]
+  ]);
+  const tailwindRadiusPxMap = new Map([
+    ['rounded-none', 0],
+    ['rounded-sm', 2],
+    ['rounded', 4],
+    ['rounded-md', 6],
+    ['rounded-lg', 8],
+    ['rounded-xl', 12],
+    ['rounded-2xl', 16],
+    ['rounded-3xl', 24]
+  ]);
+  const tailwindFontWeightMap = new Map([
+    ['font-thin', 100],
+    ['font-extralight', 200],
+    ['font-light', 300],
+    ['font-normal', 400],
+    ['font-medium', 500],
+    ['font-semibold', 600],
+    ['font-bold', 700],
+    ['font-extrabold', 800],
+    ['font-black', 900]
+  ]);
+  const tailwindNamedColorMap = new Map([
+    ['black', '#000000'],
+    ['white', '#FFFFFF'],
+    ['transparent', 'rgba(0, 0, 0, 0)']
+  ]);
+  const tailwindColorShades = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950'];
+  const tailwindColorPaletteMap = new Map(Object.entries({
+    slate: ['#F8FAFC', '#F1F5F9', '#E2E8F0', '#CBD5E1', '#94A3B8', '#64748B', '#475569', '#334155', '#1E293B', '#0F172A', '#020617'],
+    gray: ['#F9FAFB', '#F3F4F6', '#E5E7EB', '#D1D5DB', '#9CA3AF', '#6B7280', '#4B5563', '#374151', '#1F2937', '#111827', '#030712'],
+    zinc: ['#FAFAFA', '#F4F4F5', '#E4E4E7', '#D4D4D8', '#A1A1AA', '#71717A', '#52525B', '#3F3F46', '#27272A', '#18181B', '#09090B'],
+    neutral: ['#FAFAFA', '#F5F5F5', '#E5E5E5', '#D4D4D4', '#A3A3A3', '#737373', '#525252', '#404040', '#262626', '#171717', '#0A0A0A'],
+    stone: ['#FAFAF9', '#F5F5F4', '#E7E5E4', '#D6D3D1', '#A8A29E', '#78716C', '#57534E', '#44403C', '#292524', '#1C1917', '#0C0A09'],
+    red: ['#FEF2F2', '#FEE2E2', '#FECACA', '#FCA5A5', '#F87171', '#EF4444', '#DC2626', '#B91C1C', '#991B1B', '#7F1D1D', '#450A0A'],
+    orange: ['#FFF7ED', '#FFEDD5', '#FED7AA', '#FDBA74', '#FB923C', '#F97316', '#EA580C', '#C2410C', '#9A3412', '#7C2D12', '#431407'],
+    amber: ['#FFFBEB', '#FEF3C7', '#FDE68A', '#FCD34D', '#FBBF24', '#F59E0B', '#D97706', '#B45309', '#92400E', '#78350F', '#451A03'],
+    yellow: ['#FEFCE8', '#FEF9C3', '#FEF08A', '#FDE047', '#FACC15', '#EAB308', '#CA8A04', '#A16207', '#854D0E', '#713F12', '#422006'],
+    lime: ['#F7FEE7', '#ECFCCB', '#D9F99D', '#BEF264', '#A3E635', '#84CC16', '#65A30D', '#4D7C0F', '#3F6212', '#365314', '#1A2E05'],
+    green: ['#F0FDF4', '#DCFCE7', '#BBF7D0', '#86EFAC', '#4ADE80', '#22C55E', '#16A34A', '#15803D', '#166534', '#14532D', '#052E16'],
+    emerald: ['#ECFDF5', '#D1FAE5', '#A7F3D0', '#6EE7B7', '#34D399', '#10B981', '#059669', '#047857', '#065F46', '#064E3B', '#022C22'],
+    teal: ['#F0FDFA', '#CCFBF1', '#99F6E4', '#5EEAD4', '#2DD4BF', '#14B8A6', '#0D9488', '#0F766E', '#115E59', '#134E4A', '#042F2E'],
+    cyan: ['#ECFEFF', '#CFFAFE', '#A5F3FC', '#67E8F9', '#22D3EE', '#06B6D4', '#0891B2', '#0E7490', '#155E75', '#164E63', '#083344'],
+    sky: ['#F0F9FF', '#E0F2FE', '#BAE6FD', '#7DD3FC', '#38BDF8', '#0EA5E9', '#0284C7', '#0369A1', '#075985', '#0C4A6E', '#082F49'],
+    blue: ['#EFF6FF', '#DBEAFE', '#BFDBFE', '#93C5FD', '#60A5FA', '#3B82F6', '#2563EB', '#1D4ED8', '#1E40AF', '#1E3A8A', '#172554'],
+    indigo: ['#EEF2FF', '#E0E7FF', '#C7D2FE', '#A5B4FC', '#818CF8', '#6366F1', '#4F46E5', '#4338CA', '#3730A3', '#312E81', '#1E1B4B'],
+    violet: ['#F5F3FF', '#EDE9FE', '#DDD6FE', '#C4B5FD', '#A78BFA', '#8B5CF6', '#7C3AED', '#6D28D9', '#5B21B6', '#4C1D95', '#2E1065'],
+    purple: ['#FAF5FF', '#F3E8FF', '#E9D5FF', '#D8B4FE', '#C084FC', '#A855F7', '#9333EA', '#7E22CE', '#6B21A8', '#581C87', '#3B0764'],
+    fuchsia: ['#FDF4FF', '#FAE8FF', '#F5D0FE', '#F0ABFC', '#E879F9', '#D946EF', '#C026D3', '#A21CAF', '#86198F', '#701A75', '#4A044E'],
+    pink: ['#FDF2F8', '#FCE7F3', '#FBCFE8', '#F9A8D4', '#F472B6', '#EC4899', '#DB2777', '#BE185D', '#9D174D', '#831843', '#500724'],
+    rose: ['#FFF1F2', '#FFE4E6', '#FECDD3', '#FDA4AF', '#FB7185', '#F43F5E', '#E11D48', '#BE123C', '#9F1239', '#881337', '#4C0519']
+  }));
+  const tailwindUtilityName = (className) => {
+    const raw = String(className || '').trim();
+    if (!raw) return '';
+    const parts = raw.split(':');
+    return parts[parts.length - 1] || raw;
+  };
+  const parseTailwindOpacity = (value) => {
+    const raw = String(value || '').replace(/^\\[|\\]$/g, '').trim();
+    if (!raw) return undefined;
+    const number = Number.parseFloat(raw);
+    if (!Number.isFinite(number)) return undefined;
+    return Math.max(0, Math.min(1, number > 1 ? number / 100 : number));
+  };
+  const hexToRgbaSource = (hex, opacity) => {
+    const raw = String(hex || '').trim().replace(/^#/, '');
+    const normalized = raw.length === 3
+      ? raw.split('').map((char) => char + char).join('')
+      : raw.slice(0, 6);
+    if (!/^[0-9a-f]{6}$/i.test(normalized)) return hex;
+    const r = Number.parseInt(normalized.slice(0, 2), 16);
+    const g = Number.parseInt(normalized.slice(2, 4), 16);
+    const b = Number.parseInt(normalized.slice(4, 6), 16);
+    return 'rgba(' + r + ', ' + g + ', ' + b + ', ' + opacity + ')';
+  };
+  const resolveTailwindColorToken = (name) => {
+    if (tailwindNamedColorMap.has(name)) return tailwindNamedColorMap.get(name);
+    const match = String(name || '').match(/^([a-z]+)-(50|100|200|300|400|500|600|700|800|900|950)$/);
+    if (!match) return '';
+    const palette = tailwindColorPaletteMap.get(match[1]);
+    const shadeIndex = tailwindColorShades.indexOf(match[2]);
+    return palette && shadeIndex >= 0 ? palette[shadeIndex] : '';
+  };
+  const parseTailwindColorUtility = (utility, prefix) => {
+    let colorToken = '';
+    let opacityToken = '';
+    const arbitraryPrefix = prefix + '-[';
+    if (utility.startsWith(arbitraryPrefix)) {
+      const closeIndex = utility.indexOf(']');
+      if (closeIndex < 0) return null;
+      colorToken = utility.slice(arbitraryPrefix.length, closeIndex);
+      opacityToken = utility.slice(closeIndex + 1).startsWith('/')
+        ? utility.slice(closeIndex + 2)
+        : '';
+    } else if (utility.startsWith(prefix + '-')) {
+      const raw = utility.slice(prefix.length + 1);
+      const slashIndex = raw.indexOf('/');
+      const name = slashIndex >= 0 ? raw.slice(0, slashIndex) : raw;
+      colorToken = resolveTailwindColorToken(name);
+      opacityToken = slashIndex >= 0 ? raw.slice(slashIndex + 1) : '';
+    }
+    if (!colorToken || /^-?\\d/.test(colorToken) || /px\\]?$/.test(colorToken)) return null;
+    const opacity = parseTailwindOpacity(opacityToken);
+    if (opacity !== undefined && colorToken.startsWith('#')) {
+      return hexToRgbaSource(colorToken, opacity);
+    }
+    return colorToken;
+  };
+  const parseTailwindRingColor = (utility) => parseTailwindColorUtility(utility, 'ring');
+  const parseTailwindBorderColor = (utility) => parseTailwindColorUtility(utility, 'border');
+  const parseTailwindBackgroundColor = (utility) => parseTailwindColorUtility(utility, 'bg');
+  const parseTailwindRingWidth = (utility) => {
+    if (tailwindRingWidthPxMap.has(utility)) return tailwindRingWidthPxMap.get(utility);
+    const arbitrary = utility.match(/^ring-\\[(-?\\d*\\.?\\d+)px\\]$/);
+    if (!arbitrary) return undefined;
+    const value = Number.parseFloat(arbitrary[1]);
+    return Number.isFinite(value) ? Math.max(0, value) : undefined;
+  };
+  const parseTailwindBorderWidth = (utility) => {
+    if (tailwindBorderWidthPxMap.has(utility)) return tailwindBorderWidthPxMap.get(utility);
+    const arbitrary = utility.match(/^border-\\[(-?\\d*\\.?\\d+)px\\]$/);
+    if (!arbitrary) return undefined;
+    const value = Number.parseFloat(arbitrary[1]);
+    return Number.isFinite(value) ? Math.max(0, value) : undefined;
+  };
+  const parseTailwindRadius = (utility) => {
+    if (utility === 'rounded-full') return { full: true };
+    if (tailwindRadiusPxMap.has(utility)) return { px: tailwindRadiusPxMap.get(utility) };
+    const arbitrary = utility.match(/^rounded-\\[(-?\\d*\\.?\\d+)px\\]$/);
+    if (!arbitrary) return null;
+    const value = Number.parseFloat(arbitrary[1]);
+    return Number.isFinite(value) ? { px: Math.max(0, value) } : null;
+  };
+  const parseTailwindFontWeight = (utility) => {
+    if (tailwindFontWeightMap.has(utility)) return tailwindFontWeightMap.get(utility);
+    const arbitrary = utility.match(/^font-\\[([1-9]\\d{0,2})\\]$/);
+    if (!arbitrary) return undefined;
+    const value = Number.parseInt(arbitrary[1], 10);
+    return Number.isFinite(value) ? Math.max(1, Math.min(1000, value)) : undefined;
+  };
+  const resolveTailwindFontWeight = (element) => {
+    const classNames = String(element?.className || '').split(/\\s+/).filter(Boolean);
+    let fontWeight;
+    for (const className of classNames) {
+      const weight = parseTailwindFontWeight(tailwindUtilityName(className));
+      if (weight !== undefined) fontWeight = weight;
+    }
+    return fontWeight;
+  };
+  const resolveComputedFontWeight = (style) => {
+    const raw = String(style.fontWeight || '').trim().toLowerCase();
+    if (!raw) return undefined;
+    if (raw === 'normal') return 400;
+    if (raw === 'bold') return 700;
+    const value = Number.parseInt(raw, 10);
+    return Number.isFinite(value) && value > 0 ? value : undefined;
+  };
+  const resolveTailwindVisualHints = (element) => {
+    const hints = {
+      ringWidthPx: undefined,
+      ringColorSource: '',
+      ringInset: false,
+      borderWidthPx: undefined,
+      borderColorSource: '',
+      borderDash: undefined,
+      backgroundColorSource: '',
+      radiusPx: undefined,
+      radiusFull: false
+    };
+    const classNames = String(element?.className || '').split(/\\s+/).filter(Boolean);
+    for (const className of classNames) {
+      const utility = tailwindUtilityName(className);
+      if (utility === 'ring-inset') {
+        hints.ringInset = true;
+        continue;
+      }
+      if (utility === 'border-dashed' || utility === 'border-dotted') hints.borderDash = 'dash';
+      else if (utility === 'border-solid') hints.borderDash = 'solid';
+      const ringWidth = parseTailwindRingWidth(utility);
+      if (ringWidth !== undefined) hints.ringWidthPx = ringWidth;
+      const ringColor = parseTailwindRingColor(utility);
+      if (ringColor) hints.ringColorSource = ringColor;
+      const borderWidth = parseTailwindBorderWidth(utility);
+      if (borderWidth !== undefined) hints.borderWidthPx = borderWidth;
+      const borderColor = parseTailwindBorderColor(utility);
+      if (borderColor) hints.borderColorSource = borderColor;
+      const backgroundColor = parseTailwindBackgroundColor(utility);
+      if (backgroundColor) hints.backgroundColorSource = backgroundColor;
+      const radius = parseTailwindRadius(utility);
+      if (radius?.full) hints.radiusFull = true;
+      else if (radius?.px !== undefined) hints.radiusPx = radius.px;
+    }
+    return hints;
+  };
+  const resolveRingShadow = (style, opacity, tailwindHints) => {
+    let best = null;
+    if (style.boxShadow && style.boxShadow !== 'none') {
+      for (const shadow of splitCssShadowList(style.boxShadow)) {
+        if (/\\binset\\b/i.test(shadow)) continue;
+        const colorMatch = shadow.match(/rgba?\\([^)]*\\)|#[0-9a-fa-f]{3,8}/i);
+        if (!colorMatch) continue;
+        const colorSource = colorMatch[0];
+        const color = rgbToHex(colorSource);
+        if (!color || parseAlpha(colorSource) * opacity < 0.04) continue;
+        const lengths = shadow
+          .replace(colorSource, ' ')
+          .match(/-?\\d*\\.?\\d+(?:px)?/g)
+          ?.map((part) => Number.parseFloat(part)) || [];
+        if (lengths.length < 4) continue;
+        const [offsetX, offsetY, blur, spread] = lengths;
+        if (Math.abs(offsetX) > 0.5 || Math.abs(offsetY) > 0.5 || Math.abs(blur) > 0.5) continue;
+        if (!Number.isFinite(spread) || spread <= 0.5) continue;
+        if (!best || spread > best.w) best = { w: spread, c: color, colorSource };
+      }
+    }
+    if (tailwindHints?.ringInset) return best;
+    if (tailwindHints?.ringWidthPx > 0) {
+      const colorSource = tailwindHints.ringColorSource || best?.colorSource || 'rgba(59, 130, 246, 0.5)';
+      const color = rgbToHex(colorSource);
+      if (color && parseAlpha(colorSource) * opacity >= 0.04) {
+        const hintedRing = { w: tailwindHints.ringWidthPx, c: color, colorSource };
+        if (!best || hintedRing.w > best.w) return hintedRing;
+      }
+    }
+    return best;
+  };
 
   // ========== Shapes: skip consumed table elements ==========
   const shapeNodes = Array.from(pageElement.querySelectorAll('section,main,article,header,footer,aside,div,figure,figcaption,table,td,th,span'));
@@ -435,7 +693,11 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
     if (bgImage && bgImage !== 'none') continue;
     const opacity = Number(style.opacity || '1');
     if (opacity < 0.15) continue;
-    const fill = rgbToHex(style.backgroundColor);
+    const tailwindVisualHints = resolveTailwindVisualHints(element);
+    const fillSource = rgbToHex(style.backgroundColor)
+      ? style.backgroundColor
+      : tailwindVisualHints.backgroundColorSource;
+    const fill = rgbToHex(fillSource);
     // Check per-side border: Tailwind border-l-4 sets border-left only,
     // style.borderColor / style.borderWidth may not reflect it.
     const resolveBorder = () => {
@@ -452,15 +714,38 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
         if (w <= 0 || side.s === 'none') continue;
         const c = rgbToHex(side.c);
         if (!c) continue;
-        if (!best || w > best.w) best = { w, c };
+        if (!best || w > best.w) best = { w, c, colorSource: side.c, dash: side.s === 'dashed' ? 'dash' : 'solid' };
       }
+      if (tailwindVisualHints.borderWidthPx > 0) {
+        const colorSource =
+          tailwindVisualHints.borderColorSource ||
+          best?.colorSource ||
+          style.borderColor ||
+          'rgba(229, 231, 235, 1)';
+        const color = rgbToHex(colorSource);
+        if (color && parseAlpha(colorSource) * opacity >= 0.04) {
+          const hintedBorder = {
+            w: tailwindVisualHints.borderWidthPx,
+            c: color,
+            colorSource,
+            dash: tailwindVisualHints.borderDash || 'solid'
+          };
+          if (!best || hintedBorder.w > best.w) best = hintedBorder;
+        }
+      }
+      const ring = resolveRingShadow(style, opacity, tailwindVisualHints);
+      if (ring && (!best || ring.w > best.w)) return { ...ring, dash: 'solid' };
       return best;
     };
     const borderInfo = resolveBorder();
     const borderColor = borderInfo ? borderInfo.c : '';
     const borderWidth = borderInfo ? borderInfo.w : 0;
     const hasBorder = Boolean(borderInfo);
-    const radius = Number.parseFloat(style.borderTopLeftRadius || style.borderRadius || '0') || 0;
+    const minSide = Math.min(rect.width, rect.height);
+    const computedRadius = Number.parseFloat(style.borderTopLeftRadius || style.borderRadius || '0') || 0;
+    const radius = computedRadius || (tailwindVisualHints.radiusFull
+      ? minSide / 2
+      : tailwindVisualHints.radiusPx || 0);
     const hasShadow = Boolean(style.boxShadow && style.boxShadow !== 'none');
     // Skip elements with no visual distinction.
     // BUT keep elements with rounded corners or box-shadow (e.g. cards with bg-white
@@ -471,7 +756,6 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
     const isSmallBadge = fill && fill !== backgroundColor && (radius > 0 || hasShadow);
     if (!hasBorder && !isSmallBadge && rect.width * rect.height < minShapeArea) continue;
     if (rect.width < 12 || rect.height < 12) continue;
-    const minSide = Math.min(rect.width, rect.height);
     const radiusPx = Math.max(0, Math.min(radius, minSide / 2));
     const radiusAdj = radiusPx > 0 && minSide > 0
       ? Math.max(0, Math.min(50000, Math.round((radiusPx / minSide) * 100000)))
@@ -490,7 +774,7 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
       order: orderFor(element),
       paintId: registerPaintTarget(element),
       fill,
-      transparency: fill ? transparencyFor(style.backgroundColor, opacity) : 100,
+      transparency: fill ? transparencyFor(fillSource, opacity) : 100,
       radius,
       radiusAdj,
       shapeType,
@@ -499,8 +783,8 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
         ? {
             color: borderColor,
             widthPt: borderWidth * 0.75,
-            transparency: transparencyFor(style.borderColor, opacity),
-            dash: style.borderStyle === 'dashed' ? 'dash' : 'solid'
+            transparency: transparencyFor(borderInfo.colorSource || style.borderColor, opacity),
+            dash: borderInfo.dash || 'solid'
           }
         : undefined
     });
@@ -542,6 +826,24 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
     const value = Number.parseFloat(style[property] || '0') || 0;
     return Math.max(0, Math.min(72, value * pointsPerPx));
   };
+  const cssPx = (value) => {
+    const parsed = Number.parseFloat(String(value || '0'));
+    return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+  };
+  const resolveTextInsets = (style, rect) => {
+    const leftPx = cssPx(style.paddingLeft) + cssPx(style.borderLeftWidth);
+    const rightPx = cssPx(style.paddingRight) + cssPx(style.borderRightWidth);
+    const topPx = cssPx(style.paddingTop) + cssPx(style.borderTopWidth);
+    const bottomPx = cssPx(style.paddingBottom) + cssPx(style.borderBottomWidth);
+    const maxX = Math.max(0, rect.width * 0.45);
+    const maxY = Math.max(0, rect.height * 0.45);
+    return {
+      paddingLeft: sizeToInX(Math.min(leftPx, maxX)),
+      paddingRight: sizeToInX(Math.min(rightPx, maxX)),
+      paddingTop: sizeToInY(Math.min(topPx, maxY)),
+      paddingBottom: sizeToInY(Math.min(bottomPx, maxY))
+    };
+  };
   const resolveTextBoxVerticalAlign = (style) => {
     const verticalAlign = String(style.verticalAlign || '');
     if (verticalAlign === 'middle') return 'middle';
@@ -549,13 +851,48 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
     const display = String(style.display || '');
     if (display.includes('flex') || display.includes('grid')) {
       const flexDirection = String(style.flexDirection || 'row');
+      const isColumn = /column/i.test(flexDirection);
+      const isColumnReverse = /column-reverse/i.test(flexDirection);
       const verticalAxisValue = /column/i.test(flexDirection)
         ? String(style.justifyContent || '')
         : String(style.alignItems || '');
       if (verticalAxisValue === 'center') return 'middle';
-      if (verticalAxisValue === 'end' || verticalAxisValue === 'flex-end') return 'bottom';
+      if (isColumn && (verticalAxisValue === 'start' || verticalAxisValue === 'flex-start')) {
+        return isColumnReverse ? 'bottom' : 'top';
+      }
+      if (verticalAxisValue === 'end' || verticalAxisValue === 'flex-end') {
+        return isColumnReverse ? 'top' : 'bottom';
+      }
     }
     return 'top';
+  };
+  const resolveTextBoxAlign = (style, isVerticalText, shouldWrap) => {
+    if (isVerticalText) return 'center';
+    const textAlign = String(style.textAlign || '');
+    if (textAlign === 'center') return 'center';
+    if (textAlign === 'right' || textAlign === 'end') return 'right';
+    if (shouldWrap && textAlign === 'justify') return 'justify';
+    const display = String(style.display || '');
+    if (display.includes('flex') || display.includes('grid')) {
+      const flexDirection = String(style.flexDirection || 'row');
+      const isColumn = /column/i.test(flexDirection);
+      const isRowReverse = /row-reverse/i.test(flexDirection);
+      const horizontalAxisValue = isColumn
+        ? String(style.alignItems || '')
+        : String(style.justifyContent || '');
+      if (horizontalAxisValue === 'center') return 'center';
+      if (!isColumn && (horizontalAxisValue === 'start' || horizontalAxisValue === 'flex-start')) {
+        return isRowReverse ? 'right' : 'left';
+      }
+      if (
+        horizontalAxisValue === 'end' ||
+        horizontalAxisValue === 'flex-end' ||
+        horizontalAxisValue === 'right'
+      ) {
+        return isRowReverse ? 'left' : 'right';
+      }
+    }
+    return 'left';
   };
   const resolveListBullet = (element) => {
     if (!element || String(element.tagName || '').toUpperCase() !== 'LI') return undefined;
@@ -662,7 +999,7 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
     }
     return false;
   };
-  const pushTextBox = (text, rect, parentStyle, parentElement, shouldWrap = false) => {
+  const pushTextBox = (text, rect, parentStyle, parentElement, shouldWrap = false, options = {}) => {
     if (texts.length >= maxTextBoxes) return;
     text = shouldWrap ? clampBlockText(text) : clampText(text);
     if (!text) return;
@@ -675,7 +1012,14 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
       shouldWrap = false;
     }
     const bullet = resolveListBullet(parentElement);
-    if (shouldWrap && !isVerticalText && !bullet) {
+    const insets = options.useElementInsets && !isVerticalText
+      ? resolveTextInsets(parentStyle, rect)
+      : undefined;
+    const hasInsets = Boolean(
+      insets &&
+      (insets.paddingLeft || insets.paddingRight || insets.paddingTop || insets.paddingBottom)
+    );
+    if (shouldWrap && !isVerticalText && !bullet && !hasInsets) {
       const pretextLayout = layoutTextWithPretext(text, rect, parentStyle);
       if (pretextLayout && pretextLayout.lines.length > 0) {
         pretextLayout.lines.forEach((line) => pushTextBox(line.text, line.rect, parentStyle, parentElement, false));
@@ -687,22 +1031,33 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
     textSeen.add(key);
     const fontSizePx = Number.parseFloat(parentStyle.fontSize || '16') || 16;
     const fontSizePt = Math.max(6, Math.min(${MAX_EXPORT_FONT_SIZE_PT}, fontSizePx * pointsPerPx));
-    const fontWeight = Number.parseInt(parentStyle.fontWeight || '400', 10) || 400;
+    const computedFontWeight = resolveComputedFontWeight(parentStyle);
+    const fontWeight = computedFontWeight || resolveTailwindFontWeight(parentElement) || 400;
     const fontFace = String(parentStyle.fontFamily || 'Aptos').split(',')[0].replace(/["']/g, '').trim() || 'Aptos';
     const x = pxToInX(rect.left);
     const textPaint = resolveTextPaint(parentStyle);
+    const align = resolveTextBoxAlign(parentStyle, isVerticalText, shouldWrap);
+    const verticalAlign = resolveTextBoxVerticalAlign(parentStyle);
     texts.push({
       text,
       x,
       y: pxToInY(rect.top),
       w: isVerticalText
         ? Math.max(0.12, sizeToInX(rect.width) + Math.max(0.02, fontSizePt / 72 * 0.08))
-        : textWidthIn(x, sizeToInX(rect.width), fontSizePt, text, shouldWrap),
+        : hasInsets
+          ? Math.max(0.12, Math.min(slideWidthIn - x, sizeToInX(rect.width)))
+        : align !== 'left'
+          ? Math.max(0.12, Math.min(slideWidthIn - x, sizeToInX(rect.width)))
+          : textWidthIn(x, sizeToInX(rect.width), fontSizePt, text, shouldWrap),
       h: isVerticalText
         ? Math.max(0.12, sizeToInY(rect.height))
+        : hasInsets
+          ? Math.max(0.08, sizeToInY(rect.height))
         : shouldWrap
         ? Math.max(0.12, sizeToInY(rect.height) + Math.max(0.02, fontSizePt / 72 * 0.08))
-        : textHeightIn(sizeToInY(rect.height), fontSizePt),
+        : verticalAlign !== 'top'
+          ? Math.max(0.08, sizeToInY(rect.height))
+          : textHeightIn(sizeToInY(rect.height), fontSizePt),
       fontSize: fontSizePt,
       fontFace,
       color: textPaint.color,
@@ -710,24 +1065,15 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
       italic: parentStyle.fontStyle === 'italic' || parentStyle.fontStyle === 'oblique',
       underline: String(parentStyle.textDecoration || '').includes('underline'),
       strike: String(parentStyle.textDecoration || '').includes('line-through'),
-      align: isVerticalText
-        ? 'center'
-        : shouldWrap
-        ? parentStyle.textAlign === 'center'
-          ? 'center'
-          : parentStyle.textAlign === 'right' || parentStyle.textAlign === 'end'
-            ? 'right'
-            : parentStyle.textAlign === 'justify'
-              ? 'justify'
-              : 'left'
-        : 'left',
+      align,
       opacity: textPaint.opacity,
       rotate: parseRotate(parentStyle),
       order: orderFor(parentElement),
       paintId: registerPaintTarget(parentElement),
       paragraphSpacingBefore: spacingPtFor(parentStyle, 'marginTop'),
       paragraphSpacingAfter: spacingPtFor(parentStyle, 'marginBottom'),
-      verticalAlign: resolveTextBoxVerticalAlign(parentStyle),
+      verticalAlign,
+      ...(hasInsets ? insets : {}),
       bullet,
       lineSpacing: parentStyle.lineHeight && parentStyle.lineHeight !== 'normal'
         ? Math.max(fontSizePt * 1.08, (Number.parseFloat(parentStyle.lineHeight) || 0) * pointsPerPx)
@@ -798,7 +1144,9 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
       const fontSizePx = Number.parseFloat(style.fontSize || '16') || 16;
       const singleLine = rect.height <= fontSizePx * 1.55;
       const largeText = fontSizePx >= 28 || /^H[1-6]$/.test(element.tagName);
-      pushTextBox(text, rect, style, element, !(singleLine && largeText));
+      pushTextBox(text, rect, style, element, !(singleLine && largeText), {
+        useElementInsets: true
+      });
       consumedTextElements.add(element);
       element.setAttribute('data-pptx-extracted-text', '1');
     }
@@ -1326,6 +1674,11 @@ export const normalizeExtractedHtmlToPptxSlide = (
           row.verticalAlign === 'middle' || row.verticalAlign === 'bottom'
             ? row.verticalAlign
             : 'top',
+        paddingLeft: Number(row.paddingLeft) > 0 ? clamp(Number(row.paddingLeft), 0, 2) : undefined,
+        paddingRight: Number(row.paddingRight) > 0 ? clamp(Number(row.paddingRight), 0, 2) : undefined,
+        paddingTop: Number(row.paddingTop) > 0 ? clamp(Number(row.paddingTop), 0, 1) : undefined,
+        paddingBottom:
+          Number(row.paddingBottom) > 0 ? clamp(Number(row.paddingBottom), 0, 1) : undefined,
         bullet,
         wrap: Boolean(row.wrap),
         order: Number.isFinite(Number(row.order)) ? Math.max(0, Number(row.order)) : undefined
