@@ -669,7 +669,7 @@ Business presentations, product introductions, project summaries — formal but 
     preview: 'Browser Preview',
     previewTooltip: 'Open in browser — works independently outside the app',
     present: 'Present',
-    presentTooltip: 'Fullscreen presentation, arrow keys to navigate, Esc to exit',
+    presentTooltip: 'Fullscreen presentation, arrow keys or mouse wheel to navigate, Esc to exit',
     saveAsNewSession: 'Save as New Session',
     saveAsNewSessionDefaultName: '{title} Copy',
     saveAsNewSessionDialogTitle: 'Save as New Session',

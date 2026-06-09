@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  // @ohmyppt-index-runtim:arcsin1:v2.0.11
+  // @ohmyppt-index-runtim:arcsin1:v2.0.16
 
   var pages = JSON.parse(document.getElementById('pages-data')?.textContent || '[]');
   var frameViewport = document.getElementById('frameViewport');
@@ -22,12 +22,36 @@
   var indexTransitionDuration = 420;  // ms
   var playbackRequestSeq = 0;
   var pendingPlaybackRequests = {};
+  var pageSwitchSeq = 0;
+  var isPageSwitching = false;
+  var prefetchedPageUrls = new Set();
+  var wheelDeltaBuffer = 0;
+  var wheelGestureLocked = false;
+  var wheelGestureLockDirection = 0;
+  var lastWheelNavigateAt = 0;
+  var wheelGestureUnlockTimer = 0;
+  var queuedNavigationOffset = 0;
+  var WHEEL_NAV_THRESHOLD = 80;
+  var WHEEL_NAV_COOLDOWN = 520;
+  var WHEEL_GESTURE_IDLE = 260;
+  var FRAME_LOAD_TIMEOUT = 3000;
 
   function clearPendingPlaybackRequests() {
     Object.keys(pendingPlaybackRequests).forEach(function (requestId) {
       window.clearTimeout(pendingPlaybackRequests[requestId]);
       delete pendingPlaybackRequests[requestId];
     });
+    if (wheelGestureUnlockTimer) {
+      window.clearTimeout(wheelGestureUnlockTimer);
+      wheelGestureUnlockTimer = 0;
+    }
+  }
+
+  function resetWheelGestureState() {
+    wheelDeltaBuffer = 0;
+    wheelGestureLocked = false;
+    wheelGestureLockDirection = 0;
+    lastWheelNavigateAt = 0;
   }
 
   function getPageKey(page) {
@@ -38,9 +62,21 @@
     return String((page && page.pageId) || getPageKey(page));
   }
 
+  var pageByKey = new Map();
+  var pageIndexByKey = new Map();
+  var legacyPageKeyById = new Map();
+  pages.forEach(function (page, index) {
+    var pageKey = getPageKey(page);
+    if (!pageKey) return;
+    pageByKey.set(pageKey, page);
+    pageIndexByKey.set(pageKey, index);
+    legacyPageKeyById.set(getLegacyPageId(page), pageKey);
+  });
+
   // ── iframe pool: one per page, lazy-loaded on first visit ──
   var framePool = new Map();
   var loadedPages = new Set();
+  var loadingFrames = new Map();
   var allFrames = frameViewport
     ? Array.from(frameViewport.querySelectorAll('.ppt-preview-frame'))
     : [];
@@ -79,10 +115,37 @@
     return false;
   }
 
+  function requestNavigation(offset, options) {
+    var navOffset = Number.isFinite(offset) && offset !== 0 ? offset : 1;
+    var opts = options || {};
+    if (isPageSwitching) {
+      if (opts.queueWhileSwitching) queuedNavigationOffset = navOffset;
+      return false;
+    }
+    if (navOffset > 0 && opts.allowPlaybackAdvance !== false) {
+      if (playbackMode && postPlaybackAdvanceToFrame(1)) return true;
+    }
+    return gotoOffset(navOffset);
+  }
+
+  function resetWheelGestureSoon() {
+    if (wheelGestureUnlockTimer) window.clearTimeout(wheelGestureUnlockTimer);
+    wheelGestureUnlockTimer = window.setTimeout(function () {
+      wheelGestureUnlockTimer = 0;
+      wheelDeltaBuffer = 0;
+      wheelGestureLocked = false;
+      wheelGestureLockDirection = 0;
+    }, WHEEL_GESTURE_IDLE);
+  }
+
   function handlePresentationKey(event) {
     // Forward click advance to iframe first (for click-triggered animations)
     var clickForwardKeys = ['ArrowRight', 'ArrowDown', 'PageDown', ' '];
     if (clickForwardKeys.indexOf(event.key) >= 0) {
+      if (isPageSwitching) {
+        event.preventDefault();
+        return;
+      }
       if (playbackMode && postPlaybackAdvanceToFrame(1)) {
         event.preventDefault();
         return;
@@ -91,12 +154,13 @@
 
     if (event.key === 'ArrowRight' || event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === ' ') {
       event.preventDefault();
-      gotoOffset(1);
+      requestNavigation(1, { allowPlaybackAdvance: false });
       return;
     }
     if (event.key === 'ArrowLeft' || event.key === 'ArrowUp' || event.key === 'PageUp') {
       event.preventDefault();
-      gotoOffset(-1);
+      if (isPageSwitching) return;
+      requestNavigation(-1, { allowPlaybackAdvance: false });
       return;
     }
     if (event.key === 'Escape') {
@@ -105,6 +169,96 @@
     if (event.key === 'Escape' && presentMode) {
       event.preventDefault();
       exitPresentMode();
+    }
+  }
+
+  function isEditableTarget(target) {
+    if (!target || target.nodeType !== 1) return false;
+    var tagName = String(target.tagName || '').toLowerCase();
+    var closest = typeof target.closest === 'function'
+      ? target.closest.bind(target)
+      : function () { return null; };
+    return Boolean(
+      target.isContentEditable ||
+      tagName === 'input' ||
+      tagName === 'textarea' ||
+      tagName === 'select' ||
+      closest('[contenteditable="true"]')
+    );
+  }
+
+  function isDeckSwitcherWheelTarget(target) {
+    if (!target || typeof target.nodeType !== 'number') return false;
+    try {
+      return Boolean(deckSwitcher && deckSwitcher.contains(target));
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function normalizeWheelDelta(event) {
+    var delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+    if (event.deltaMode === 1) delta *= 16;
+    else if (event.deltaMode === 2) delta *= 900;
+    return delta;
+  }
+
+  function handlePresentationWheel(event) {
+    if (event.ctrlKey || event.metaKey) return;
+    if (isEditableTarget(event.target)) return;
+    if (isDeckSwitcherWheelTarget(event.target)) return;
+
+    var delta = normalizeWheelDelta(event);
+    if (!Number.isFinite(delta) || Math.abs(delta) < 1) return;
+    var direction = delta > 0 ? 1 : -1;
+    var isReverseGesture =
+      wheelGestureLocked && wheelGestureLockDirection && direction !== wheelGestureLockDirection;
+
+    if (Math.sign(delta) !== Math.sign(wheelDeltaBuffer)) wheelDeltaBuffer = 0;
+    wheelDeltaBuffer += delta;
+    resetWheelGestureSoon();
+
+    if (Math.abs(wheelDeltaBuffer) < WHEEL_NAV_THRESHOLD) return;
+
+    if (isReverseGesture) {
+      wheelGestureLocked = false;
+      wheelGestureLockDirection = 0;
+      lastWheelNavigateAt = 0;
+    }
+
+    if (isPageSwitching) {
+      wheelDeltaBuffer = 0;
+      wheelGestureLocked = true;
+      wheelGestureLockDirection = direction;
+      if (isReverseGesture) queuedNavigationOffset = direction;
+      event.preventDefault();
+      return;
+    }
+
+    if (wheelGestureLocked) {
+      wheelDeltaBuffer = 0;
+      event.preventDefault();
+      return;
+    }
+
+    var now = Date.now();
+    if (now - lastWheelNavigateAt < WHEEL_NAV_COOLDOWN) {
+      wheelDeltaBuffer = 0;
+      wheelGestureLocked = true;
+      wheelGestureLockDirection = direction;
+      event.preventDefault();
+      return;
+    }
+
+    var offset = wheelDeltaBuffer > 0 ? 1 : -1;
+    wheelDeltaBuffer = 0;
+    event.preventDefault();
+    if (requestNavigation(offset)) {
+      wheelGestureLocked = true;
+      wheelGestureLockDirection = offset;
+      lastWheelNavigateAt = now;
+    } else {
+      resetWheelGestureState();
     }
   }
 
@@ -131,25 +285,83 @@
     if (data.type === 'ohmyppt:playback:handled') return;
     if (data.type !== 'ohmyppt:playback:goto') return;
     var offset = Number(data.offset);
-    gotoOffset(Number.isFinite(offset) && offset !== 0 ? offset : 1);
+    var navigated = requestNavigation(
+      Number.isFinite(offset) && offset !== 0 ? offset : 1,
+      { allowPlaybackAdvance: false, queueWhileSwitching: true }
+    );
+    if (data.requestId) {
+      try {
+        frame.contentWindow.postMessage({
+          type: 'ohmyppt:playback:navigation-result',
+          requestId: data.requestId,
+          navigated: navigated
+        }, '*');
+      } catch (_) {}
+    }
+  }
+
+  function prefetchPage(page) {
+    if (!page || embedMode) return;
+    try {
+      var url = buildPageUrl(page);
+      if (prefetchedPageUrls.has(url)) return;
+      prefetchedPageUrls.add(url);
+      var link = document.createElement('link');
+      link.rel = 'prefetch';
+      link.as = 'document';
+      link.href = url;
+      document.head.appendChild(link);
+    } catch (_) {}
+  }
+
+  function prefetchAdjacentPages(pageId) {
+    if (!Array.isArray(pages) || pages.length <= 1) return;
+    var index = pageIndexByKey.has(pageId) ? pageIndexByKey.get(pageId) : -1;
+    if (index < 0) return;
+    [-1, 1].forEach(function (offset) {
+      var page = pages[index + offset];
+      if (page) prefetchPage(page);
+    });
   }
 
   // Load or reload a page iframe so slide-level animations replay on revisit.
-  function ensureFrameLoaded(pageId, forceReload) {
-    var page = pages.find(function (p) { return getPageKey(p) === pageId; });
+  function ensureFrameLoaded(pageId, forceReload, onReady) {
+    var page = pageByKey.get(pageId);
     var frame = framePool.get(pageId);
     if (!page || !frame) return;
     if (loadedPages.has(pageId) && !forceReload) {
       bindFrameKeyboard(frame);
+      if (typeof onReady === 'function') onReady(frame);
       return;
     }
-    loadedPages.add(pageId);
+    if (!forceReload && loadingFrames.has(pageId)) {
+      var waitingCallbacks = loadingFrames.get(pageId);
+      if (typeof onReady === 'function') waitingCallbacks.push(onReady);
+      return;
+    }
+    var callbacks = typeof onReady === 'function' ? [onReady] : [];
+    loadingFrames.set(pageId, callbacks);
     var pageUrl = new URL(buildPageUrl(page));
     if (forceReload) pageUrl.searchParams.set('_pptReplay', String(Date.now()));
-    frame.addEventListener('load', function () {
+    var loadToken = String(Date.now()) + '-' + Math.random();
+    var loadTimer = 0;
+    var ready = false;
+    frame.__ohmypptLoadToken = loadToken;
+    function finishLoad() {
+      if (ready || frame.__ohmypptLoadToken !== loadToken) return;
+      ready = true;
+      if (loadTimer) window.clearTimeout(loadTimer);
+      loadedPages.add(pageId);
+      var readyCallbacks = loadingFrames.get(pageId) || [];
+      loadingFrames.delete(pageId);
       bindFrameKeyboard(frame);
       if (pageId === currentPageId) scheduleFitFrame();
-    }, { once: true });
+      readyCallbacks.forEach(function (callback) {
+        if (typeof callback === 'function') callback(frame);
+      });
+    }
+    frame.addEventListener('load', finishLoad, { once: true });
+    loadTimer = window.setTimeout(finishLoad, FRAME_LOAD_TIMEOUT);
     frame.src = pageUrl.toString();
   }
 
@@ -184,9 +396,9 @@
     var raw = (hashValue || '').replace(/^#/, '').trim();
     if (!raw && pages.length > 0) return getPageKey(pages[0]);
     var decoded = decodeURIComponent(raw || '');
-    if (pages.some(function (item) { return getPageKey(item) === decoded; })) return decoded;
-    var legacyMatch = pages.find(function (item) { return getLegacyPageId(item) === decoded; });
-    if (legacyMatch) return getPageKey(legacyMatch);
+    if (pageByKey.has(decoded)) return decoded;
+    var legacyMatch = legacyPageKeyById.get(decoded);
+    if (legacyMatch) return legacyMatch;
     return (pages[0] ? getPageKey(pages[0]) : '');
   }
 
@@ -233,7 +445,7 @@
   }
 
   function currentIndex() {
-    return pages.findIndex(function (item) { return getPageKey(item) === currentPageId; });
+    return pageIndexByKey.has(currentPageId) ? pageIndexByKey.get(currentPageId) : -1;
   }
 
   function updateIndicator() {
@@ -249,18 +461,32 @@
       return;
     }
     document.body.classList.remove('empty');
-    var page = pages.find(function (item) { return getPageKey(item) === pageId; }) || pages[0];
+    var page = pageByKey.get(pageId) || pages[0];
     if (!page) return;
 
     var previousPageId = currentPageId;
     var prevFrame = previousPageId ? framePool.get(previousPageId) : null;
-    if (previousPageId && previousPageId !== getPageKey(page)) clearPendingPlaybackRequests();
+    var nextPageId = getPageKey(page);
+    var samePage = previousPageId === nextPageId;
+    var switchSeq = ++pageSwitchSeq;
+    if (previousPageId && !samePage) clearPendingPlaybackRequests();
+
+    function finishSwitch() {
+      if (switchSeq !== pageSwitchSeq) return;
+      isPageSwitching = false;
+      if (!queuedNavigationOffset) return;
+      var nextOffset = queuedNavigationOffset;
+      queuedNavigationOffset = 0;
+      window.setTimeout(function () {
+        requestNavigation(nextOffset, { allowPlaybackAdvance: false });
+      }, 0);
+    }
 
     function switchFrame() {
+      if (switchSeq !== pageSwitchSeq) return;
       if (prevFrame) prevFrame.classList.remove('active');
-      currentPageId = getPageKey(page);
-      ensureFrameLoaded(currentPageId, loadedPages.has(currentPageId) && previousPageId !== currentPageId);
-      var nextFrame = framePool.get(currentPageId);
+      currentPageId = nextPageId;
+      var nextFrame = framePool.get(nextPageId);
       if (nextFrame) nextFrame.classList.add('active');
       scheduleFitFrame();
       if (syncHash && window.location.hash !== '#' + encodeURIComponent(currentPageId)) {
@@ -268,31 +494,46 @@
       }
       renderThumbs(currentPageId);
       updateIndicator();
+      prefetchAdjacentPages(currentPageId);
     }
 
-    // Use View Transition API for smooth slide transitions when available
-    if (
-      indexTransitionType !== 'none' &&
-      document.startViewTransition &&
-      previousPageId &&
-      previousPageId !== pageId
-    ) {
-      document.startViewTransition(function () {
+    function commitWhenReady() {
+      if (switchSeq !== pageSwitchSeq) return;
+      var canViewTransition =
+        indexTransitionType !== 'none' &&
+        document.startViewTransition &&
+        previousPageId &&
+        !samePage;
+      if (canViewTransition) {
+        var transition = document.startViewTransition(function () {
+          switchFrame();
+        });
+        if (transition && transition.finished && typeof transition.finished.then === 'function') {
+          transition.finished.then(finishSwitch, finishSwitch);
+          return;
+        }
+      } else {
         switchFrame();
-      });
-    } else {
-      switchFrame();
+      }
+      finishSwitch();
     }
+
+    isPageSwitching = !samePage;
+    ensureFrameLoaded(nextPageId, loadedPages.has(nextPageId) && !samePage, commitWhenReady);
+    if (samePage) finishSwitch();
   }
 
   function gotoOffset(offset) {
-    if (!Array.isArray(pages) || pages.length === 0) return;
+    if (!Array.isArray(pages) || pages.length === 0) return false;
+    if (isPageSwitching) return false;
     var index = currentIndex();
-    if (index < 0) return;
+    if (index < 0) return false;
     var target = Math.max(0, Math.min(pages.length - 1, index + offset));
+    if (target === index) return false;
     var targetPage = pages[target];
-    if (!targetPage) return;
+    if (!targetPage) return false;
     window.location.hash = '#' + encodeURIComponent(getPageKey(targetPage));
+    return true;
   }
 
   function onHashChange() {
@@ -407,6 +648,7 @@
   window.addEventListener('resize', function () { scheduleFitFrame(); });
   window.addEventListener('hashchange', onHashChange);
   window.addEventListener('keydown', handlePresentationKey);
+  window.addEventListener('wheel', handlePresentationWheel, { passive: false });
   window.addEventListener('message', handleFramePlaybackMessage);
   window.addEventListener('pagehide', clearPendingPlaybackRequests);
   window.addEventListener('beforeunload', clearPendingPlaybackRequests);

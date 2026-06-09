@@ -639,7 +639,7 @@ export const zh = {
     preview: '浏览器预览',
     previewTooltip: '在浏览器中打开，可脱离客户端独立使用',
     present: '演示模式',
-    presentTooltip: '全屏演示页面，方向键翻页，Esc 退出',
+    presentTooltip: '全屏演示页面，方向键或滚轮翻页，Esc 退出',
     saveAsNewSession: '另存为新会话',
     saveAsNewSessionDefaultName: '{title} 副本',
     saveAsNewSessionDialogTitle: '另存为新会话',

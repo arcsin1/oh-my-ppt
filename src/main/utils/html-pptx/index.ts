@@ -274,6 +274,70 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
     elementOrderMap.set(element, index + 1);
   });
   const orderFor = (element) => elementOrderMap.get(element) || 0;
+  const parseCssZIndex = (style) => {
+    const raw = String(style?.zIndex || '').trim();
+    if (!raw || raw === 'auto') return undefined;
+    const value = Number.parseInt(raw, 10);
+    return Number.isFinite(value) ? Math.max(-100000, Math.min(100000, value)) : undefined;
+  };
+  const isFlexOrGridItem = (element) => {
+    const parent = element?.parentElement;
+    if (!parent) return false;
+    return /(?:^|\\s)(?:inline-)?(?:flex|grid)(?:\\s|$)/.test(window.getComputedStyle(parent).display || '');
+  };
+  const createsPaintStackingContext = (element, style) => {
+    if (!element || element === pageElement) return false;
+    if (parseCssZIndex(style) !== undefined && (style.position !== 'static' || isFlexOrGridItem(element))) {
+      return true;
+    }
+    if (Number(style.opacity || '1') < 1) return true;
+    if (style.transform && style.transform !== 'none') return true;
+    if (style.filter && style.filter !== 'none') return true;
+    if (style.backdropFilter && style.backdropFilter !== 'none') return true;
+    if (style.perspective && style.perspective !== 'none') return true;
+    if (style.mixBlendMode && style.mixBlendMode !== 'normal') return true;
+    if (style.isolation === 'isolate') return true;
+    if (/(?:layout|paint|strict|content)/.test(style.contain || '')) return true;
+    if (/(?:transform|opacity|filter|perspective|contents)/.test(style.willChange || '')) return true;
+    return false;
+  };
+  const stackingKeyFor = (element) => {
+    const chain = [];
+    let current = element;
+    while (current && current.nodeType === Node.ELEMENT_NODE) {
+      chain.push(current);
+      if (current === pageElement) break;
+      current = current.parentElement;
+    }
+    chain.reverse();
+    const key = [{ z: 0, order: 0 }];
+    for (const item of chain) {
+      if (!item || item === pageElement) continue;
+      const style = window.getComputedStyle(item);
+      if (!createsPaintStackingContext(item, style)) continue;
+      key.push({ z: parseCssZIndex(style) ?? 0, order: orderFor(item) });
+    }
+    const elementOrder = orderFor(element);
+    if (!key.some((part) => part.order === elementOrder)) {
+      key.push({ z: 0, order: elementOrder });
+    }
+    return {
+      key,
+      order: elementOrder
+    };
+  };
+  const compareStackingOrder = (left, right) => {
+    const leftKey = left?.key || [];
+    const rightKey = right?.key || [];
+    const maxLength = Math.max(leftKey.length, rightKey.length);
+    for (let index = 0; index < maxLength; index += 1) {
+      const a = leftKey[index] || { z: 0, order: 0 };
+      const b = rightKey[index] || { z: 0, order: 0 };
+      if (a.z !== b.z) return a.z - b.z;
+      if (a.order !== b.order) return a.order - b.order;
+    }
+    return (left?.order || 0) - (right?.order || 0);
+  };
   const effectiveOpacityFor = (element) => {
     let opacity = 1;
     let current = element;
@@ -301,9 +365,24 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
   const computePaintOrders = () => {
     const entries = Array.from(extractedPaintTargets.entries())
       .filter(([, element]) => element && element.isConnected);
-    if (entries.length === 0 || !document.elementsFromPoint) return new Map();
+    if (entries.length === 0) return new Map();
     const ids = entries.map(([id]) => id);
-    const fallback = new Map(entries.map(([id, element]) => [id, orderFor(element)]));
+    const fallback = new Map(entries.map(([id, element]) => [id, stackingKeyFor(element)]));
+    const byFallback = (left, right) =>
+      compareStackingOrder(fallback.get(left), fallback.get(right));
+    const buildFallbackResult = () => {
+      const result = new Map();
+      let rank = 1;
+      ids
+        .slice()
+        .sort(byFallback)
+        .forEach((id) => {
+          result.set(id, rank);
+          rank += 1;
+        });
+      return result;
+    };
+    if (!document.elementsFromPoint) return buildFallbackResult();
     const edges = new Map(ids.map((id) => [id, new Set()]));
     const indegree = new Map(ids.map((id) => [id, 0]));
     const addEdge = (below, above) => {
@@ -378,7 +457,6 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
       pointerStyle.remove();
     }
 
-    const byFallback = (left, right) => (fallback.get(left) || 0) - (fallback.get(right) || 0);
     const queue = ids.filter((id) => (indegree.get(id) || 0) === 0).sort(byFallback);
     const result = new Map();
     let rank = 1;

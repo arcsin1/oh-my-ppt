@@ -58,6 +58,35 @@ function simulateEnsureFrameLoadedOrder(): string[] {
   return calls
 }
 
+function simulateWaitForFrameLoadBeforeActivation(): string[] {
+  const calls: string[] = []
+  const frame = {
+    listeners: {} as Record<string, () => void>,
+    addEventListener: (eventName: string, callback: () => void) => {
+      calls.push(`listen:${eventName}`)
+      frame.listeners[eventName] = callback
+    },
+    set src(_value: string) {
+      calls.push('set-src')
+    }
+  }
+
+  frame.addEventListener('load', () => {
+    calls.push('load')
+    calls.push('activate')
+  })
+  frame.src = 'page.html'
+  calls.push('before-load')
+  frame.listeners.load()
+  return calls
+}
+
+function adjacentPageKeys(keys: string[], activeKey: string): string[] {
+  const index = keys.indexOf(activeKey)
+  if (index < 0) return []
+  return [keys[index - 1], keys[index + 1]].filter(Boolean)
+}
+
 function shouldEnableDeckPlayback(args: {
   embedMode: boolean
 }): boolean {
@@ -90,6 +119,100 @@ function clearPendingPlaybackRequestsForTest(
     clearTimeoutFn(pending[requestId])
     delete pending[requestId]
   })
+}
+
+function normalizeWheelDeltaForTest(event: {
+  deltaX: number
+  deltaY: number
+  deltaMode: number
+}): number {
+  let delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX
+  if (event.deltaMode === 1) delta *= 16
+  else if (event.deltaMode === 2) delta *= 900
+  return delta
+}
+
+function createWheelNavigatorForTest(args?: {
+  threshold?: number
+  cooldown?: number
+  now?: () => number
+  navigate?: (offset: number) => boolean
+}) {
+  const threshold = args?.threshold ?? 80
+  const cooldown = args?.cooldown ?? 520
+  const now = args?.now ?? (() => Date.now())
+  const navigate = args?.navigate ?? (() => true)
+  let wheelDeltaBuffer = 0
+  let wheelGestureLocked = false
+  let wheelGestureLockDirection = 0
+  let lastWheelNavigateAt = 0
+  const offsets: number[] = []
+
+  return {
+    offsets,
+    unlockGesture() {
+      wheelDeltaBuffer = 0
+      wheelGestureLocked = false
+      wheelGestureLockDirection = 0
+    },
+    handle(event: {
+      deltaX: number
+      deltaY: number
+      deltaMode: number
+      ctrlKey?: boolean
+      metaKey?: boolean
+      editableTarget?: boolean
+      deckSwitcherTarget?: boolean
+      preventDefault: () => void
+    }) {
+      if (event.ctrlKey || event.metaKey) return
+      if (event.editableTarget || event.deckSwitcherTarget) return
+
+      const delta = normalizeWheelDeltaForTest(event)
+      if (!Number.isFinite(delta) || Math.abs(delta) < 1) return
+      const direction = delta > 0 ? 1 : -1
+
+      if (Math.sign(delta) !== Math.sign(wheelDeltaBuffer)) wheelDeltaBuffer = 0
+      wheelDeltaBuffer += delta
+
+      if (Math.abs(wheelDeltaBuffer) < threshold) return
+
+      if (wheelGestureLocked && wheelGestureLockDirection && direction !== wheelGestureLockDirection) {
+        wheelGestureLocked = false
+        wheelGestureLockDirection = 0
+        lastWheelNavigateAt = 0
+      }
+
+      if (wheelGestureLocked) {
+        wheelDeltaBuffer = 0
+        event.preventDefault()
+        return
+      }
+
+      const currentTime = now()
+      if (currentTime - lastWheelNavigateAt < cooldown) {
+        wheelDeltaBuffer = 0
+        wheelGestureLocked = true
+        wheelGestureLockDirection = direction
+        event.preventDefault()
+        return
+      }
+
+      const offset = wheelDeltaBuffer > 0 ? 1 : -1
+      wheelDeltaBuffer = 0
+      event.preventDefault()
+      if (navigate(offset)) {
+        wheelGestureLocked = true
+        wheelGestureLockDirection = offset
+        lastWheelNavigateAt = currentTime
+        offsets.push(offset)
+      } else {
+        wheelGestureLocked = false
+        wheelGestureLockDirection = 0
+        lastWheelNavigateAt = 0
+      }
+    }
+  }
 }
 
 describe('click state advance helper (total > 0 guard)', () => {
@@ -139,6 +262,16 @@ describe('iframe load binding order', () => {
     expect(simulateEnsureFrameLoadedOrder()).toEqual(['listen:load', 'set-src'])
   })
 
+  it('waits for iframe load before activating the target page', () => {
+    expect(simulateWaitForFrameLoadBeforeActivation()).toEqual([
+      'listen:load',
+      'set-src',
+      'before-load',
+      'load',
+      'activate'
+    ])
+  })
+
   it('rebinds when iframe document changes after reload', () => {
     const firstDocument = {}
     const secondDocument = {}
@@ -146,6 +279,14 @@ describe('iframe load binding order', () => {
     expect(shouldBindFrameDocument(undefined, firstDocument)).toBe(true)
     expect(shouldBindFrameDocument(firstDocument, firstDocument)).toBe(false)
     expect(shouldBindFrameDocument(firstDocument, secondDocument)).toBe(true)
+  })
+})
+
+describe('adjacent page prefetch selection', () => {
+  it('prefetches only immediate neighbors', () => {
+    expect(adjacentPageKeys(['p1', 'p2', 'p3', 'p4'], 'p2')).toEqual(['p1', 'p3'])
+    expect(adjacentPageKeys(['p1', 'p2', 'p3', 'p4'], 'p1')).toEqual(['p2'])
+    expect(adjacentPageKeys(['p1', 'p2', 'p3', 'p4'], 'p4')).toEqual(['p3'])
   })
 })
 
@@ -213,6 +354,118 @@ describe('pending playback request cleanup', () => {
 
     expect(cleared).toEqual([1, 2])
     expect(pending).toEqual({})
+  })
+})
+
+describe('wheel page navigation', () => {
+  const wheel = (deltaY: number, overrides: Partial<{
+    deltaX: number
+    deltaMode: number
+    ctrlKey: boolean
+    metaKey: boolean
+    editableTarget: boolean
+    deckSwitcherTarget: boolean
+    preventDefault: () => void
+  }> = {}) => ({
+    deltaX: overrides.deltaX ?? 0,
+    deltaY,
+    deltaMode: overrides.deltaMode ?? 0,
+    ctrlKey: overrides.ctrlKey,
+    metaKey: overrides.metaKey,
+    editableTarget: overrides.editableTarget,
+    deckSwitcherTarget: overrides.deckSwitcherTarget,
+    preventDefault: overrides.preventDefault ?? (() => {})
+  })
+
+  it('accumulates small trackpad deltas before navigating', () => {
+    let time = 1000
+    let prevented = 0
+    const navigator = createWheelNavigatorForTest({ now: () => time })
+
+    navigator.handle(wheel(30, { preventDefault: () => prevented++ }))
+    navigator.handle(wheel(30, { preventDefault: () => prevented++ }))
+    expect(navigator.offsets).toEqual([])
+
+    navigator.handle(wheel(25, { preventDefault: () => prevented++ }))
+    expect(navigator.offsets).toEqual([1])
+    expect(prevented).toBe(1)
+  })
+
+  it('uses upward wheel motion for previous page', () => {
+    const navigator = createWheelNavigatorForTest({ now: () => 1000 })
+
+    navigator.handle(wheel(-90))
+
+    expect(navigator.offsets).toEqual([-1])
+  })
+
+  it('locks a continuous wheel gesture so one trackpad swipe does not flip many pages', () => {
+    let time = 1000
+    let prevented = 0
+    const navigator = createWheelNavigatorForTest({ now: () => time })
+
+    navigator.handle(wheel(90, { preventDefault: () => prevented++ }))
+    time = 1100
+    navigator.handle(wheel(90, { preventDefault: () => prevented++ }))
+    time = 1700
+    navigator.handle(wheel(90, { preventDefault: () => prevented++ }))
+
+    expect(navigator.offsets).toEqual([1])
+    expect(prevented).toBe(3)
+  })
+
+  it('allows another page turn after the wheel gesture goes idle', () => {
+    let time = 1000
+    const navigator = createWheelNavigatorForTest({ now: () => time })
+
+    navigator.handle(wheel(90))
+    time = 1700
+    navigator.unlockGesture()
+    navigator.handle(wheel(90))
+
+    expect(navigator.offsets).toEqual([1, 1])
+  })
+
+  it('allows immediate reverse navigation even while the previous wheel direction is locked', () => {
+    let time = 1000
+    const navigator = createWheelNavigatorForTest({ now: () => time })
+
+    navigator.handle(wheel(90))
+    time = 1100
+    navigator.handle(wheel(-90))
+
+    expect(navigator.offsets).toEqual([1, -1])
+  })
+
+  it('does not keep the wheel locked when scrolling outward at a page boundary', () => {
+    let time = 1000
+    const navigator = createWheelNavigatorForTest({
+      now: () => time,
+      navigate: (offset) => offset < 0
+    })
+
+    navigator.handle(wheel(90))
+    time = 1100
+    navigator.handle(wheel(-90))
+
+    expect(navigator.offsets).toEqual([-1])
+  })
+
+  it('keeps zoom gestures, editable targets, and deck switcher wheel events untouched', () => {
+    const navigator = createWheelNavigatorForTest({ now: () => 1000 })
+
+    navigator.handle(wheel(100, { ctrlKey: true }))
+    navigator.handle(wheel(100, { metaKey: true }))
+    navigator.handle(wheel(100, { editableTarget: true }))
+    navigator.handle(wheel(100, { deckSwitcherTarget: true }))
+
+    expect(navigator.offsets).toEqual([])
+  })
+
+  it('normalizes line and page wheel deltas', () => {
+    expect(normalizeWheelDeltaForTest(wheel(6, { deltaMode: 1 }))).toBe(96)
+    expect(normalizeWheelDeltaForTest(wheel(-1, { deltaMode: 2 }))).toBe(-900)
+    expect(normalizeWheelDeltaForTest(wheel(10, { deltaX: -120 }))).toBe(-120)
   })
 })
 

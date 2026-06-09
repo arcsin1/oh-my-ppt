@@ -43,4 +43,18 @@ describe('buildHtmlToPptxExtractScript', () => {
     )
     expect(script).not.toContain('tailwindTextHints.fontWeight || computedFontWeight')
   })
+
+  it('uses CSS stacking order as paint-order fallback for z-indexed edits', () => {
+    const script = buildScript()
+
+    expect(script).toContain('const parseCssZIndex = (style) => {')
+    expect(script).toContain(
+      "parseCssZIndex(style) !== undefined && (style.position !== 'static' || isFlexOrGridItem(element))"
+    )
+    expect(script).toContain('const stackingKeyFor = (element) => {')
+    expect(script).toContain('const compareStackingOrder = (left, right) => {')
+    expect(script).toContain('const fallback = new Map(entries.map(([id, element]) => [id, stackingKeyFor(element)]));')
+    expect(script).toContain('if (!document.elementsFromPoint) return buildFallbackResult();')
+    expect(script).not.toContain('if (entries.length === 0 || !document.elementsFromPoint) return new Map();')
+  })
 })
