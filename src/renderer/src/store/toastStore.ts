@@ -1,8 +1,12 @@
 import { create } from 'zustand'
 import { toast } from 'sonner'
+import type { ReactNode } from 'react'
+
+export type ToastId = string | number
 
 interface ToastOptions {
-  description?: string
+  id?: ToastId
+  description?: ReactNode
   duration?: number
   action?: {
     label: string
@@ -11,10 +15,11 @@ interface ToastOptions {
 }
 
 interface ToastState {
-  success: (message: string, options?: ToastOptions) => void
-  error: (message: string, options?: ToastOptions) => void
-  info: (message: string, options?: ToastOptions) => void
-  warning: (message: string, options?: ToastOptions) => void
+  success: (message: ReactNode, options?: ToastOptions) => ToastId
+  error: (message: ReactNode, options?: ToastOptions) => ToastId
+  info: (message: ReactNode, options?: ToastOptions) => ToastId
+  warning: (message: ReactNode, options?: ToastOptions) => ToastId
+  loading: (message: ReactNode, options?: ToastOptions) => ToastId
   promise: <T>(
     input: Promise<T>,
     messages: {
@@ -23,7 +28,7 @@ interface ToastState {
       error: string | ((error: Error) => string)
     }
   ) => Promise<T>
-  dismiss: (toastId?: string) => void
+  dismiss: (toastId?: ToastId) => void
 }
 
 export const useToastStore = create<ToastState>(() => ({
@@ -31,6 +36,7 @@ export const useToastStore = create<ToastState>(() => ({
   error: (message, options) => toast.error(message, options),
   info: (message, options) => toast(message, options),
   warning: (message, options) => toast.warning(message, options),
+  loading: (message, options) => toast.loading(message, options),
   promise: (input, messages) => {
     toast.promise(input, messages)
     return input
@@ -41,5 +47,5 @@ export const useToastStore = create<ToastState>(() => ({
       return
     }
     toast.dismiss()
-  },
+  }
 }))

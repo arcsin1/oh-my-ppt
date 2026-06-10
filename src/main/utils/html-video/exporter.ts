@@ -7,6 +7,7 @@ import path from 'path'
 import { pathToFileURL } from 'url'
 import { spawn } from 'child_process'
 import type { SessionPageFile } from '../../ipc/context'
+import type { ExportProgressStage } from '@shared/export-progress'
 
 const VIDEO_WIDTH = 1600
 const VIDEO_HEIGHT = 900
@@ -361,6 +362,11 @@ export type VideoExportOptions = {
   fps?: number
   captureFps?: number
   secondsPerPage?: number
+  onProgress?: (payload: {
+    stage: Extract<ExportProgressStage, 'rendering' | 'writing'>
+    current?: number
+    total?: number
+  }) => void
 }
 
 export type VideoExportResult = {
@@ -733,6 +739,11 @@ export const exportHtmlPagesToVideo = async (
           lastConcatImagePath = imagePath
         }
         frameCount += pageFrameCount
+        options.onProgress?.({
+          stage: 'rendering',
+          current: pageIndex + 1,
+          total: options.pages.length
+        })
         continue
       }
 
@@ -753,6 +764,11 @@ export const exportHtmlPagesToVideo = async (
       })
       lastConcatImagePath = imagePath
       frameCount += Math.max(1, Math.ceil(staticDurationSeconds * fps))
+      options.onProgress?.({
+        stage: 'rendering',
+        current: pageIndex + 1,
+        total: options.pages.length
+      })
     }
   } finally {
     if (!win.isDestroyed()) win.destroy()
@@ -772,6 +788,11 @@ export const exportHtmlPagesToVideo = async (
   })
 
   try {
+    options.onProgress?.({
+      stage: 'writing',
+      current: options.pages.length,
+      total: options.pages.length
+    })
     await runFfmpeg({
       ffmpegPath,
       concatPath,

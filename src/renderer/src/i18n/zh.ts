@@ -824,6 +824,10 @@ export const zh = {
     selectorLocated: '（已定位选中元素）',
     exportFailed: '导出失败',
     exportCancelled: '已取消导出',
+    exportProgressPreparing: '正在准备导出...',
+    exportProgressRendering: '正在处理第 {current}/{total} 页',
+    exportProgressPackaging: '正在打包文件...',
+    exportProgressWriting: '正在写入文件...',
     exportPdfStart: '正在导出 PDF，请稍等',
     exportPdfDescription:
       '页面较多或图表较复杂时可能会比较慢，请保持窗口打开，完成后会自动提示结果。',

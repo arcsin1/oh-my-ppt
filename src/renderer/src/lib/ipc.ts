@@ -38,6 +38,7 @@ import type {
   ImageModelConfig,
   ImageModelProvider
 } from '@shared/image-generation.js'
+import type { ExportProgressPayload } from '@shared/export-progress.js'
 
 type IpcRendererLike = Window['electron']['ipcRenderer']
 
@@ -596,6 +597,13 @@ export const ipc = {
     getIpc().invoke('export:sessionZip', { sessionId }) as Promise<ExportDeckResult>,
   exportOutlinesMarkdown: (sessionId: string) =>
     getIpc().invoke('export:outlinesMarkdown', { sessionId }) as Promise<ExportDeckResult>,
+  onExportProgress: (callback: (payload: ExportProgressPayload) => void): (() => void) => {
+    const channel = 'export:progress'
+    const handler = (_event: unknown, payload: unknown): void =>
+      callback(payload as ExportProgressPayload)
+    getIpc().on(channel, handler)
+    return () => getIpc().removeListener(channel, handler)
+  },
   getSettings: () => getIpc().invoke('settings:get') as Promise<Record<string, unknown>>,
   listModelConfigs: () => getIpc().invoke('settings:listModelConfigs') as Promise<ModelConfig[]>,
   listImageModelConfigs: () =>

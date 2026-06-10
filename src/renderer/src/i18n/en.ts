@@ -861,6 +861,10 @@ Business presentations, product introductions, project summaries — formal but 
     selectorLocated: '(selected element located)',
     exportFailed: 'Export failed',
     exportCancelled: 'Export cancelled',
+    exportProgressPreparing: 'Preparing export...',
+    exportProgressRendering: 'Processing page {current}/{total}',
+    exportProgressPackaging: 'Packaging files...',
+    exportProgressWriting: 'Writing file...',
     exportPdfStart: 'Exporting PDF',
     exportPdfDescription:
       'Large decks or complex charts may take a while. Keep the window open and the result will appear automatically.',

@@ -3,6 +3,8 @@ import { ipc } from '@renderer/lib/ipc'
 import { useGenerateStore, useSessionDetailUiStore, useToastStore } from '@renderer/store'
 import { useT } from '@renderer/i18n'
 import { normalizePagesForSelection } from '../shared/pageUtils'
+import { startExportProgressToast } from './exportProgressToast'
+import type { ExportKind, ExportProgressPayload } from '@shared/export-progress.js'
 
 type PptxExportOptions = {
   imageOnly?: boolean
@@ -13,6 +15,8 @@ type PptxExportOptions = {
 type VideoExportOptions = {
   pageId?: string
 }
+
+type ExportProgressToastController = ReturnType<typeof startExportProgressToast>
 
 function getPptxExportNotice(
   warnings: string[] | undefined,
@@ -55,8 +59,18 @@ export function useSessionExportActions(sessionId: string): {
   const {
     success: toastSuccess,
     error: toastError,
-    info: toastInfo
+    info: toastInfo,
+    loading: toastLoading
   } = useToastStore()
+  const progressToastApi = useMemo(
+    () => ({
+      loading: toastLoading,
+      success: toastSuccess,
+      info: toastInfo,
+      error: toastError
+    }),
+    [toastError, toastInfo, toastLoading, toastSuccess]
+  )
   const selectedPageId = useSessionDetailUiStore((state) => state.selectedPageId)
   const currentPages = useGenerateStore((state) => state.currentPages)
 
@@ -66,34 +80,135 @@ export function useSessionExportActions(sessionId: string): {
     [pages, selectedPageId]
   )
 
+  const describeExportProgress = (
+    payload: ExportProgressPayload,
+    fallbackDescription: string
+  ): string => {
+    if (
+      payload.stage === 'rendering' &&
+      typeof payload.current === 'number' &&
+      typeof payload.total === 'number' &&
+      payload.total > 0
+    ) {
+      return t('sessionDetail.exportProgressRendering', {
+        current: payload.current,
+        total: payload.total
+      })
+    }
+    if (payload.stage === 'preparing') return t('sessionDetail.exportProgressPreparing')
+    if (payload.stage === 'packaging') return t('sessionDetail.exportProgressPackaging')
+    if (payload.stage === 'writing') return t('sessionDetail.exportProgressWriting')
+    return fallbackDescription
+  }
+
+  const createExportProgressToast = ({
+    kind,
+    title,
+    description
+  }: {
+    kind: ExportKind
+    title: string
+    description: string
+  }): {
+    success: (
+      message: string,
+      options?: Parameters<ExportProgressToastController['success']>[1]
+    ) => void
+    cancel: (message: string) => void
+    error: (message: string) => void
+    dispose: () => void
+  } => {
+    let progressToast: ExportProgressToastController | null = null
+    let closed = false
+    const unsubscribe = ipc.onExportProgress((payload) => {
+      if (payload.sessionId !== sessionId || payload.kind !== kind) return
+      const progressDescription = describeExportProgress(payload, description)
+      if (!progressToast) {
+        progressToast = startExportProgressToast({
+          toast: progressToastApi,
+          title,
+          description: progressDescription,
+          initialProgress: payload.progress
+        })
+        return
+      }
+      progressToast.update({
+        progress: payload.progress,
+        description: progressDescription
+      })
+    })
+
+    const close = (): void => {
+      if (closed) return
+      closed = true
+      unsubscribe()
+    }
+
+    return {
+      success: (message, options) => {
+        close()
+        if (progressToast) {
+          progressToast.success(message, options)
+          return
+        }
+        toastSuccess(message, options)
+      },
+      cancel: (message) => {
+        close()
+        if (progressToast) {
+          progressToast.cancel(message)
+          return
+        }
+        toastInfo(message)
+      },
+      error: (message) => {
+        close()
+        if (progressToast) {
+          progressToast.error(message)
+          return
+        }
+        toastError(message)
+      },
+      dispose: () => {
+        close()
+        progressToast?.dispose()
+      }
+    }
+  }
+
   const exportPdf = async (): Promise<void> => {
     const detailState = useSessionDetailUiStore.getState()
     if (!sessionId || detailState.isExportingPdf) return
     detailState.setIsExportingPdf(true)
-    toastInfo(t('sessionDetail.exportPdfStart'), {
-      description: t('sessionDetail.exportPdfDescription'),
-      duration: 4000
+    const progressToast = createExportProgressToast({
+      kind: 'pdf',
+      title: t('sessionDetail.exportPdfStart'),
+      description: t('sessionDetail.exportPdfDescription')
     })
     try {
       const result = await ipc.exportPdf(sessionId)
       if (result.cancelled) {
-        toastInfo(t('sessionDetail.exportCancelled'))
+        progressToast.cancel(t('sessionDetail.exportCancelled'))
         return
       }
       if (!result.success || !result.path) {
-        toastError(t('sessionDetail.exportFailed'))
+        progressToast.error(t('sessionDetail.exportFailed'))
         return
       }
       if (Array.isArray(result.warnings) && result.warnings.length > 0) {
-        toastSuccess(t('sessionDetail.exportSuccessPages', { count: result.pageCount || 0 }), {
-          description: result.warnings[0]
-        })
+        progressToast.success(
+          t('sessionDetail.exportSuccessPages', { count: result.pageCount || 0 }),
+          {
+            description: result.warnings[0]
+          }
+        )
         return
       }
-      toastSuccess(t('sessionDetail.exportSuccessPages', { count: result.pageCount || 0 }))
+      progressToast.success(t('sessionDetail.exportSuccessPages', { count: result.pageCount || 0 }))
     } catch (error) {
-      toastError(error instanceof Error ? error.message : t('sessionDetail.exportFailed'))
+      progressToast.error(error instanceof Error ? error.message : t('sessionDetail.exportFailed'))
     } finally {
+      progressToast.dispose()
       useSessionDetailUiStore.getState().setIsExportingPdf(false)
     }
   }
@@ -102,30 +217,32 @@ export function useSessionExportActions(sessionId: string): {
     const detailState = useSessionDetailUiStore.getState()
     if (!sessionId || detailState.isExportingPng) return
     detailState.setIsExportingPng(true)
-    toastInfo(t('sessionDetail.exportPngStart'), {
-      description: t('sessionDetail.exportPngDescription'),
-      duration: 4000
+    const progressToast = createExportProgressToast({
+      kind: 'png',
+      title: t('sessionDetail.exportPngStart'),
+      description: t('sessionDetail.exportPngDescription')
     })
     try {
       const result = await ipc.exportPng(sessionId)
       if (result.cancelled) {
-        toastInfo(t('sessionDetail.exportCancelled'))
+        progressToast.cancel(t('sessionDetail.exportCancelled'))
         return
       }
       if (!result.success || !result.path) {
-        toastError(t('sessionDetail.exportFailed'))
+        progressToast.error(t('sessionDetail.exportFailed'))
         return
       }
       if (Array.isArray(result.warnings) && result.warnings.length > 0) {
-        toastSuccess(t('sessionDetail.pngExported', { count: result.pageCount || 0 }), {
+        progressToast.success(t('sessionDetail.pngExported', { count: result.pageCount || 0 }), {
           description: t('sessionDetail.pageLoadNotice')
         })
         return
       }
-      toastSuccess(t('sessionDetail.pngExported', { count: result.pageCount || 0 }))
+      progressToast.success(t('sessionDetail.pngExported', { count: result.pageCount || 0 }))
     } catch (error) {
-      toastError(error instanceof Error ? error.message : t('sessionDetail.exportFailed'))
+      progressToast.error(error instanceof Error ? error.message : t('sessionDetail.exportFailed'))
     } finally {
+      progressToast.dispose()
       useSessionDetailUiStore.getState().setIsExportingPng(false)
     }
   }
@@ -134,30 +251,32 @@ export function useSessionExportActions(sessionId: string): {
     const detailState = useSessionDetailUiStore.getState()
     if (!sessionId || detailState.isExportingVideo) return
     detailState.setIsExportingVideo(true)
-    toastInfo(t('sessionDetail.exportVideoStart'), {
-      description: t('sessionDetail.exportVideoDescription'),
-      duration: 5000
+    const progressToast = createExportProgressToast({
+      kind: 'video',
+      title: t('sessionDetail.exportVideoStart'),
+      description: t('sessionDetail.exportVideoDescription')
     })
     try {
       const result = await ipc.exportVideo(sessionId, options)
       if (result.cancelled) {
-        toastInfo(t('sessionDetail.exportCancelled'))
+        progressToast.cancel(t('sessionDetail.exportCancelled'))
         return
       }
       if (!result.success || !result.path) {
-        toastError(t('sessionDetail.exportFailed'))
+        progressToast.error(t('sessionDetail.exportFailed'))
         return
       }
       if (Array.isArray(result.warnings) && result.warnings.length > 0) {
-        toastSuccess(t('sessionDetail.videoExported', { count: result.pageCount || 0 }), {
+        progressToast.success(t('sessionDetail.videoExported', { count: result.pageCount || 0 }), {
           description: result.warnings[0]
         })
         return
       }
-      toastSuccess(t('sessionDetail.videoExported', { count: result.pageCount || 0 }))
+      progressToast.success(t('sessionDetail.videoExported', { count: result.pageCount || 0 }))
     } catch (error) {
-      toastError(error instanceof Error ? error.message : t('sessionDetail.exportFailed'))
+      progressToast.error(error instanceof Error ? error.message : t('sessionDetail.exportFailed'))
     } finally {
+      progressToast.dispose()
       useSessionDetailUiStore.getState().setIsExportingVideo(false)
     }
   }
@@ -167,42 +286,43 @@ export function useSessionExportActions(sessionId: string): {
     if (!sessionId || detailState.isExportingPptx) return
     const imageOnly = options?.imageOnly === true
     detailState.setIsExportingPptx(true)
-    toastInfo(
-      t(imageOnly ? 'sessionDetail.pptxPreparingImage' : 'sessionDetail.pptxPreparingEditable'),
-      {
-        description: t(
-          imageOnly
-            ? 'sessionDetail.pptxPreparingImageDescription'
-            : 'sessionDetail.pptxPreparingEditableDescription'
-        ),
-        duration: 4000
-      }
-    )
+    const progressToast = createExportProgressToast({
+      kind: 'pptx',
+      title: t(
+        imageOnly ? 'sessionDetail.pptxPreparingImage' : 'sessionDetail.pptxPreparingEditable'
+      ),
+      description: t(
+        imageOnly
+          ? 'sessionDetail.pptxPreparingImageDescription'
+          : 'sessionDetail.pptxPreparingEditableDescription'
+      )
+    })
     try {
       const result = await ipc.exportPptx(sessionId, options)
       if (result.cancelled) {
-        toastInfo(t('sessionDetail.exportCancelled'))
+        progressToast.cancel(t('sessionDetail.exportCancelled'))
         return
       }
       if (!result.success || !result.path) {
-        toastError(t('sessionDetail.exportFailed'))
+        progressToast.error(t('sessionDetail.exportFailed'))
         return
       }
       const exportNotice = getPptxExportNotice(result.warnings, t)
       if (exportNotice) {
-        toastSuccess(t('sessionDetail.pptxExported', { count: result.pageCount || 0 }), {
+        progressToast.success(t('sessionDetail.pptxExported', { count: result.pageCount || 0 }), {
           description: exportNotice
         })
         return
       }
-      toastSuccess(t('sessionDetail.pptxExported', { count: result.pageCount || 0 }), {
+      progressToast.success(t('sessionDetail.pptxExported', { count: result.pageCount || 0 }), {
         description: t(
           imageOnly ? 'sessionDetail.pptxImageDescription' : 'sessionDetail.pptxEditableDescription'
         )
       })
     } catch (error) {
-      toastError(error instanceof Error ? error.message : t('sessionDetail.exportFailed'))
+      progressToast.error(error instanceof Error ? error.message : t('sessionDetail.exportFailed'))
     } finally {
+      progressToast.dispose()
       useSessionDetailUiStore.getState().setIsExportingPptx(false)
     }
   }
@@ -211,26 +331,28 @@ export function useSessionExportActions(sessionId: string): {
     const detailState = useSessionDetailUiStore.getState()
     if (!sessionId || detailState.isExportingSlidePack) return
     detailState.setIsExportingSlidePack(true)
-    toastInfo(t('sessionDetail.slidePackPreparing'), {
-      description: t('sessionDetail.slidePackPreparingDescription'),
-      duration: 4000
+    const progressToast = createExportProgressToast({
+      kind: 'slidePack',
+      title: t('sessionDetail.slidePackPreparing'),
+      description: t('sessionDetail.slidePackPreparingDescription')
     })
     try {
       const result = await ipc.exportSlidePack(sessionId)
       if (result.cancelled) {
-        toastInfo(t('sessionDetail.exportCancelled'))
+        progressToast.cancel(t('sessionDetail.exportCancelled'))
         return
       }
       if (!result.success || !result.path) {
-        toastError(t('sessionDetail.exportFailed'))
+        progressToast.error(t('sessionDetail.exportFailed'))
         return
       }
-      toastSuccess(t('sessionDetail.slidePackExported'), {
+      progressToast.success(t('sessionDetail.slidePackExported'), {
         description: t('sessionDetail.slidePackExportedDescription')
       })
     } catch (error) {
-      toastError(error instanceof Error ? error.message : t('sessionDetail.exportFailed'))
+      progressToast.error(error instanceof Error ? error.message : t('sessionDetail.exportFailed'))
     } finally {
+      progressToast.dispose()
       useSessionDetailUiStore.getState().setIsExportingSlidePack(false)
     }
   }
@@ -239,26 +361,28 @@ export function useSessionExportActions(sessionId: string): {
     const detailState = useSessionDetailUiStore.getState()
     if (!sessionId || detailState.isExportingSessionZip) return
     detailState.setIsExportingSessionZip(true)
-    toastInfo(t('sessionDetail.sessionZipPreparing'), {
-      description: t('sessionDetail.sessionZipPreparingDescription'),
-      duration: 4000
+    const progressToast = createExportProgressToast({
+      kind: 'sessionZip',
+      title: t('sessionDetail.sessionZipPreparing'),
+      description: t('sessionDetail.sessionZipPreparingDescription')
     })
     try {
       const result = await ipc.exportSessionZip(sessionId)
       if (result.cancelled) {
-        toastInfo(t('sessionDetail.exportCancelled'))
+        progressToast.cancel(t('sessionDetail.exportCancelled'))
         return
       }
       if (!result.success || !result.path) {
-        toastError(t('sessionDetail.exportFailed'))
+        progressToast.error(t('sessionDetail.exportFailed'))
         return
       }
-      toastSuccess(t('sessionDetail.sessionZipExported'), {
+      progressToast.success(t('sessionDetail.sessionZipExported'), {
         description: t('sessionDetail.sessionZipExportedDescription')
       })
     } catch (error) {
-      toastError(error instanceof Error ? error.message : t('sessionDetail.exportFailed'))
+      progressToast.error(error instanceof Error ? error.message : t('sessionDetail.exportFailed'))
     } finally {
+      progressToast.dispose()
       useSessionDetailUiStore.getState().setIsExportingSessionZip(false)
     }
   }
