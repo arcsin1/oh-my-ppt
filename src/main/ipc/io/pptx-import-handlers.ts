@@ -6,6 +6,7 @@ import crypto from 'crypto'
 import type { IpcContext } from '../context'
 import { importPptxToEditableHtml, type PptxImportProgressPayload } from '../../utils/pptx-importer'
 import { extractStyleFromExistingHtml } from '../../utils/style-pptx-import'
+import { createPptxChartRewriteHandler } from '../../utils/pptx-chart-rewrite-agent'
 import { createStyleSkill, resolveUsableStyleId } from '../../utils/style-skills'
 import { resolveGlobalModelTimeouts, resolveModelConfigForTask } from '../config/model-config-utils'
 import { buildDesignContractWithLLM } from '../engine/generate'
@@ -76,11 +77,36 @@ export function registerPptxImportHandlers(ctx: IpcContext): void {
     try {
       await fs.promises.mkdir(projectDir, { recursive: true })
       await ensureSessionAssets(projectDir)
+      let chartRewrite: ReturnType<typeof createPptxChartRewriteHandler> | undefined
+      try {
+        const activeModel = await resolveModelConfigForTask(ctx, {
+          modelConfigId: parsedPayload.modelConfigId,
+          purpose: 'pptx:import:chartRewrite'
+        })
+        const modelTimeouts = await resolveGlobalModelTimeouts(ctx)
+        chartRewrite = createPptxChartRewriteHandler({
+          provider: activeModel.provider,
+          apiKey: activeModel.apiKey,
+          model: activeModel.model,
+          baseUrl: activeModel.baseUrl,
+          maxTokens: activeModel.maxTokens,
+          modelTimeoutMs: modelTimeouts.document
+        })
+      } catch (chartRewriteError) {
+        log.warn('[pptx:import] chart rewrite agent unavailable, import continues', {
+          sessionId,
+          message:
+            chartRewriteError instanceof Error
+              ? chartRewriteError.message
+              : String(chartRewriteError)
+        })
+      }
       const imported = await importPptxToEditableHtml({
         filePath: sourcePath,
         projectDir,
         title,
-        onProgress: sendProgress
+        onProgress: sendProgress,
+        chartRewrite
       })
 
       sendProgress({

@@ -13,6 +13,7 @@ import { buildDesignContractWithLLM } from '../engine/generate'
 import { parseJsonObject } from '../utils'
 import { normalizeSourcePlan } from '../generation/source-plan'
 import { importPptxToEditableHtml, type PptxImportProgressPayload } from '../../utils/pptx-importer'
+import { createPptxChartRewriteHandler } from '../../utils/pptx-chart-rewrite-agent'
 import { extractStyleFromExistingHtml } from '../../utils/style-pptx-import'
 import { createStyleSkill, resolveUsableStyleId } from '../../utils/style-skills'
 import { recordHistoryOperationStrict } from '../../history/git-history-service'
@@ -439,7 +440,15 @@ export async function importPptxAsTemplate(
       filePath: sourcePath,
       projectDir: tempDir,
       title,
-      onProgress
+      onProgress,
+      chartRewrite: createPptxChartRewriteHandler({
+        provider: activeModel.provider,
+        apiKey: activeModel.apiKey,
+        model: activeModel.model,
+        baseUrl: activeModel.baseUrl,
+        maxTokens: activeModel.maxTokens,
+        modelTimeoutMs: modelTimeouts.document
+      })
     })
     if (imported.pages.length === 0) {
       throw new Error('PPTX 未解析出可用页面')
