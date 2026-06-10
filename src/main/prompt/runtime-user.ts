@@ -4,6 +4,7 @@ import {
   STABLE_HTML_FRAGMENT_PROTOCOL
 } from "./shared";
 import type { DeckEditScope } from "../tools/types";
+import { INDEX_TRANSITION_TYPES } from "../../shared/index-transition";
 
 const hasSourceMaterialCue = (value: string): boolean =>
   /参考文档|源文档|参考资料|源资料|解析.*大纲|建议大纲|每页要点|必须保留|reference[-\s]?document|source[-\s]?document|source[-\s]?material|recommended outline|per-page points|facts\/metrics/i.test(
@@ -69,7 +70,7 @@ export function buildEditUserPrompt(args: {
       "Target file: index.html",
       "Do not modify any /<pageId>.html files.",
       "Only set page transitions through set_index_transition(type, durationMs).",
-      "Allowed type values: fade or none. durationMs range: 120-1200.",
+      `Allowed type values: ${INDEX_TRANSITION_TYPES.join(", ")}. durationMs range: 120-1200, except none uses 0.`,
       args.existingPageIds?.length ? `Existing pages: ${args.existingPageIds.join(", ")}` : "",
     ].join("\n");
   }

@@ -1,5 +1,6 @@
 import type { SessionDeckGenerationContext } from '../tools/types'
 import { progressText } from '@shared/progress'
+import { INDEX_TRANSITION_TYPES } from '../../shared/index-transition'
 import {
   CANVAS_CONSTRAINTS,
   CONTENT_LANGUAGE_RULES,
@@ -88,7 +89,7 @@ function buildContainerEditPrompt(
     '- 必须保留 frameViewport、pages-data、ppt-preview-frame、ppt-controls 等关键结构',
     '',
     '## 可改范围',
-    '- 页面切换动画：fade 或 none',
+    `- 页面切换动画：${INDEX_TRANSITION_TYPES.join(' / ')}`,
     '- 动画时长：120-1200ms',
     '',
     '## 禁止事项',

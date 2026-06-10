@@ -6,6 +6,7 @@ import type { AnyNode } from 'domhandler'
 import { customAlphabet, nanoid } from 'nanoid'
 import { buildProjectIndexHtml } from '../engine/template'
 import { ensureSessionRuntimeCompatible } from './runtime-assets'
+import { carryIndexTransitionConfig } from '../../session/index-transition'
 import { validatePersistedPageHtml } from '../../tools/html-utils'
 import type { SessionPageStatus } from '../../db/schema'
 import { resolveOutlinesForPages } from './page-outline-utils'
@@ -102,7 +103,13 @@ export async function persistManagedPages(
     title: p.title,
     htmlPath: path.basename(p.htmlPath)
   }))
-  const indexHtml = buildProjectIndexHtml(args.deckTitle, deckPages)
+  const rebuiltIndexHtml = buildProjectIndexHtml(args.deckTitle, deckPages)
+  const indexHtml = fs.existsSync(args.indexPath)
+    ? carryIndexTransitionConfig(
+        await fs.promises.readFile(args.indexPath, 'utf-8'),
+        rebuiltIndexHtml
+      )
+    : rebuiltIndexHtml
   await fs.promises.writeFile(`${args.indexPath}.tmp`, indexHtml, 'utf-8')
   try {
     if (args.deletedPageIds?.length) {

@@ -1,7 +1,7 @@
 /**
  * Unit tests for index-runtime.js logic:
  *   - playback-mode click routing
- *   - Transition name resolution
+ *   - Transition type/direction resolution
  *   - Duration clamping
  *   - Reduced motion guard
  *
@@ -20,22 +20,45 @@ function advanceClickState(
   return false
 }
 
-// ── Extracted from index-runtime.js injectTransitionStyles ──
-function resolveAnimationNames(transitionType: string): { out: string; in: string } {
-  const prefix = 'ppt-vt-'
-  switch (transitionType) {
-    case 'slide-left': return { out: prefix + 'slide-left-out', in: prefix + 'slide-left-in' }
-    case 'slide-up':   return { out: prefix + 'slide-up-out',   in: prefix + 'slide-up-in' }
-    case 'push':       return { out: prefix + 'push-out',       in: prefix + 'push-in' }
-    case 'wipe':       return { out: prefix + 'wipe-out',       in: prefix + 'wipe-in' }
-    case 'zoom':       return { out: prefix + 'zoom-out',       in: prefix + 'zoom-in' }
-    default:           return { out: prefix + 'fade-out',       in: prefix + 'fade-in' }
-  }
+const indexTransitionTypes = new Set([
+  'none',
+  'fade',
+  'slide-left',
+  'slide-up',
+  'push',
+  'wipe',
+  'zoom',
+  'flip',
+  'stack',
+  'rotate',
+  'cube',
+  'cover-flow',
+  'blur',
+  'iris',
+  'swing',
+  'center-reveal'
+])
+
+function normalizeIndexTransitionType(type: string): string {
+  return indexTransitionTypes.has(type) ? type : 'fade'
 }
 
-function clampTransitionDuration(value: number | undefined): number {
-  if (!Number.isFinite(value)) return 420
+function clampTransitionDuration(type: string, value: number | undefined): number {
+  if (type === 'none') return 0
+  if (!Number.isFinite(value)) return 480
   return Math.max(120, Math.min(1200, Math.round(value as number)))
+}
+
+function transitionDirection(previousIndex: number, nextIndex: number): 1 | -1 {
+  return previousIndex >= 0 && nextIndex < previousIndex ? -1 : 1
+}
+
+function slideEntryValue(type: string, direction: 1 | -1): string {
+  if (type === 'slide-left' || type === 'push') return `${100 * direction}%`
+  if (type === 'slide-up') return `${100 * direction}%`
+  if (type === 'flip') return `${72 * direction}deg`
+  if (type === 'wipe') return direction > 0 ? 'inset(0 0 0 100%)' : 'inset(0 100% 0 0)'
+  return '0'
 }
 
 function shouldBindFrameDocument(previousDocument: object | undefined, nextDocument: object | null): boolean {
@@ -469,46 +492,58 @@ describe('wheel page navigation', () => {
   })
 })
 
-describe('Transition animation name resolution', () => {
-  it('all 7 types resolve correctly', () => {
-    expect(resolveAnimationNames('fade')).toEqual({ out: 'ppt-vt-fade-out', in: 'ppt-vt-fade-in' })
-    expect(resolveAnimationNames('slide-left')).toEqual({ out: 'ppt-vt-slide-left-out', in: 'ppt-vt-slide-left-in' })
-    expect(resolveAnimationNames('slide-up')).toEqual({ out: 'ppt-vt-slide-up-out', in: 'ppt-vt-slide-up-in' })
-    expect(resolveAnimationNames('push')).toEqual({ out: 'ppt-vt-push-out', in: 'ppt-vt-push-in' })
-    expect(resolveAnimationNames('wipe')).toEqual({ out: 'ppt-vt-wipe-out', in: 'ppt-vt-wipe-in' })
-    expect(resolveAnimationNames('zoom')).toEqual({ out: 'ppt-vt-zoom-out', in: 'ppt-vt-zoom-in' })
-    expect(resolveAnimationNames('cube')).toEqual({ out: 'ppt-vt-fade-out', in: 'ppt-vt-fade-in' })
+describe('Transition type and direction resolution', () => {
+  it('all 16 types normalize correctly', () => {
+    for (const type of indexTransitionTypes) {
+      expect(normalizeIndexTransitionType(type)).toBe(type)
+    }
+    expect(normalizeIndexTransitionType('sparkle')).toBe('fade')
+  })
+
+  it('resolves reverse direction for previous-page navigation', () => {
+    expect(transitionDirection(1, 2)).toBe(1)
+    expect(transitionDirection(2, 1)).toBe(-1)
+    expect(slideEntryValue('slide-left', -1)).toBe('-100%')
+    expect(slideEntryValue('slide-up', -1)).toBe('-100%')
+    expect(slideEntryValue('push', -1)).toBe('-100%')
+    expect(slideEntryValue('flip', -1)).toBe('-72deg')
+    expect(slideEntryValue('wipe', -1)).toBe('inset(0 100% 0 0)')
   })
 })
 
 describe('Transition duration clamping', () => {
   it('clamps min 120ms', () => {
-    expect(clampTransitionDuration(50)).toBe(120)
-    expect(clampTransitionDuration(0)).toBe(120)
-    expect(clampTransitionDuration(-100)).toBe(120)
+    expect(clampTransitionDuration('fade', 50)).toBe(120)
+    expect(clampTransitionDuration('fade', 0)).toBe(120)
+    expect(clampTransitionDuration('fade', -100)).toBe(120)
   })
   it('clamps max 1200ms', () => {
-    expect(clampTransitionDuration(2000)).toBe(1200)
+    expect(clampTransitionDuration('fade', 2000)).toBe(1200)
   })
   it('preserves valid values', () => {
-    expect(clampTransitionDuration(420)).toBe(420)
+    expect(clampTransitionDuration('fade', 480)).toBe(480)
   })
-  it('defaults to 420ms for undefined/NaN/Infinity', () => {
-    expect(clampTransitionDuration(undefined)).toBe(420)
-    expect(clampTransitionDuration(NaN)).toBe(420)
-    expect(clampTransitionDuration(Infinity)).toBe(420)
+  it('keeps none at 0ms', () => {
+    expect(clampTransitionDuration('none', 480)).toBe(0)
+  })
+  it('defaults to 480ms for undefined/NaN/Infinity', () => {
+    expect(clampTransitionDuration('fade', undefined)).toBe(480)
+    expect(clampTransitionDuration('fade', NaN)).toBe(480)
+    expect(clampTransitionDuration('fade', Infinity)).toBe(480)
   })
   it('rounds to integer', () => {
-    expect(clampTransitionDuration(333.7)).toBe(334)
+    expect(clampTransitionDuration('fade', 333.7)).toBe(334)
   })
 })
 
 describe('Reduced motion guard', () => {
-  it('generates CSS disabling VT animations', () => {
-    const css = '@media (prefers-reduced-motion: reduce) {' +
-      ' ::view-transition-old(root), ::view-transition-new(root) { animation: none !important; } }'
-    expect(css).toContain('prefers-reduced-motion: reduce')
-    expect(css).toContain('animation: none !important')
+  it('uses no-op transition when reduced motion is preferred', () => {
+    const shouldAnimate = (reducedMotion: boolean, transitionType: string): boolean =>
+      transitionType !== 'none' && !reducedMotion
+
+    expect(shouldAnimate(true, 'fade')).toBe(false)
+    expect(shouldAnimate(false, 'none')).toBe(false)
+    expect(shouldAnimate(false, 'fade')).toBe(true)
   })
 })
 
@@ -548,10 +583,9 @@ describe('hasDataAnim / hasCustomPageAnimation coexistence logic', () => {
 })
 
 describe('Transition config JSON round-trip', () => {
-  it('all 7 types survive JSON round-trip', () => {
-    const types = ['fade', 'slide-left', 'slide-up', 'push', 'wipe', 'zoom', 'none']
-    for (const type of types) {
-      const json = JSON.stringify({ type, durationMs: type === 'none' ? 0 : 420 })
+  it('all 16 types survive JSON round-trip', () => {
+    for (const type of indexTransitionTypes) {
+      const json = JSON.stringify({ type, durationMs: type === 'none' ? 0 : 480 })
       const parsed = JSON.parse(json)
       expect(parsed.type).toBe(type)
     }

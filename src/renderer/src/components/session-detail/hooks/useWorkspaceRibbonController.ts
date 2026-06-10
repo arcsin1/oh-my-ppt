@@ -105,6 +105,12 @@ export function useWorkspaceRibbonController(isSavingEdits: boolean): {
         setSpeechScriptDialogOpen(true)
         return
       }
+      if (tab === 'animation') {
+        clearSelectedElement()
+        setInteractionMode('preview')
+        setSpeechScriptDialogOpen(false)
+        return
+      }
       if (tab === 'ai') {
         clearSelectedElement()
         setInteractionMode('ai-inspect')

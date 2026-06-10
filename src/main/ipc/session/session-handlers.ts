@@ -14,6 +14,12 @@ import { ensureSessionRuntimeCompatible } from './runtime-assets'
 import { GitHistoryService } from '../../history/git-history-service'
 import { allowLocalAssetRoot } from '../io/assets-handlers'
 import { resolveOutlinesForPages } from './page-outline-utils'
+import {
+  normalizeIndexTransitionConfig,
+  parseIndexTransitionConfig,
+  patchIndexTransitionConfig,
+  validateIndexShellHtml
+} from '../../session/index-transition'
 
 const THINKING_ID_RE = /^[a-zA-Z0-9_-]{6,32}$/
 const THINKING_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp'])
@@ -272,6 +278,70 @@ export function registerSessionHandlers(ctx: IpcContext): void {
     if (relative.startsWith('..') || path.isAbsolute(relative)) return fallbackPath
     return fs.existsSync(resolvedCandidate) ? resolvedCandidate : fallbackPath
   }
+
+  ipcMain.handle('session:getIndexTransition', async (_event, payload: unknown) => {
+    const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+    const sessionId =
+      typeof record.sessionId === 'string' && record.sessionId.trim().length > 0
+        ? record.sessionId.trim()
+        : ''
+    if (!sessionId) throw new Error('缺少 sessionId')
+    const projectDir = await resolveSessionProjectDir(sessionId)
+    const indexPath = path.join(projectDir, 'index.html')
+    if (!fs.existsSync(indexPath)) return parseIndexTransitionConfig('')
+    const html = await fs.promises.readFile(indexPath, 'utf-8')
+    return parseIndexTransitionConfig(html)
+  })
+
+  ipcMain.handle('session:setIndexTransition', async (_event, payload: unknown) => {
+    const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+    const sessionId =
+      typeof record.sessionId === 'string' && record.sessionId.trim().length > 0
+        ? record.sessionId.trim()
+        : ''
+    if (!sessionId) throw new Error('缺少 sessionId')
+    const session = await db.getSession(sessionId)
+    if (!session) throw new Error('会话不存在或已被删除')
+    const projectDir = await resolveSessionProjectDir(sessionId)
+    const indexPath = path.join(projectDir, 'index.html')
+    if (!fs.existsSync(indexPath)) throw new Error(`index.html 缺失：${indexPath}`)
+
+    await new GitHistoryService(db).ensureBaseline(sessionId, projectDir).catch((error) => {
+      log.warn('[session:setIndexTransition] ensure history baseline failed', {
+        sessionId,
+        message: error instanceof Error ? error.message : String(error)
+      })
+    })
+    await ensureSessionRuntimeCompatible(ctx, projectDir)
+    const config = normalizeIndexTransitionConfig({
+      type: record.type,
+      durationMs: record.durationMs
+    })
+    const current = await fs.promises.readFile(indexPath, 'utf-8')
+    const next = patchIndexTransitionConfig(current, config)
+    const indexErrors = validateIndexShellHtml(next)
+    if (indexErrors.length > 0) {
+      throw new Error(`index.html 验证失败: ${indexErrors.join('; ')}`)
+    }
+    if (next !== current) {
+      await fs.promises.writeFile(indexPath, next, 'utf-8')
+      await new GitHistoryService(db).recordOperation({
+        sessionId,
+        projectDir,
+        type: 'edit',
+        scope: 'shell',
+        prompt:
+          config.type === 'none'
+            ? '关闭切页动画'
+            : `配置切页动画：${config.type} ${config.durationMs}ms`,
+        metadata: {
+          transition: config,
+          action: 'setIndexTransition'
+        }
+      })
+    }
+    return { ok: true, transition: config }
+  })
 
   ipcMain.handle('session:create', async (_event, payload) => {
     const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}

@@ -19,6 +19,7 @@ import type {
 import type { UpdateAvailablePayload } from '@shared/app-update.js'
 import type { SpeechConfig } from '@shared/speech'
 import type { HistoryVersion, RollbackHistoryResult } from '@shared/history.js'
+import type { IndexTransitionConfig, IndexTransitionType } from '@shared/index-transition.js'
 import type {
   ThinkingStage,
   ThinkingChatMessage,
@@ -319,6 +320,17 @@ export const ipc = {
         status?: string
         error?: string | null
       }>
+    }>,
+  getIndexTransition: (sessionId: string) =>
+    getIpc().invoke('session:getIndexTransition', { sessionId }) as Promise<IndexTransitionConfig>,
+  setIndexTransition: (payload: {
+    sessionId: string
+    type: IndexTransitionType
+    durationMs?: number
+  }) =>
+    getIpc().invoke('session:setIndexTransition', payload) as Promise<{
+      ok: boolean
+      transition: IndexTransitionConfig
     }>,
   migratePageOutlinesToSourceSkeletons: (payload: { sessionId: string }) =>
     getIpc().invoke('session:migratePageOutlinesToSourceSkeletons', payload) as Promise<{

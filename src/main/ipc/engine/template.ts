@@ -3,6 +3,10 @@ import { escapeHtml } from '../utils'
 import * as cheerio from 'cheerio'
 import { BASE_PAGE_STYLE_TAG, FIT_SCRIPT } from '../../tools'
 import { buildSessionAssetHeadTags } from './page-assets'
+import {
+  DEFAULT_INDEX_TRANSITION_CONFIG,
+  buildIndexTransitionConfigScript
+} from '../../session/index-transition'
 
 export interface DeckPageFile {
   id?: string
@@ -273,6 +277,8 @@ export const buildProjectIndexHtml = (title: string, pages: DeckPageFile[]): str
       <button class="ppt-control-btn" id="fullscreenBtn">全屏</button>
     </div>
     <script type="application/json" id="pages-data">${pagesData}</script>
+    ${buildIndexTransitionConfigScript(DEFAULT_INDEX_TRANSITION_CONFIG)}
+    <script src="./assets/anime.v4.js"></script>
     <script src="./assets/index-runtime.js"></script>
   </body>
 </html>`
