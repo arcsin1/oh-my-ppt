@@ -58,7 +58,7 @@ Reason:
 | `data-anim-duration` | 500ms | Clamped to 100–5000ms. Prefer 300–1200ms |
 | `data-anim-delay` | 0 | Milliseconds, or `stagger(N)` |
 | `data-anim-stagger` | unset | Millisecond gap. Preferred over `stagger(N)` for new content. |
-| `data-anim-from` | Type-dependent | `left`, `right`, `top`, `bottom`, `center` |
+| `data-anim-from` | Type-dependent | `left`, `right`, `top`, `bottom` |
 | `data-anim-easing` | runtime-only | Compatibility only. Do not use in standard editable/exportable pages. |
 | `data-anim-repeat` | runtime-only | Compatibility only. Do not use in standard editable/exportable pages. |
 | `data-anim-direction` | runtime-only | Compatibility only. Do not use in standard editable/exportable pages. |

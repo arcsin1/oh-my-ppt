@@ -29,7 +29,7 @@ export const DATA_ANIM_SUPPORTED_TYPES = [
 
 export type DataAnimType = (typeof DATA_ANIM_SUPPORTED_TYPES)[number]
 
-export const DATA_ANIM_FROM_VALUES = ['left', 'right', 'top', 'bottom', 'center'] as const
+export const DATA_ANIM_FROM_VALUES = ['left', 'right', 'top', 'bottom'] as const
 export type DataAnimFrom = (typeof DATA_ANIM_FROM_VALUES)[number]
 
 export const DATA_ANIM_TRIGGERS = ['load', 'with', 'after', 'click'] as const

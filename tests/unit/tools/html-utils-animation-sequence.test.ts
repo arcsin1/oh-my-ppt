@@ -81,7 +81,7 @@ describe('validateHtmlContent declarative animation controls', () => {
 
     expect(result.errors.join('\n')).toContain('data-anim-trigger 仅支持 load/with/after/click')
     expect(result.errors.join('\n')).toContain('on-click')
-    expect(result.errors.join('\n')).toContain('data-anim-from 仅支持 left/right/top/bottom/center')
+    expect(result.errors.join('\n')).toContain('data-anim-from 仅支持 left/right/top/bottom')
     expect(result.errors.join('\n')).toContain('start')
   })
 

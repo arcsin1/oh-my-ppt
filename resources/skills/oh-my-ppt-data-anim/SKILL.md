@@ -51,7 +51,7 @@ Add `data-anim` attributes directly on HTML elements. This works in preview and 
 | `data-anim-trigger` | `load`, `click`, `with`, `after` | omit for `load` |
 | `data-anim-sequence` | `with`, `after` | preferred load-order control for new content |
 | `data-anim-click-group` | stable token such as `step-1` | only for contiguous `click` animations that should reveal on the same click |
-| `data-anim-from` | `left`, `right`, `top`, `bottom`, `center` | direction/origin |
+| `data-anim-from` | `left`, `right`, `top`, `bottom` | direction/origin |
 | `data-anim-delay` | ms or `stagger(N)` | stagger for repeated items |
 | `data-anim-stagger` | ms | preferred new declarative stagger gap |
 | `data-anim-duration` | ms | prefer 300–1200 |
