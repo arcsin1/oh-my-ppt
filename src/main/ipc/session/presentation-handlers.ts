@@ -5,6 +5,7 @@ import path from 'path'
 import type { AddressInfo } from 'net'
 import type { IpcContext } from '../context'
 import { ensureSessionRuntimeCompatible } from './runtime-assets'
+import { ensureIndexPresentBackgroundStyle } from '../../session/index-transition'
 
 const CONTENT_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -118,6 +119,11 @@ export function registerPresentationHandlers(ctx: IpcContext): void {
 
     const indexPath = path.join(projectDir, 'index.html')
     await fs.promises.access(indexPath, fs.constants.R_OK)
+    const indexHtml = await fs.promises.readFile(indexPath, 'utf-8')
+    const patchedIndexHtml = ensureIndexPresentBackgroundStyle(indexHtml)
+    if (patchedIndexHtml !== indexHtml) {
+      await fs.promises.writeFile(indexPath, patchedIndexHtml, 'utf-8')
+    }
 
     const server = await createPresentationServer(projectDir)
     const address = server.address() as AddressInfo

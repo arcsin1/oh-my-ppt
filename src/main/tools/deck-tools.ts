@@ -331,7 +331,7 @@ export function createSessionBoundDeckTools(context: SessionDeckGenerationContex
                 durationMs: z
                   .number()
                   .optional()
-                  .describe('Animation duration, 120-1200ms, default 480ms')
+                  .describe('Animation duration, 120-1200ms, default 600ms')
               })
             }
           )

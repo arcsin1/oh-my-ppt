@@ -62,7 +62,7 @@ export const STABLE_HTML_FRAGMENT_PROTOCOL = [
   '- Use one outer <div> as the fragment root.',
   '- Prefer a shallow grid/flex structure with direct module children.',
   '- Avoid nested cards and wrapper chains. Aim for 3 levels of nesting and avoid exceeding 4.',
-  '- If the page needs many ideas, reduce the number of modules before adding more containers.',
+  '- If the page needs many ideas, choose the layout by content density and reading path before adding more containers.',
   '- Decorative blocks should stay flat: a single absolute-positioned div, a few sibling decorative divs, or one SVG are all acceptable; avoid nested wrapper chains inside decoration.',
   '- Before calling the write tool, check that every opened div/span/ul/li/p/table-related tag is closed and the fragment ends with a complete closing tag.'
 ].join('\n')
@@ -70,8 +70,11 @@ export const STABLE_HTML_FRAGMENT_PROTOCOL = [
 export const CANVAS_CONSTRAINTS = [
   '## 画布约束',
   `- Layout details (density, archetype, height budget) are in the skill ${LAYOUT_SKILL_NAME}. ${formatSkillUsageRequirement(LAYOUT_SKILL_NAME)}`,
-  '- 16:9 画布 1600×900，可用区 1584×884。用 Tailwind grid/flex。',
-  '- 最小字号 16px（text-base）。text-xs/text-sm/text-[12px]/text-[13px]/text-[14px]/text-[15px] 一律不用。放不下就减模块。',
+  '- 16:9 画布 1600×900，页面根容器不带默认 padding。用 Tailwind grid/flex。',
+  '- 背景可以铺满 1600×900；正文布局必须按安全内容预算排版，保留 24-40px 余量。不要因为根容器无 padding 就把正文塞满全高。',
+  '- 高度估算按偏保守值：中文标题/卡片文字考虑换行；grid-cols-3 放 4-6 个卡片时按两行预算。',
+  '- 先判断内容密度再设计布局：低密度强调留白和视觉重心，中密度用主次分区，高密度才使用紧凑网格/表格/信息轨；不要机械套固定布局。',
+  '- 最小字号 16px（text-base）。text-xs/text-sm/text-[12px]/text-[13px]/text-[14px]/text-[15px] 一律不用。空间紧张时调整密度和版式层级，不靠小字硬塞。',
   '- h1 最大 text-5xl（48px）。text-6xl/7xl/8xl、vw/vh、text-[clamp(...)] 不用。',
   '- 禁止 w-[1600px]/h-[900px]/100vw/100vh/w-screen/h-screen。禁止 iframe。'
 ].join('\n')

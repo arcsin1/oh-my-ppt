@@ -26,28 +26,28 @@ export interface IndexTransitionConfig {
 
 export const DEFAULT_INDEX_TRANSITION_CONFIG: IndexTransitionConfig = {
   type: 'fade',
-  durationMs: 480
+  durationMs: 600
 }
 
 export const INDEX_TRANSITION_PRESETS: ReadonlyArray<
   IndexTransitionConfig & { labelKey: string }
 > = [
   { type: 'none', durationMs: 0, labelKey: 'sessionDetail.indexTransitionNone' },
-  { type: 'fade', durationMs: 480, labelKey: 'sessionDetail.indexTransitionFade' },
-  { type: 'slide-left', durationMs: 480, labelKey: 'sessionDetail.indexTransitionSlideLeft' },
-  { type: 'slide-up', durationMs: 480, labelKey: 'sessionDetail.indexTransitionSlideUp' },
-  { type: 'push', durationMs: 520, labelKey: 'sessionDetail.indexTransitionPush' },
-  { type: 'wipe', durationMs: 520, labelKey: 'sessionDetail.indexTransitionWipe' },
-  { type: 'zoom', durationMs: 480, labelKey: 'sessionDetail.indexTransitionZoom' },
-  { type: 'flip', durationMs: 580, labelKey: 'sessionDetail.indexTransitionFlip' },
-  { type: 'stack', durationMs: 540, labelKey: 'sessionDetail.indexTransitionStack' },
-  { type: 'rotate', durationMs: 560, labelKey: 'sessionDetail.indexTransitionRotate' },
-  { type: 'cube', durationMs: 620, labelKey: 'sessionDetail.indexTransitionCube' },
-  { type: 'cover-flow', durationMs: 620, labelKey: 'sessionDetail.indexTransitionCoverFlow' },
-  { type: 'blur', durationMs: 560, labelKey: 'sessionDetail.indexTransitionBlur' },
-  { type: 'iris', durationMs: 620, labelKey: 'sessionDetail.indexTransitionIris' },
-  { type: 'swing', durationMs: 600, labelKey: 'sessionDetail.indexTransitionSwing' },
-  { type: 'center-reveal', durationMs: 580, labelKey: 'sessionDetail.indexTransitionCenterReveal' }
+  { type: 'fade', durationMs: 600, labelKey: 'sessionDetail.indexTransitionFade' },
+  { type: 'slide-left', durationMs: 560, labelKey: 'sessionDetail.indexTransitionSlideLeft' },
+  { type: 'slide-up', durationMs: 560, labelKey: 'sessionDetail.indexTransitionSlideUp' },
+  { type: 'push', durationMs: 600, labelKey: 'sessionDetail.indexTransitionPush' },
+  { type: 'wipe', durationMs: 600, labelKey: 'sessionDetail.indexTransitionWipe' },
+  { type: 'zoom', durationMs: 580, labelKey: 'sessionDetail.indexTransitionZoom' },
+  { type: 'flip', durationMs: 680, labelKey: 'sessionDetail.indexTransitionFlip' },
+  { type: 'stack', durationMs: 640, labelKey: 'sessionDetail.indexTransitionStack' },
+  { type: 'rotate', durationMs: 660, labelKey: 'sessionDetail.indexTransitionRotate' },
+  { type: 'cube', durationMs: 720, labelKey: 'sessionDetail.indexTransitionCube' },
+  { type: 'cover-flow', durationMs: 720, labelKey: 'sessionDetail.indexTransitionCoverFlow' },
+  { type: 'blur', durationMs: 640, labelKey: 'sessionDetail.indexTransitionBlur' },
+  { type: 'iris', durationMs: 720, labelKey: 'sessionDetail.indexTransitionIris' },
+  { type: 'swing', durationMs: 700, labelKey: 'sessionDetail.indexTransitionSwing' },
+  { type: 'center-reveal', durationMs: 680, labelKey: 'sessionDetail.indexTransitionCenterReveal' }
 ]
 
 export function isIndexTransitionType(value: unknown): value is IndexTransitionType {

@@ -25,6 +25,17 @@ const INDEX_RUNTIME_SCRIPT_RE =
   /<script\b[^>]*\bsrc=["'][^"']*assets\/index-runtime\.js(?:[?#][^"']*)?["'][^>]*>\s*<\/script>/i
 const ANIME_SCRIPT_RE =
   /<script\b[^>]*\bsrc=["'][^"']*assets\/anime\.v4\.js(?:[?#][^"']*)?["'][^>]*>\s*<\/script>/i
+const PRESENT_BACKGROUND_STYLE_RE =
+  /\n?\s*<style\b[^>]*id=["']ppt-present-background-style["'][^>]*>[\s\S]*?<\/style>/i
+
+const PRESENT_BACKGROUND_STYLE = `<style id="ppt-present-background-style">
+      body.present { background: #000000 !important; }
+      body.present .ppt-layout,
+      body.present .ppt-stage,
+      body.present .ppt-preview-viewport {
+        background: #000000 !important;
+      }
+    </style>`
 
 export function validateIndexShellHtml(content: string): string[] {
   const errors: string[] = []
@@ -128,6 +139,17 @@ export function ensureIndexAnimeScript(html: string): string {
     return html.replace(/<\/body>/i, `  ${animeScript}\n  </body>`)
   }
   return `${html}\n${animeScript}`
+}
+
+export function ensureIndexPresentBackgroundStyle(html: string): string {
+  if (PRESENT_BACKGROUND_STYLE_RE.test(html)) return html
+  if (/<\/head>/i.test(html)) {
+    return html.replace(/<\/head>/i, `    ${PRESENT_BACKGROUND_STYLE}\n  </head>`)
+  }
+  if (/<\/body>/i.test(html)) {
+    return html.replace(/<\/body>/i, `  ${PRESENT_BACKGROUND_STYLE}\n  </body>`)
+  }
+  return `${html}\n${PRESENT_BACKGROUND_STYLE}`
 }
 
 export function patchIndexTransitionConfig(

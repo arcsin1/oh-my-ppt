@@ -35,14 +35,16 @@ export const BASE_PAGE_STYLE_TAG = `<style id="ppt-page-guard-style">
     isolation: isolate;
     background: var(--ppt-page-bg);
   }
-  .ppt-page-root.p-2 { padding: 0.5rem; }
-  .ppt-page-root.p-8 { padding: 2rem; }
-  .ppt-page-root.p-12 { padding: 3rem; }
+  .ppt-page-root.p-2,
+  .ppt-page-root.p-8,
+  .ppt-page-root.p-12 {
+    padding: 0;
+  }
   .ppt-page-root[data-ppt-guard-root="1"]:not(.p-2):not(.p-8):not(.p-12) {
-    padding: 0.5rem;
+    padding: 0;
   }
   body > .ppt-page-root:not([data-ppt-guard-root="1"]):not(.p-2):not(.p-8):not(.p-12) {
-    padding: 0.5rem;
+    padding: 0;
   }
   .ppt-page-fit-scope {
     position: relative;
@@ -807,7 +809,7 @@ async function buildScaffoldDocument(args: {
     ${BASE_PAGE_STYLE_TAG}
   </head>
   <body data-page-id="${pageId}">
-    <main class="ppt-page-root p-2" data-ppt-guard-root="1">
+    <main class="ppt-page-root" data-ppt-guard-root="1">
       <div class="ppt-page-fit-scope">
         <div class="ppt-page-content">
           ${innerContent}

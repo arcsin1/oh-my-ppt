@@ -45,7 +45,7 @@ function normalizeIndexTransitionType(type: string): string {
 
 function clampTransitionDuration(type: string, value: number | undefined): number {
   if (type === 'none') return 0
-  if (!Number.isFinite(value)) return 480
+  if (!Number.isFinite(value)) return 600
   return Math.max(120, Math.min(1200, Math.round(value as number)))
 }
 
@@ -526,10 +526,10 @@ describe('Transition duration clamping', () => {
   it('keeps none at 0ms', () => {
     expect(clampTransitionDuration('none', 480)).toBe(0)
   })
-  it('defaults to 480ms for undefined/NaN/Infinity', () => {
-    expect(clampTransitionDuration('fade', undefined)).toBe(480)
-    expect(clampTransitionDuration('fade', NaN)).toBe(480)
-    expect(clampTransitionDuration('fade', Infinity)).toBe(480)
+  it('defaults to 600ms for undefined/NaN/Infinity', () => {
+    expect(clampTransitionDuration('fade', undefined)).toBe(600)
+    expect(clampTransitionDuration('fade', NaN)).toBe(600)
+    expect(clampTransitionDuration('fade', Infinity)).toBe(600)
   })
   it('rounds to integer', () => {
     expect(clampTransitionDuration('fade', 333.7)).toBe(334)

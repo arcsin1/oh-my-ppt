@@ -7,7 +7,7 @@ Deep-dive examples, layout integration patterns, and Chart.js options that work 
 Copy this pattern for every chart. Adapt the type, data, and options.
 
 ```html
-<!-- height calc: available slot = 884 - 64(p-8) - 80(title/subtitle) - 24(gap-6) = 716; chart height = compact example = 320 -->
+<!-- height calc: available slot = 900 - 64(p-8) - 80(title/subtitle) - 24(gap-6) - 32(reserve) = 700; chart height = compact example = 320 -->
 <div class="ppt-chart-frame relative h-[320px] w-full overflow-hidden">
   <canvas id="chart-sales" class="h-full w-full"></canvas>
 </div>
@@ -58,7 +58,7 @@ The `.ppt-chart-frame` parent must have an explicit `h-[Npx]` height. Chart.js r
 Before writing the chart frame, calculate the available slot, choose the actual chart frame height for the slide role, and write both in the comment. The final chart-height number MUST equal `h-[Npx]`.
 
 ```html
-<!-- height calc: available slot = 884 - 64(p-8) - 60(title) - 20(gap-5) - 100(metrics) - 40(h3) - 16(p-4) = 584; chart height = min(584, 380 standard cap) = 380 -->
+<!-- height calc: available slot = 900 - 64(p-8) - 60(title) - 20(gap-5) - 100(metrics) - 40(h3) - 16(p-4) - 40(reserve) = 560; chart height = min(560, 380 standard cap) = 380 -->
 <div class="ppt-chart-frame relative h-[380px] w-full overflow-hidden">
   <canvas id="my-chart" class="h-full w-full"></canvas>
 </div>
@@ -67,13 +67,17 @@ Before writing the chart frame, calculate the available slot, choose the actual 
 The final number in the comment and `h-[Npx]` MUST match. Do NOT leave a comment such as `= 584` and then use `h-[380px]`; write the cap decision explicitly.
 
 Calculation steps:
-1. Start from **884px** (usable height after runtime p-2 padding)
+1. Start from **900px** (full slide height; runtime page root has no default padding)
 2. Subtract outer padding (p-6=48, p-8=64)
 3. Subtract all modules above the chart: title, subtitle, metrics row, legends
 4. Subtract all gaps between modules
 5. If chart is inside a card: subtract card padding and card title/heading
-6. Choose chart height by role: hero 340-420px, standard 280-360px, compact supporting 220-280px.
-7. Leave spare space for notes, legends, and dense labels. If available space is below 220px, the slide has too many modules — cut content.
+6. Subtract sibling modules below or beside the chart: metric cards, support cards, footer/notes
+7. Subtract a 24-40px safety reserve
+8. Choose chart height by role: hero 340-420px, standard 280-360px, compact supporting 220-280px.
+9. If available space is below 220px, redesign the chart/support relationship and run the layout width/height self-check again.
+
+Never place a two-row bottom card grid under a standard/tall chart. Additional facts should use a density-appropriate structure such as an evidence rail, annotated chart, metric band, small multiples, or compact table.
 
 ### What not to use for height
 
@@ -102,7 +106,7 @@ Do not generate these patterns:
 
 ```html
 <!-- Comment ends at raw available slot, but frame uses a different number -->
-<!-- height calc: 884 - 48(p-6) - 80(title) - 24(gap) = 732 -->
+<!-- height calc: 900 - 48(p-6) - 80(title) - 24(gap) = 748 -->
 <div class="ppt-chart-frame relative h-[360px] w-full overflow-hidden"></div>
 
 <!-- Tailwind scale shortcut is not a pixel budget -->
@@ -318,6 +322,7 @@ ticks: {
 - Place charts as dedicated visual modules in the grid, not nested inside cards with other content.
 - Always set `responsive: true` and `maintainAspectRatio: false` — they work with the explicit-height frame.
 - For a chart + metric cards layout, use `grid grid-cols-[1fr_1fr]` or `grid grid-cols-3` with the chart spanning 2 columns.
+- Keep support modules to 1-3 compact blocks around a standard/tall chart. Do not add a second row of summary cards below it.
 
 ## Common patterns
 

@@ -3,6 +3,7 @@ import {
   DEFAULT_INDEX_TRANSITION_CONFIG,
   carryIndexTransitionConfig,
   ensureIndexAnimeScript,
+  ensureIndexPresentBackgroundStyle,
   parseIndexTransitionConfig,
   patchIndexTransitionConfig,
   validateIndexShellHtml
@@ -76,6 +77,16 @@ describe('index transition config patching', () => {
     const next = ensureIndexAnimeScript(withAnime)
 
     expect(next.match(/anime\.v4\.js/g)).toHaveLength(1)
+  })
+
+  it('adds present-mode black background styles without duplication', () => {
+    const withPresentBackground = ensureIndexPresentBackgroundStyle(baseIndexHtml)
+    const next = ensureIndexPresentBackgroundStyle(withPresentBackground)
+
+    expect(next.match(/ppt-present-background-style/g)).toHaveLength(1)
+    expect(next).toContain('body.present { background: #000000 !important; }')
+    expect(next).toContain('body.present .ppt-preview-viewport')
+    expect(next.indexOf('ppt-present-background-style')).toBeLessThan(next.indexOf('</head>'))
   })
 
   it('falls back to default config when JSON is missing or invalid', () => {

@@ -61,7 +61,7 @@ export const buildPageScaffoldHtml = (page: {
     </style>
   </head>
   <body data-page-id="${page.pageId}">
-    <main class="ppt-page-root p-2" data-ppt-guard-root="1">
+    <main class="ppt-page-root" data-ppt-guard-root="1">
       <div class="ppt-page-fit-scope">
         <div class="ppt-page-content">
           <section class="scaffold-card" data-page-scaffold="1" data-placeholder-page="1">
@@ -234,9 +234,10 @@ export const buildProjectIndexHtml = (title: string, pages: DeckPageFile[]): str
         font-size: 13px;
         font-weight: 600;
       }
-      body.present .ppt-layout { padding: 0; }
-      body.present .ppt-stage { border-radius: 0; border: none; box-shadow: none; padding: 0; }
-      body.present .ppt-preview-viewport { border-radius: 0; }
+      body.present { background: #000000; }
+      body.present .ppt-layout { padding: 0; background: #000000; }
+      body.present .ppt-stage { border-radius: 0; border: none; box-shadow: none; padding: 0; background: #000000; }
+      body.present .ppt-preview-viewport { border-radius: 0; background: #000000; }
       body.present .ppt-controls, body.present .ppt-deck-switcher { display: none !important; }
       body.embed .ppt-layout { padding: 0; }
       body.embed .ppt-stage { border-radius: 0; border: none; box-shadow: none; padding: 0; }

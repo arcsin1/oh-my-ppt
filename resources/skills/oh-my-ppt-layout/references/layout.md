@@ -79,36 +79,41 @@ Grid cells participate in document flow, expand to fit their content, and never 
 ### Data-focus slide: title + metrics + chart
 
 ```
-884px total height
-- p-8 (32px top + 32px bottom) = 64px → 820px remaining
-- Title area (h1 + gap) = 60px → 760px
-- Metric cards row (grid-cols-4) = 100px → 660px
-- Gap = 24px → 636px
-- Chart frame: h-[360px] = 360px → 276px
-- Annotation line = 24px → 252px (spare)
+900px total height
+- p-8 (32px top + 32px bottom) = 64px -> 836px remaining
+- Title area (h1 + gap) = 60px -> 776px
+- Metric cards row (grid-cols-4) = 100px -> 676px
+- Gap = 24px -> 652px
+- Chart frame: h-[360px] = 360px -> 292px
+- Annotation line = 24px -> 268px (spare)
+- Safety reserve = 40px -> 228px spare after reserve
 ```
 
 Chart height (360px) is chosen from the remaining budget, not equal to all leftover space. If you need a taller chart, reduce padding to `p-6` or use a shorter title area; if the available slot is large, cap the chart and leave controlled whitespace or a short annotation.
 
+Do not add a second row of summary cards under this layout. When a data-focus slide already has a chart plus metric row, extra facts need a density-appropriate expression such as an evidence rail, annotated chart, metric band, compact chip row, or small table that is included in the budget.
+
 ### Comparison slide: title + two zones
 
 ```
-884px total height
-- p-6 (24px top + 24px bottom) = 48px → 836px remaining
-- Title + subtitle = 70px → 766px
-- Gap = 16px → 750px
-- Two comparison zones (grid-cols-2) → each gets 750px height
+900px total height
+- p-6 (24px top + 24px bottom) = 48px -> 852px remaining
+- Title + subtitle = 70px -> 782px
+- Gap = 16px -> 766px
+- Safety reserve = 32px -> 734px
+- Two comparison zones (grid-cols-2) -> each gets 734px height
 ```
 
 ### Timeline slide: title + horizontal strip
 
 ```
-884px total height
-- p-6 = 48px → 836px
-- Title = 60px → 776px
-- Gap = 16px → 760px
-- Timeline strip (horizontal) = 120px → 640px
-- Detail cards below = 200px → 440px (spare)
+900px total height
+- p-6 = 48px -> 852px
+- Title = 60px -> 792px
+- Gap = 16px -> 776px
+- Timeline strip (horizontal) = 120px -> 656px
+- Detail cards below = 200px -> 456px (spare)
+- Safety reserve = 32px -> 424px spare after reserve
 ```
 
 ## Composition patterns
@@ -147,7 +152,7 @@ Title area + `grid grid-cols-3` with evidence cards. Each card: `p-5 rounded-xl 
 
 ### High-density
 
-Compact metric row (`grid grid-cols-4`, `p-3 rounded-lg`) + chart or table below. Tighter padding (`p-6`), smaller text sizes. Module count justified by real information volume. Use `ppt-chart-frame h-[220px]` to `h-[280px]` for supporting charts in this mode, and make the chart height comment's final number match that class.
+High-density can use a compact metric row (`grid grid-cols-4`, `p-3 rounded-lg`) + chart or table below, but this is one option, not a fixed template. Module count should be justified by real information volume. Use `ppt-chart-frame h-[220px]` to `h-[280px]` for supporting charts in this mode, and make the chart height comment's final number match that class. Avoid two-row card grids below charts; 4-6 facts need a density-appropriate structure such as a metric band, bento grid, small multiples, compact labels, or table-like rows.
 
 ## Title placement variations
 

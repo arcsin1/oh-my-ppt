@@ -186,7 +186,7 @@ export const PreviewStage = forwardRef<
         <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-[30%_70%_70%_30%/30%_30%_70%_70%] bg-[#d4e4c1]/42" />
         <div className="pointer-events-none absolute -bottom-24 left-8 h-48 w-64 rounded-[5%_95%_10%_90%/85%_15%_85%_15%] bg-[#c8b89e]/20" />
         {selectedPage ? (
-          <div className="relative h-full overflow-hidden rounded-[1.55rem] bg-[#f5f1e8] p-2 shadow-[0_10px_24px_rgba(93,107,77,0.11)]">
+          <div className="relative h-full overflow-hidden rounded-[1.55rem] bg-[#f5f1e8] shadow-[0_10px_24px_rgba(93,107,77,0.11)]">
             <PreviewIframe
               ref={setPreviewIframeHandle}
               key={`preview-${selectedPage.pageId}-${previewKey}-${previewRefreshKey}`}

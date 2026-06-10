@@ -185,7 +185,7 @@ export function buildSinglePageGenerationPrompt(args: {
     '- When the user provided an explicit list of same-level topics, keep them as distinct visible topics where the layout allows; merge only when required to avoid overflow.',
     '- You may complete reasonable data framing, examples, and structure, but do not drift away from the slide title and points.',
     '- Prefer visualization-friendly expression. When points involve trends, comparisons, or proportions, use charts or data cards when appropriate.',
-    '- Expansion must still fit one slide. If expanded content would exceed the 1600×900 canvas, summarize, merge, or drop lower-priority details instead of adding more cards or long paragraphs.',
+    '- Expansion must still fit one slide. If expanded content would exceed the 1600×900 canvas, reorganize the composition, merge repeated wording, and express lower-priority details as concise labels/annotations instead of adding more cards or long paragraphs.',
     '',
     'Single-slide tool constraints:',
     `- Required action: call ${writeToolName}(pageId="${args.pageId}", content=complete creative page fragment).`,

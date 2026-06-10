@@ -19,7 +19,7 @@
   var currentPageId = '';
   var fitRaf = 0;
   var indexTransitionType = 'fade';   // default, overridden by container build
-  var indexTransitionDuration = 480;  // ms
+  var indexTransitionDuration = 600;  // ms
   var playbackRequestSeq = 0;
   var pendingPlaybackRequests = {};
   var pageSwitchSeq = 0;
@@ -62,7 +62,7 @@
   function clampTransitionDuration(type, durationMs) {
     if (type === 'none') return 0;
     var duration = Number(durationMs);
-    if (!Number.isFinite(duration)) duration = 480;
+    if (!Number.isFinite(duration)) duration = 600;
     return Math.max(120, Math.min(1200, Math.round(duration)));
   }
 
@@ -95,6 +95,20 @@
       '  display: block !important;' +
       '  pointer-events: none !important;' +
       '  will-change: transform, opacity, clip-path, filter;' +
+      '}';
+    document.head.appendChild(style);
+  }
+
+  function ensurePresentBackgroundStyles() {
+    if (document.getElementById('ppt-present-background-style')) return;
+    var style = document.createElement('style');
+    style.id = 'ppt-present-background-style';
+    style.textContent =
+      'body.present { background: #000000 !important; }' +
+      'body.present .ppt-layout,' +
+      'body.present .ppt-stage,' +
+      'body.present .ppt-preview-viewport {' +
+      '  background: #000000 !important;' +
       '}';
     document.head.appendChild(style);
   }
@@ -935,6 +949,7 @@
   } catch (_) {}
 
   ensureIndexTransitionBaseStyles();
+  ensurePresentBackgroundStyles();
 
   bindThumbEvents();
   if (prevBtn) prevBtn.addEventListener('click', function () { gotoOffset(-1); });
