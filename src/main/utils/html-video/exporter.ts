@@ -15,6 +15,12 @@ const DEFAULT_FPS = 30
 const DEFAULT_CAPTURE_FPS = 15
 const DEFAULT_SECONDS_PER_PAGE = 4
 const MAX_ANIMATED_PAGE_CAPTURE_FRAMES = 240
+export const VIDEO_EXPORT_FRAME_SIZE = Object.freeze({
+  width: VIDEO_WIDTH,
+  height: VIDEO_HEIGHT
+})
+export const VIDEO_EXPORT_EVEN_DIMENSIONS_FILTER =
+  'scale=ceil(iw/2)*2:ceil(ih/2)*2,setsar=1'
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -536,6 +542,13 @@ const warmUpCapture = async (win: BrowserWindow): Promise<void> => {
   await win.webContents.executeJavaScript(WAIT_FOR_VIDEO_CAPTURE_FRAME_SCRIPT, true)
 }
 
+export const normalizeCapturedVideoFrameImage = (image: NativeImage): NativeImage =>
+  image.resize({
+    width: VIDEO_EXPORT_FRAME_SIZE.width,
+    height: VIDEO_EXPORT_FRAME_SIZE.height,
+    quality: 'best'
+  })
+
 const runFfmpeg = async (args: {
   ffmpegPath: string
   concatPath: string
@@ -544,30 +557,11 @@ const runFfmpeg = async (args: {
   fps: number
 }): Promise<void> => {
   await new Promise<void>((resolve, reject) => {
-    const ffmpegArgs = [
-      '-y',
-      '-f',
-      'concat',
-      '-safe',
-      '0',
-      '-i',
-      args.concatPath,
-      '-r',
-      String(args.fps),
-      '-c:v',
-      'libx264',
-      '-threads',
-      '0',
-      '-pix_fmt',
-      'yuv420p',
-      '-crf',
-      '18',
-      '-preset',
-      'medium',
-      '-movflags',
-      '+faststart',
-      args.outputPath
-    ]
+    const ffmpegArgs = buildVideoExportFfmpegArgs({
+      concatPath: args.concatPath,
+      outputPath: args.outputPath,
+      fps: args.fps
+    })
     log.info('[export:video] run ffmpeg', {
       ffmpegPath: args.ffmpegPath,
       args: ffmpegArgs,
@@ -602,6 +596,37 @@ const runFfmpeg = async (args: {
   })
 }
 
+export const buildVideoExportFfmpegArgs = (args: {
+  concatPath: string
+  outputPath: string
+  fps: number
+}): string[] => [
+  '-y',
+  '-f',
+  'concat',
+  '-safe',
+  '0',
+  '-i',
+  args.concatPath,
+  '-r',
+  String(args.fps),
+  '-vf',
+  VIDEO_EXPORT_EVEN_DIMENSIONS_FILTER,
+  '-c:v',
+  'libx264',
+  '-threads',
+  '0',
+  '-pix_fmt',
+  'yuv420p',
+  '-crf',
+  '18',
+  '-preset',
+  'medium',
+  '-movflags',
+  '+faststart',
+  args.outputPath
+]
+
 const escapeConcatPath = (filePath: string): string =>
   filePath.split(path.sep).join('/').replace(/'/g, "'\\''")
 
@@ -620,8 +645,8 @@ const writeCapturedFrame = async (args: {
   frameDir: string
   frameIndex: number
 }): Promise<string> => {
-  const image = await captureFullFrame(args.win)
-  const png = image.toPNG()
+  const image = normalizeCapturedVideoFrameImage(await captureFullFrame(args.win))
+  const png = image.toPNG({ scaleFactor: 1 })
   const imagePath = path.join(args.frameDir, `frame-${String(args.frameIndex).padStart(6, '0')}.png`)
   await fs.promises.writeFile(imagePath, png)
   return imagePath

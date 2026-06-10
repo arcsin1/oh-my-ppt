@@ -54,6 +54,7 @@ const mapAlign = (align?: string): string => {
 const mapShapePreset = (shapeType?: string): string => {
   switch (shapeType) {
     case 'ellipse': return 'ellipse'
+    case 'line': return 'line'
     case 'roundRect': return 'roundRect'
     default: return 'rect'
   }

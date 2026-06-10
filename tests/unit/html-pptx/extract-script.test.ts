@@ -57,4 +57,14 @@ describe('buildHtmlToPptxExtractScript', () => {
     expect(script).toContain('if (!document.elementsFromPoint) return buildFallbackResult();')
     expect(script).not.toContain('if (entries.length === 0 || !document.elementsFromPoint) return new Map();')
   })
+
+  it('exports a single visible border side as a line instead of a full rectangle border', () => {
+    const script = buildScript()
+
+    expect(script).toContain('const collectBorderSides = () => {')
+    expect(script).toContain("const singleBorderSide = borderSides.length === 1 ? borderSides[0] : null;")
+    expect(script).toContain("shapeType: 'line'")
+    expect(script).toContain("if (singleBorderSide.side === 'bottom')")
+    expect(script).toContain("dash: singleBorderSide.dash || 'solid'")
+  })
 })

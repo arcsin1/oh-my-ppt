@@ -776,23 +776,36 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
       ? style.backgroundColor
       : tailwindVisualHints.backgroundColorSource;
     const fill = rgbToHex(fillSource);
-    // Check per-side border: Tailwind border-l-4 sets border-left only,
-    // style.borderColor / style.borderWidth may not reflect it.
-    const resolveBorder = () => {
+    // Check per-side border: Tailwind border-l-4 / border-b-2 set one side only,
+    // while style.borderColor / style.borderWidth may not reflect it.
+    const collectBorderSides = () => {
       const sides = [
-        { w: style.borderLeftWidth, c: style.borderLeftColor, s: style.borderLeftStyle },
-        { w: style.borderTopWidth, c: style.borderTopColor, s: style.borderTopStyle },
-        { w: style.borderRightWidth, c: style.borderRightColor, s: style.borderRightStyle },
-        { w: style.borderBottomWidth, c: style.borderBottomColor, s: style.borderBottomStyle }
+        { side: 'left', w: style.borderLeftWidth, c: style.borderLeftColor, s: style.borderLeftStyle },
+        { side: 'top', w: style.borderTopWidth, c: style.borderTopColor, s: style.borderTopStyle },
+        { side: 'right', w: style.borderRightWidth, c: style.borderRightColor, s: style.borderRightStyle },
+        { side: 'bottom', w: style.borderBottomWidth, c: style.borderBottomColor, s: style.borderBottomStyle }
       ];
-      // Pick the side with the thickest border that has a visible color
-      let best = null;
+      const visibleSides = [];
       for (const side of sides) {
         const w = Number.parseFloat(side.w || '0') || 0;
         if (w <= 0 || side.s === 'none') continue;
         const c = rgbToHex(side.c);
         if (!c) continue;
-        if (!best || w > best.w) best = { w, c, colorSource: side.c, dash: side.s === 'dashed' ? 'dash' : 'solid' };
+        visibleSides.push({
+          side: side.side,
+          w,
+          c,
+          colorSource: side.c,
+          dash: side.s === 'dashed' || side.s === 'dotted' ? 'dash' : 'solid'
+        });
+      }
+      return visibleSides;
+    };
+    const borderSides = collectBorderSides();
+    const resolveBorder = () => {
+      let best = null;
+      for (const side of borderSides) {
+        if (!best || side.w > best.w) best = side;
       }
       if (tailwindVisualHints.borderWidthPx > 0) {
         const colorSource =
@@ -834,6 +847,49 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
     const isSmallBadge = fill && fill !== backgroundColor && (radius > 0 || hasShadow);
     if (!hasBorder && !isSmallBadge && rect.width * rect.height < minShapeArea) continue;
     if (rect.width < 12 || rect.height < 12) continue;
+    const singleBorderSide = borderSides.length === 1 ? borderSides[0] : null;
+    const shouldExportSingleBorderLine =
+      singleBorderSide && !fill && !radius && !hasShadow && !tailwindVisualHints.ringWidthPx;
+    if (shouldExportSingleBorderLine) {
+      const minLineSize = 0.001;
+      let lineX = x;
+      let lineY = y;
+      let lineW = w;
+      let lineH = minLineSize;
+      if (singleBorderSide.side === 'bottom') {
+        lineY = pxToInY(rect.bottom - singleBorderSide.w / 2);
+      } else if (singleBorderSide.side === 'top') {
+        lineY = pxToInY(rect.top + singleBorderSide.w / 2);
+      } else if (singleBorderSide.side === 'right') {
+        lineX = pxToInX(rect.right - singleBorderSide.w / 2);
+        lineW = minLineSize;
+        lineH = h;
+      } else {
+        lineX = pxToInX(rect.left + singleBorderSide.w / 2);
+        lineW = minLineSize;
+        lineH = h;
+      }
+      shapes.push({
+        x: lineX,
+        y: lineY,
+        w: Math.max(minLineSize, lineW),
+        h: Math.max(minLineSize, lineH),
+        order: orderFor(element),
+        paintId: registerPaintTarget(element),
+        fill: undefined,
+        transparency: 100,
+        shapeType: 'line',
+        rotate: parseRotate(style),
+        border: {
+          color: singleBorderSide.c,
+          widthPt: singleBorderSide.w * 0.75,
+          transparency: transparencyFor(singleBorderSide.colorSource, opacity),
+          dash: singleBorderSide.dash || 'solid'
+        }
+      });
+      element.setAttribute('data-pptx-extracted-shape', '1');
+      continue;
+    }
     const radiusPx = Math.max(0, Math.min(radius, minSide / 2));
     const radiusAdj = radiusPx > 0 && minSide > 0
       ? Math.max(0, Math.min(50000, Math.round((radiusPx / minSide) * 100000)))
@@ -1774,11 +1830,17 @@ export const normalizeExtractedHtmlToPptxSlide = (
           : null
       const borderColor = normalizeHexColor(String(borderRaw?.color || ''), '')
       if (!fill && !borderColor) return null
+      const shapeType =
+        row.shapeType === 'ellipse' || row.shapeType === 'roundRect' || row.shapeType === 'line'
+          ? row.shapeType
+          : 'rect'
+      const minWidth = shapeType === 'line' ? 0.001 : 0.05
+      const minHeight = shapeType === 'line' ? 0.001 : 0.05
       return {
         x: clamp(Number(row.x) || 0, 0, DEFAULT_SLIDE_WIDTH),
         y: clamp(Number(row.y) || 0, 0, DEFAULT_SLIDE_HEIGHT),
-        w: clamp(Number(row.w) || 0.1, 0.05, DEFAULT_SLIDE_WIDTH),
-        h: clamp(Number(row.h) || 0.1, 0.05, DEFAULT_SLIDE_HEIGHT),
+        w: clamp(Number(row.w) || minWidth, minWidth, DEFAULT_SLIDE_WIDTH),
+        h: clamp(Number(row.h) || minHeight, minHeight, DEFAULT_SLIDE_HEIGHT),
         fill,
         transparency: clamp(Number(row.transparency ?? 0), 0, 100),
         radius: clamp(Number(row.radius ?? 0), 0, 100),
@@ -1791,8 +1853,7 @@ export const normalizeExtractedHtmlToPptxSlide = (
               dash: borderRaw?.dash === 'dash' ? 'dash' : 'solid'
             }
           : undefined,
-        shapeType:
-          row.shapeType === 'ellipse' || row.shapeType === 'roundRect' ? row.shapeType : 'rect',
+        shapeType,
         rotate: clamp(Number(row.rotate ?? 0), -360, 360),
         order: Number.isFinite(Number(row.order)) ? Math.max(0, Number(row.order)) : undefined
       }

@@ -52,7 +52,7 @@ export interface HtmlToPptxTextBox {
   order?: number
 }
 
-export type HtmlToPptxShapeType = 'rect' | 'roundRect' | 'ellipse'
+export type HtmlToPptxShapeType = 'rect' | 'roundRect' | 'ellipse' | 'line'
 
 export interface HtmlToPptxBorder {
   color: string

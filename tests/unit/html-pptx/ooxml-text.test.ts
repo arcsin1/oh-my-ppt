@@ -32,4 +32,32 @@ describe('buildSlideXml text export', () => {
     expect(xml).toContain('bIns="137160"')
     expect(xml).toContain('<a:t>写给业务人员</a:t>')
   })
+
+  it('writes single-side exported borders as PPT line shapes', () => {
+    const slide: HtmlToPptxSlide = {
+      texts: [],
+      shapes: [
+        {
+          x: 1,
+          y: 1.5,
+          w: 3,
+          h: 0.001,
+          shapeType: 'line',
+          border: {
+            color: 'BFDDE8',
+            widthPt: 1.5,
+            dash: 'dash'
+          }
+        }
+      ],
+      images: [],
+      tables: []
+    }
+
+    const xml = buildSlideXml(slide, new Map(), 1)
+
+    expect(xml).toContain('<a:prstGeom prst="line"><a:avLst/></a:prstGeom>')
+    expect(xml).toContain('<a:prstDash val="dash"/>')
+    expect(xml).not.toContain('prst="rect"><a:avLst/></a:prstGeom>')
+  })
 })
