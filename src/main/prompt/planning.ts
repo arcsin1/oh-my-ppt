@@ -17,7 +17,8 @@ export function buildPlanningSystemPrompt(totalPages: number = 0): string {
     'Rules:',
     '- Titles should be concise, hierarchical, and aligned with the narrative.',
     '- For open-ended topics without source materials, the first slide is usually a cover; the last slide is usually a conclusion, summary, thank-you, or next-steps slide.',
-    '- Key points must be short phrases, not long paragraphs. Provide 1-6 key points per slide.',
+    '- Key points must be short phrases, not long paragraphs. Provide 1-10 key points per slide.',
+    '- If the user explicitly lists topics for a single slide, preserve those listed topics as key points when possible instead of dropping later items.',
     '- Keep each key point compact and focused on the information type: data, chart, structure, conclusion, decision, or action.',
     '- Assign layoutIntent based on the slide content type:',
     '  - cover: opening or section divider slides',
@@ -33,7 +34,7 @@ export function buildPlanningSystemPrompt(totalPages: number = 0): string {
     'Return only a JSON array. Do not add explanations, Markdown, or extra text.',
     'Each item must use exactly these fields: title, keyPoints, and layoutIntent. Do not use alternative field names.',
     'Format example: [{"title":"Cover","keyPoints":["Project name and subtitle","Presenter and date","One-sentence thesis"],"layoutIntent":"cover"},{"title":"Market Analysis","keyPoints":["Market size trend","Competitor comparison matrix","Growth-driver conclusion"],"layoutIntent":"data-focus"}]',
-    'Each slide must have 1-6 keyPoints.'
+    'Each slide must have 1-10 keyPoints.'
   ].join('\n')
 }
 

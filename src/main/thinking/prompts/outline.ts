@@ -5,7 +5,7 @@ export const OUTLINE_STAGE_PROMPT = `${BASE_THINKING_PROMPT}
 Stage: OUTLINE — create a page-by-page outline.
 
 - Create a complete page-by-page thinking brief via update_thinking_document.
-- Every page must have a real title, role, objective, summary, and 2-4 substantive keyPoints.
+- Every page must have a real title, role, objective, summary, and 2-10 substantive keyPoints.
 - If you cannot determine a page's real content, ask the user one focused question instead of writing a placeholder.
 - Ensure logical flow (intro → key points → conclusion).
 - For outlines above 10 pages, call update_thinking_document multiple times with pageStart and 5-10 consecutive pages per call. Do not pass every page in one huge tool call.

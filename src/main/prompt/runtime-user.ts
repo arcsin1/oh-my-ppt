@@ -28,7 +28,7 @@ export function buildPlanningUserPrompt(args: {
     "",
     "Plan each slide title, key points, and layout intent. Use short phrases, not long paragraphs.",
     sourcePlanningRules,
-    "Output must be a JSON array. Each item must be exactly { title, keyPoints, layoutIntent }; keyPoints must contain 1-6 strings.",
+    "Output must be a JSON array. Each item must be exactly { title, keyPoints, layoutIntent }; keyPoints must contain 1-10 strings.",
     `The array length must be exactly ${args.totalPages}.`,
     "User requirements:",
     args.userMessage,

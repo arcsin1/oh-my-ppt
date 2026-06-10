@@ -46,7 +46,7 @@ describe('thinking source plan', () => {
     for (const item of sourcePlan?.pageSkeleton ?? []) {
       expect(item.lineEnd).toBeGreaterThanOrEqual(item.lineStart)
       expect(item.reason).toContain(`第 ${item.pageNumber} 页`)
-      expect(item.reason.length).toBeLessThanOrEqual(360)
+      expect(item.reason.length).toBeLessThanOrEqual(520)
     }
   })
 
@@ -62,13 +62,19 @@ describe('thinking source plan', () => {
       '- 关键点二',
       '- 关键点三',
       '- 关键点四',
-      '- 关键点五'
+      '- 关键点五',
+      '- 关键点六',
+      '- 关键点七',
+      '- 关键点八',
+      '- 关键点九',
+      '- 关键点十',
+      '- 关键点十一'
     ])
 
     expect(outline).toContain('建立核心判断')
     expect(outline).toContain('总结第一句。 总结第二句。')
-    expect(outline).toContain('关键点四')
-    expect(outline).not.toContain('关键点五')
-    expect(outline.length).toBeLessThanOrEqual(360)
+    expect(outline).toContain('关键点十')
+    expect(outline).not.toContain('关键点十一')
+    expect(outline.length).toBeLessThanOrEqual(520)
   })
 })

@@ -1,7 +1,8 @@
 import path from 'path'
 import type { SourceDocumentPlan } from '@shared/generation'
 
-const MAX_THINKING_PAGE_OUTLINE_CHARS = 360
+const MAX_THINKING_PAGE_OUTLINE_CHARS = 520
+const MAX_THINKING_PAGE_KEY_POINTS = 10
 
 const compactThinkingOutlineText = (value: string): string => value.replace(/\s+/g, ' ').trim()
 
@@ -41,7 +42,7 @@ export const buildThinkingPageOutline = (blockLines: string[]): string => {
   const parts = [
     objective,
     compactThinkingOutlineText(summaryLines.join(' ')),
-    ...keyPointLines.slice(0, 4).map(compactThinkingOutlineText)
+    ...keyPointLines.slice(0, MAX_THINKING_PAGE_KEY_POINTS).map(compactThinkingOutlineText)
   ].filter(Boolean)
 
   return compactThinkingOutlineText(parts.join('；')).slice(0, MAX_THINKING_PAGE_OUTLINE_CHARS)
