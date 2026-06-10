@@ -776,9 +776,11 @@ const buildAnimationAttrs = (animation: ImportedElementAnimation | undefined): s
   return [
     `data-anim="${animation.type}"`,
     animation.from ? `data-anim-from="${animation.from}"` : '',
+    animation.path ? `data-anim-path="${escapeHtml(animation.path)}"` : '',
     `data-anim-duration="${animation.duration}"`,
     `data-anim-delay="${animation.delay}"`,
     animation.trigger === 'click' ? 'data-anim-trigger="click"' : '',
+    animation.clickGroup ? `data-anim-click-group="${escapeHtml(animation.clickGroup)}"` : '',
     `data-pptx-source-spid="${escapeHtml(animation.sourceId)}"`
   ]
     .filter(Boolean)
@@ -1376,10 +1378,13 @@ const buildImportedPptxMotionScript = (): string => `<script data-pptx-import-mo
       pptApi.executeDataAnim(config.load);
     }
     if (config.click.length && pptApi.clicks && typeof pptApi.clicks.on === "function") {
-      config.click.forEach(function (animDef, index) {
+      var clickSteps = Array.isArray(config.clickSteps) && config.clickSteps.length > 0
+        ? config.clickSteps
+        : config.click.map(function (animDef) { return [animDef]; });
+      clickSteps.forEach(function (stepDefs, index) {
         pptApi.clicks.on(index + 1, function () {
           if (typeof pptApi.executeDataAnim === "function") {
-            pptApi.executeDataAnim([animDef]);
+            pptApi.executeDataAnim(stepDefs);
           }
         });
       });

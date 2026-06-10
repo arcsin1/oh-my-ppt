@@ -267,20 +267,22 @@ const DEFAULT_MOTION_SCRIPT = `<script id="ppt-default-motion">
 
     // Wire click-triggered animations
     if (config.click.length > 0 && pptApi.clicks && typeof pptApi.clicks.on === "function") {
-      var clickDefs = config.click;
-      clickDefs.forEach(function (animDef, idx) {
+      var clickSteps = Array.isArray(config.clickSteps) && config.clickSteps.length > 0
+        ? config.clickSteps
+        : config.click.map(function (animDef) { return [animDef]; });
+      clickSteps.forEach(function (stepDefs, idx) {
         var clickNum = idx + 1;
         pptApi.clicks.on(clickNum, function () {
-          var single = [animDef];
           if (typeof pptApi.executeDataAnim === "function") {
-            pptApi.executeDataAnim(single);
+            pptApi.executeDataAnim(stepDefs);
           } else {
-            // Fallback: direct animate
-            pptApi.animate(animDef.targets, {
-              opacity: [0, 1],
-              translateY: [20, 0],
-              duration: animDef.duration,
-              easing: animDef.easing
+            stepDefs.forEach(function (animDef) {
+              pptApi.animate(animDef.targets, {
+                opacity: [0, 1],
+                translateY: [20, 0],
+                duration: animDef.duration,
+                easing: animDef.easing
+              });
             });
           }
         });

@@ -13,7 +13,9 @@ export interface PptxTargetAnimation {
   spid: number
   type: HtmlToPptxAnimationType
   trigger: HtmlToPptxAnimationTrigger
+  clickGroup?: string
   from?: HtmlToPptxAnimationFrom
+  path?: string
   duration: number
   delay: number
   order: number
@@ -26,13 +28,20 @@ const clampMs = (value: number, fallback: number): number => {
 
 const targetXml = (spid: number): string => `<p:tgtEl><p:spTgt spid="${spid}"/></p:tgtEl>`
 
-const ctnAttrs = (anim: PptxTargetAnimation, id: number): string => {
+const ctnAttrs = (args: {
+  anim: PptxTargetAnimation
+  id: number
+  nodeTypeOverride?: 'clickEffect' | 'withEffect'
+  grpIdOverride?: number
+}): string => {
+  const { anim, id, nodeTypeOverride, grpIdOverride } = args
   const preset = getPptxAnimationPreset(anim.type)
   if (!preset) return ''
-  const nodeType = anim.trigger === 'click' ? 'clickEffect' : 'withEffect'
+  const nodeType = nodeTypeOverride || (anim.trigger === 'click' ? 'clickEffect' : 'withEffect')
   const subtype =
     preset.presetSubtype === undefined ? '' : ` presetSubtype="${preset.presetSubtype}"`
-  return `id="${id}" presetID="${preset.presetId}" presetClass="${preset.presetClass}"${subtype} fill="hold" grpId="0" nodeType="${nodeType}"`
+  const grpId = grpIdOverride === undefined ? 0 : grpIdOverride
+  return `id="${id}" presetID="${preset.presetId}" presetClass="${preset.presetClass}"${subtype} fill="hold" grpId="${grpId}" nodeType="${nodeType}"`
 }
 
 const visibilitySetXml = (spid: number, id: number): string => `<p:set>
@@ -90,8 +99,37 @@ const numericAnimXml = (
   </p:tavLst>
 </p:anim>`
 
+const parseLinearPathDelta = (
+  pathValue: string | undefined
+): { x: number; y: number } | null => {
+  const raw = String(pathValue || '').trim()
+  if (!raw) return null
+  const coords = raw.match(/-?\d+(?:\.\d+)?/g)
+  if (!coords || coords.length < 4) return null
+  const startX = Number(coords[0])
+  const startY = Number(coords[1])
+  const endX = Number(coords[coords.length - 2])
+  const endY = Number(coords[coords.length - 1])
+  if (![startX, startY, endX, endY].every(Number.isFinite)) return null
+  return { x: endX - startX, y: endY - startY }
+}
+
+const formatSignedDelta = (value: number): string => {
+  const rounded = Math.round(value * 1000) / 1000
+  if (Math.abs(rounded) < 0.0005) return ''
+  return rounded >= 0 ? `+${rounded}` : `${rounded}`
+}
+
 const motionXml = (anim: PptxTargetAnimation, duration: number, nextId: () => number): string[] => {
   const preset = getPptxAnimationPreset(anim.type)
+  if (anim.type === 'path') {
+    const delta = parseLinearPathDelta(anim.path)
+    if (!delta) return []
+    return [
+      numericAnimXml(anim.spid, nextId(), duration, 'ppt_x', '#ppt_x', `#ppt_x${formatSignedDelta(delta.x)}`),
+      numericAnimXml(anim.spid, nextId(), duration, 'ppt_y', '#ppt_y', `#ppt_y${formatSignedDelta(delta.y)}`)
+    ]
+  }
   const motion = preset?.motion === 'fromTrace' ? resolveTraceMotion(anim.from) : preset?.motion
   if (!preset || !motion) return []
 
@@ -130,7 +168,11 @@ const scaleXml = (
   <p:to x="${to}" y="${to}"/>
 </p:animScale>`
 
-const effectXml = (anim: PptxTargetAnimation, nextId: () => number): string => {
+const effectXml = (
+  anim: PptxTargetAnimation,
+  nextId: () => number,
+  options?: { nodeTypeOverride?: 'clickEffect' | 'withEffect'; grpIdOverride?: number }
+): string => {
   const preset = getPptxAnimationPreset(anim.type)
   if (!preset) return ''
   const duration = clampMs(anim.duration, 500)
@@ -147,7 +189,12 @@ const effectXml = (anim: PptxTargetAnimation, nextId: () => number): string => {
   }
 
   return `<p:par>
-  <p:cTn ${ctnAttrs(anim, effectId)}>
+  <p:cTn ${ctnAttrs({
+    anim,
+    id: effectId,
+    nodeTypeOverride: options?.nodeTypeOverride,
+    grpIdOverride: options?.grpIdOverride
+  })}>
     <p:stCondLst>
       <p:cond delay="${delay}"/>
     </p:stCondLst>
@@ -176,7 +223,34 @@ export function buildSlideTimingXml(animations: PptxTargetAnimation[], startNode
   const mainSeqId = nextId()
   const kickoffId = nextId()
   const effectGroupId = nextId()
-  const effects = ordered.map((anim) => effectXml(anim, nextId)).join('\n')
+  let nextClickGroupId = 1
+  let lastClickGroup: string | undefined
+  let lastClickGroupId: number | undefined
+  const effects = ordered.map((anim) => {
+    if (anim.trigger !== 'click') {
+      lastClickGroup = undefined
+      lastClickGroupId = undefined
+      return effectXml(anim, nextId)
+    }
+    if (!anim.clickGroup) {
+      lastClickGroup = undefined
+      lastClickGroupId = undefined
+      return effectXml(anim, nextId)
+    }
+    if (anim.clickGroup !== lastClickGroup) {
+      lastClickGroup = anim.clickGroup
+      lastClickGroupId = nextClickGroupId
+      nextClickGroupId += 1
+      return effectXml(anim, nextId, {
+        nodeTypeOverride: 'clickEffect',
+        grpIdOverride: lastClickGroupId
+      })
+    }
+    return effectXml(anim, nextId, {
+      nodeTypeOverride: 'withEffect',
+      grpIdOverride: lastClickGroupId
+    })
+  }).join('\n')
   const buildList = [...new Set(ordered.map((anim) => anim.spid))]
     .map((spid) => `<p:bldP spid="${spid}" grpId="0"/>`)
     .join('\n      ')

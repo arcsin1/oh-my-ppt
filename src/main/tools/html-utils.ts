@@ -6,6 +6,12 @@ import {
   pageContentStartMarker
 } from './types'
 import {
+  DATA_ANIM_FROM_VALUES,
+  DATA_ANIM_SEQUENCES,
+  DATA_ANIM_SUPPORTED_TYPES,
+  DATA_ANIM_TRIGGERS
+} from '../animation/data-anim-schema'
+import {
   CHART_SKILL_NAME,
   DATA_ANIM_SKILL_NAME,
   formatSkillUsageRequirement,
@@ -92,6 +98,11 @@ export const PAGE_PLACEHOLDER_TEXT = '等待模型填充这一页内容'
 export const isPlaceholderPageHtml = (html: string): boolean =>
   html.includes(PAGE_PLACEHOLDER_TEXT) || /data-placeholder-page\s*=\s*["']1["']/i.test(html)
 
+const isLinearMotionPathString = (value: string): boolean => {
+  const coords = value.match(/-?\d+(?:\.\d+)?/g)
+  return Array.isArray(coords) && coords.length >= 4
+}
+
 
 const isAllowedRuntimeAsset = (src: string): boolean => {
   const normalized = src.trim().toLowerCase()
@@ -120,6 +131,19 @@ const isAllowedRuntimeAsset = (src: string): boolean => {
 
 export const validateHtmlContent = (html: string): { valid: boolean; errors: string[] } => {
   const errors: string[] = []
+  const supportedAnimTypes = new Set<string>(DATA_ANIM_SUPPORTED_TYPES)
+  const supportedAnimTriggers = new Set<string>(DATA_ANIM_TRIGGERS)
+  const supportedAnimFromValues = new Set<string>(DATA_ANIM_FROM_VALUES)
+  const supportedAnimDirections = new Set(['normal', 'reverse', 'alternate'])
+  const normalizeAnimTrigger = (value: string): 'load' | 'click' | 'with' | 'after' => {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'on-click') return 'click'
+    if (normalized === 'after-previous') return 'after'
+    if (normalized === 'with-previous') return 'with'
+    if (normalized === 'click' || normalized === 'with' || normalized === 'after') return normalized
+    return 'load'
+  }
+  const CLICK_GROUP_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/
   const animationCallScanHtml = html.replace(
     /\bdata-anim-delay\s*=\s*(["'])stagger\s*\(\s*\d+\s*\)\1/gi,
     'data-anim-delay=$1__DATA_ANIM_STAGGER__$1'
@@ -186,6 +210,12 @@ export const validateHtmlContent = (html: string): { valid: boolean; errors: str
   if (/(^|[^\w$])anime\.(?:animate|stagger|createTimeline|timeline)\s*\(/i.test(html)) {
     errors.push(`检测到直接 anime.* 调用；修改动画前请先 ${formatSkillUsageRequirement(DATA_ANIM_SKILL_NAME)}`)
   }
+  if (/\banime\.(?:svg\.)?(?:createMotionPath|createDrawable|morphTo)\s*\(/i.test(html)) {
+    errors.push(`检测到 anime 的 SVG/path/morph 高级能力；这些能力当前属于 preview-only 方向，不应进入标准可编辑页面。修改动画前请先 ${formatSkillUsageRequirement(DATA_ANIM_SKILL_NAME)}`)
+  }
+  if (/\b(?:anime\.)?splitText\s*\(/i.test(html)) {
+    errors.push(`检测到 splitText 文本碎片动画；该能力当前属于 preview-only 方向，不应进入标准可编辑页面。修改动画前请先 ${formatSkillUsageRequirement(DATA_ANIM_SKILL_NAME)}`)
+  }
   if (/PPT\.animate\s*\(\s*\{[\s\S]{0,240}?targets\s*:/im.test(html)) {
     errors.push(`检测到 PPT.animate({ targets, ... }) 写法；修改动画前请先 ${formatSkillUsageRequirement(DATA_ANIM_SKILL_NAME)}`)
   }
@@ -240,6 +270,229 @@ export const validateHtmlContent = (html: string): { valid: boolean; errors: str
   }
   try {
     const $ = cheerio.load(html, { scriptingEnabled: false })
+    const invalidAnimTypes = new Set<string>()
+    $('[data-anim]').each((_, node) => {
+      const type = (($(node).attr('data-anim') || '').trim().toLowerCase())
+      if (!type || !supportedAnimTypes.has(type)) {
+        invalidAnimTypes.add(type || '(empty)')
+      }
+    })
+    if (invalidAnimTypes.size > 0) {
+      errors.push(
+        `data-anim 仅支持当前公开可编辑动画类型，非法值：${Array.from(invalidAnimTypes).join(', ')}`
+      )
+    }
+    const invalidTriggers = new Set<string>()
+    $('[data-anim-trigger]').each((_, node) => {
+      const trigger = (($(node).attr('data-anim-trigger') || '').trim().toLowerCase())
+      if (!trigger || !supportedAnimTriggers.has(trigger)) {
+        invalidTriggers.add(trigger || '(empty)')
+      }
+    })
+    if (invalidTriggers.size > 0) {
+      errors.push(
+        `data-anim-trigger 仅支持 ${DATA_ANIM_TRIGGERS.join('/')}，非法值：${Array.from(invalidTriggers).join(', ')}`
+      )
+    }
+    const invalidFromValues = new Set<string>()
+    $('[data-anim-from]').each((_, node) => {
+      const from = (($(node).attr('data-anim-from') || '').trim().toLowerCase())
+      if (!from || !supportedAnimFromValues.has(from)) {
+        invalidFromValues.add(from || '(empty)')
+      }
+    })
+    if (invalidFromValues.size > 0) {
+      errors.push(
+        `data-anim-from 仅支持 ${DATA_ANIM_FROM_VALUES.join('/')}，非法值：${Array.from(invalidFromValues).join(', ')}`
+      )
+    }
+    const missingPathValues = new Set<string>()
+    const unexpectedPathValues = new Set<string>()
+    $('[data-anim]').each((_, node) => {
+      const type = (($(node).attr('data-anim') || '').trim().toLowerCase())
+      const rawPath = ($(node).attr('data-anim-path') || '').trim()
+      if (type === 'path') {
+        if (!rawPath) {
+          missingPathValues.add('path')
+        } else if (!isLinearMotionPathString(rawPath)) {
+          missingPathValues.add(rawPath)
+        }
+        return
+      }
+      if ($(node).attr('data-anim-path') !== undefined) {
+        unexpectedPathValues.add(type || '(empty)')
+      }
+    })
+    if (missingPathValues.size > 0) {
+      errors.push(
+        `data-anim="path" 必须同时提供可解析为线性位移的 data-anim-path，非法值：${Array.from(missingPathValues).join(', ')}`
+      )
+    }
+    if (unexpectedPathValues.size > 0) {
+      errors.push(
+        `只有 data-anim=\"path\" 才能使用 data-anim-path，非法类型：${Array.from(unexpectedPathValues).join(', ')}`
+      )
+    }
+    const invalidDurations = new Set<string>()
+    $('[data-anim-duration]').each((_, node) => {
+      const raw = ($(node).attr('data-anim-duration') || '').trim()
+      const value = Number(raw)
+      if (!raw || !Number.isFinite(value) || value < 100 || value > 5000) {
+        invalidDurations.add(raw || '(empty)')
+      }
+    })
+    if (invalidDurations.size > 0) {
+      errors.push(
+        `data-anim-duration 必须是 100-5000 的数字毫秒值，非法值：${Array.from(invalidDurations).join(', ')}`
+      )
+    }
+    const invalidDelays = new Set<string>()
+    $('[data-anim-delay]').each((_, node) => {
+      const raw = ($(node).attr('data-anim-delay') || '').trim()
+      if (!raw) {
+        invalidDelays.add('(empty)')
+        return
+      }
+      if (/^stagger\s*\(\s*\d+\s*\)$/i.test(raw)) return
+      const value = Number(raw)
+      if (!Number.isFinite(value) || value < 0) {
+        invalidDelays.add(raw)
+      }
+    })
+    if (invalidDelays.size > 0) {
+      errors.push(
+        `data-anim-delay 必须是大于等于 0 的数字毫秒值或 stagger(N)，非法值：${Array.from(invalidDelays).join(', ')}`
+      )
+    }
+    const runtimeOnlyEasing = new Set<string>()
+    $('[data-anim-easing]').each((_, node) => {
+      const raw = ($(node).attr('data-anim-easing') || '').trim()
+      runtimeOnlyEasing.add(raw || '(empty)')
+    })
+    if (runtimeOnlyEasing.size > 0) {
+      errors.push(
+        `data-anim-easing 当前属于 runtime-only 兼容能力，不应进入标准可编辑导出页面，非法值：${Array.from(runtimeOnlyEasing).join(', ')}`
+      )
+    }
+    const runtimeOnlyRepeats = new Set<string>()
+    $('[data-anim-repeat]').each((_, node) => {
+      const raw = ($(node).attr('data-anim-repeat') || '').trim().toLowerCase()
+      runtimeOnlyRepeats.add(raw || '(empty)')
+    })
+    if (runtimeOnlyRepeats.size > 0) {
+      errors.push(
+        `data-anim-repeat 当前属于 runtime-only 兼容能力，不应进入标准可编辑导出页面，非法值：${Array.from(runtimeOnlyRepeats).join(', ')}`
+      )
+    }
+    const runtimeOnlyDirections = new Set<string>()
+    $('[data-anim-direction]').each((_, node) => {
+      const raw = ($(node).attr('data-anim-direction') || '').trim().toLowerCase()
+      if (!raw || !supportedAnimDirections.has(raw)) {
+        runtimeOnlyDirections.add(raw || '(empty)')
+        return
+      }
+      runtimeOnlyDirections.add(raw)
+    })
+    if (runtimeOnlyDirections.size > 0) {
+      errors.push(
+        `data-anim-direction 当前属于 runtime-only 兼容能力，不应进入标准可编辑导出页面，非法值：${Array.from(runtimeOnlyDirections).join(', ')}`
+      )
+    }
+    const invalidSequences = new Set<string>()
+    $('[data-anim-sequence]').each((_, node) => {
+      const value = ($(node).attr('data-anim-sequence') || '').trim().toLowerCase()
+      if (value && !DATA_ANIM_SEQUENCES.includes(value as (typeof DATA_ANIM_SEQUENCES)[number])) {
+        invalidSequences.add(value)
+      }
+    })
+    if (invalidSequences.size > 0) {
+      errors.push(
+        `data-anim-sequence 仅支持 with/after，非法值：${Array.from(invalidSequences).join(', ')}`
+      )
+    }
+    const invalidStaggers = new Set<string>()
+    $('[data-anim-stagger]').each((_, node) => {
+      const raw = ($(node).attr('data-anim-stagger') || '').trim()
+      if (!raw) {
+        invalidStaggers.add('(empty)')
+        return
+      }
+      const value = Number(raw)
+      if (!Number.isFinite(value) || value < 0) {
+        invalidStaggers.add(raw)
+      }
+    })
+    if (invalidStaggers.size > 0) {
+      errors.push(
+        `data-anim-stagger 必须是大于等于 0 的数字毫秒值，非法值：${Array.from(invalidStaggers).join(', ')}`
+      )
+    }
+    const invalidClickGroups = new Set<string>()
+    const nonClickGrouped: string[] = []
+    const clickGroupTimeline: Array<string | null> = []
+    $('[data-anim]').each((_, node) => {
+      const trigger = normalizeAnimTrigger($(node).attr('data-anim-trigger') || 'load')
+      const attrValue = $(node).attr('data-anim-click-group')
+      const group = (attrValue || '').trim()
+      if (trigger !== 'click') {
+        if (attrValue !== undefined && !group) {
+          invalidClickGroups.add('(empty)')
+          return
+        }
+        if (!group) return
+        if (!CLICK_GROUP_RE.test(group)) {
+          invalidClickGroups.add(group || '(empty)')
+          return
+        }
+        nonClickGrouped.push(group)
+        return
+      }
+      if (attrValue === undefined) {
+        clickGroupTimeline.push(null)
+        return
+      }
+      if (!group) {
+        invalidClickGroups.add('(empty)')
+        clickGroupTimeline.push(null)
+        return
+      }
+      if (!CLICK_GROUP_RE.test(group)) {
+        invalidClickGroups.add(group)
+        clickGroupTimeline.push(null)
+        return
+      }
+      clickGroupTimeline.push(group)
+    })
+    if (invalidClickGroups.size > 0) {
+      errors.push(
+        `data-anim-click-group 仅支持字母/数字/中划线/下划线，并且必须以字母或数字开头，非法值：${Array.from(invalidClickGroups).join(', ')}`
+      )
+    }
+    if (nonClickGrouped.length > 0) {
+      errors.push(
+        `data-anim-click-group 只能用于 click 触发动画，非法分组：${Array.from(new Set(nonClickGrouped)).join(', ')}`
+      )
+    }
+    if (clickGroupTimeline.length > 1) {
+      const closedGroups = new Set<string>()
+      let activeGroup: string | null = null
+      for (const group of clickGroupTimeline) {
+        if (!group) {
+          if (activeGroup) {
+            closedGroups.add(activeGroup)
+            activeGroup = null
+          }
+          continue
+        }
+        if (group === activeGroup) continue
+        if (closedGroups.has(group)) {
+          errors.push(`data-anim-click-group 必须在 click 动画的 DOM 顺序上连续出现，非法分组：${group}`)
+          break
+        }
+        if (activeGroup) closedGroups.add(activeGroup)
+        activeGroup = group
+      }
+    }
     const blockIds = new Map<string, number>()
     $('[data-block-id]').each((_, node) => {
       const id = ($(node).attr('data-block-id') || '').trim()
@@ -337,7 +590,6 @@ export const validatePersistedPageHtml = (
   if (duplicatedBlockIds.length > 0) {
     errors.push(`data-block-id 重复：${duplicatedBlockIds.join(', ')}`)
   }
-
 
   $('video').each((index, node) => {
     const video = $(node)

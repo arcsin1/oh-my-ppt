@@ -503,30 +503,58 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
     'fade-right',
     'scale-in',
     'slide-up',
+    'slide-down',
     'slide-left',
+    'slide-right',
     'fly-in',
     'wipe',
     'zoom-in',
     'spin-in',
+    'grow-shrink-soft',
     'grow-shrink',
+    'grow-shrink-strong',
+    'pulse-soft',
     'pulse',
+    'pulse-strong',
     'exit-fade',
+    'exit-scale',
+    'exit-zoom',
+    'exit-wipe',
     'exit-fly',
     'path'
   ]);
   const supportedTriggers = new Set(['load', 'click', 'with', 'after']);
+  const supportedSequences = new Set(['with', 'after']);
   const staggerCounters = {};
   let lastSequenceStart = 0;
   let lastSequenceEnd = 0;
   const traces = [];
+  const parseLinearPathDelta = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return null;
+    const coords = raw.match(/-?\\d+(?:\\.\\d+)?/g);
+    if (!coords || coords.length < 4) return null;
+    const startX = Number(coords[0]);
+    const startY = Number(coords[1]);
+    const endX = Number(coords[coords.length - 2]);
+    const endY = Number(coords[coords.length - 1]);
+    if (![startX, startY, endX, endY].every(Number.isFinite)) return null;
+    return { x: endX - startX, y: endY - startY, raw };
+  };
   const normalizeType = (value) => {
     const type = String(value || 'fade-up').trim().toLowerCase();
     if (type === 'none') return 'none';
     if (type === 'fly' || type === 'flyin') return 'fly-in';
     if (type === 'zoom' || type === 'zoomin') return 'zoom-in';
     if (type === 'spin' || type === 'spinin') return 'spin-in';
+    if (type === 'growsoft' || type === 'growshrinksoft') return 'grow-shrink-soft';
     if (type === 'grow' || type === 'growshrink') return 'grow-shrink';
+    if (type === 'growstrong' || type === 'growshrinkstrong') return 'grow-shrink-strong';
     if (type === 'emphasis') return 'pulse';
+    if (type === 'pulsesoft') return 'pulse-soft';
+    if (type === 'pulsestrong') return 'pulse-strong';
+    if (type === 'exitscale') return 'exit-scale';
+    if (type === 'exitzoom') return 'exit-zoom';
     return supportedTypes.has(type) ? type : 'fade-up';
   };
   const normalizeTrigger = (value) => {
@@ -536,10 +564,24 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
     if (trigger === 'with-previous') return 'with';
     return supportedTriggers.has(trigger) ? trigger : 'load';
   };
+  const normalizeSequence = (value) => {
+    const sequence = String(value || '').trim().toLowerCase();
+    if (sequence === 'after-previous') return 'after';
+    if (sequence === 'with-previous') return 'with';
+    return supportedSequences.has(sequence) ? sequence : '';
+  };
+  const normalizeClickGroup = (value) => {
+    const group = String(value || '').trim();
+    return group || '';
+  };
+  const isValidClickGroup = (value) => /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(String(value || ''));
   const defaultFrom = (type) => {
     if (type === 'fade-down') return 'top';
+    if (type === 'slide-down') return 'top';
     if (type === 'fade-left' || type === 'slide-left') return 'right';
+    if (type === 'slide-right') return 'left';
     if (type === 'fade-right') return 'left';
+    if (type === 'wipe' || type === 'exit-wipe') return 'left';
     return 'bottom';
   };
   const normalizeFrom = (value, fallback) => {
@@ -551,11 +593,11 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
     if (from === 'left' || from === 'right' || from === 'center') return from;
     return fallback || 'bottom';
   };
-  const collectTrace = (el, type, trigger, from, duration, delay, order) => {
+  const collectTrace = (el, type, trigger, from, duration, delay, order, clickGroup, pathValue) => {
     const rect = el.getBoundingClientRect();
     if (rect.width < 2 || rect.height < 2) return;
     el.setAttribute('data-pptx-native-anim', '1');
-    traces.push({
+    const trace = {
       type,
       trigger,
       from,
@@ -566,7 +608,10 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
       y: Math.round(rect.top - pageRect.top),
       w: Math.round(rect.width),
       h: Math.round(rect.height)
-    });
+    };
+    if (clickGroup) trace.clickGroup = clickGroup;
+    if (pathValue) trace.path = pathValue;
+    traces.push(trace);
   };
 
   const elements = Array.from(root.querySelectorAll('[data-anim]'));
@@ -577,11 +622,28 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
 
     const trigger = normalizeTrigger(el.getAttribute('data-anim-trigger'));
     const effectiveTrigger = trigger === 'click' ? 'click' : 'load';
+    const sequence = normalizeSequence(el.getAttribute('data-anim-sequence'));
+    const clickGroupRaw = normalizeClickGroup(el.getAttribute('data-anim-click-group'));
+    const clickGroup =
+      effectiveTrigger === 'click' && isValidClickGroup(clickGroupRaw) ? clickGroupRaw : '';
     const from = normalizeFrom(el.getAttribute('data-anim-from'), defaultFrom(type));
+    const pathValue =
+      type === 'path'
+        ? parseLinearPathDelta(el.getAttribute('data-anim-path'))
+        : null;
+    if (type === 'path' && !pathValue) return;
     const duration = Math.max(100, Math.min(5000, Number(el.getAttribute('data-anim-duration')) || 500));
     const delayRaw = (el.getAttribute('data-anim-delay') || '0').trim();
+    const staggerRaw = (el.getAttribute('data-anim-stagger') || '').trim();
     let delay = 0;
-    if (delayRaw.indexOf('stagger') === 0) {
+    if (staggerRaw) {
+      const gap = Number(staggerRaw);
+      const normalizedGap = Number.isFinite(gap) ? Math.max(0, gap) : 0;
+      const key = effectiveTrigger;
+      if (staggerCounters[key] === undefined) staggerCounters[key] = 0;
+      delay = staggerCounters[key] * normalizedGap;
+      staggerCounters[key] += 1;
+    } else if (delayRaw.indexOf('stagger') === 0) {
       const match = delayRaw.match(/stagger\\s*\\(\\s*(\\d+)\\s*\\)/);
       const gap = match ? Number(match[1]) : 50;
       const key = effectiveTrigger;
@@ -593,11 +655,12 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
     }
 
     if (effectiveTrigger === 'load') {
-      if (trigger === 'after') {
+      const sequencingMode = sequence || trigger;
+      if (sequencingMode === 'after') {
         delay += lastSequenceEnd;
         lastSequenceStart = delay;
         lastSequenceEnd = Math.max(lastSequenceEnd, delay + duration);
-      } else if (trigger === 'with') {
+      } else if (sequencingMode === 'with') {
         delay += lastSequenceStart;
         lastSequenceEnd = Math.max(lastSequenceEnd, delay + duration);
       } else {
@@ -606,14 +669,14 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
       }
     }
 
-    collectTrace(el, type, effectiveTrigger, from, duration, delay, order);
+    collectTrace(el, type, effectiveTrigger, from, duration, delay, order, clickGroup, pathValue?.raw || '');
   });
 
   const directMarkers = Array.from(
     root.querySelectorAll('.opacity-0, [data-anime], [data-animate]')
   ).filter((el) => !el.closest('[data-anim]'));
   directMarkers.slice(0, 16).forEach((el, index) => {
-    collectTrace(el, 'fade-up', 'load', 'bottom', 560, index * 45, elements.length + index);
+    collectTrace(el, 'fade-up', 'load', 'bottom', 560, index * 45, elements.length + index, '');
   });
 
   if (traces.length === 0) {
@@ -621,7 +684,7 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
       root.querySelectorAll('h1, h2, h3, p, li, .card, .panel, .text-section, .diagram-section, .timeline-node, section, section > *')
     ).filter((el) => !el.closest('[data-anim]'));
     legacyTargets.slice(0, 16).forEach((el, index) => {
-      collectTrace(el, 'fade-up', 'load', 'bottom', 560, index * 45, index);
+      collectTrace(el, 'fade-up', 'load', 'bottom', 560, index * 45, index, '');
     });
   }
 

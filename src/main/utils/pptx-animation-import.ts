@@ -14,7 +14,9 @@ export type ImportedElementAnimation = {
   id: number
   type: ImportedAnimationType
   trigger: ImportedAnimationTrigger
+  clickGroup?: string
   from?: ImportedAnimationFrom
+  path?: string
   duration: number
   delay: number
   sourceId: string
@@ -56,6 +58,55 @@ const parseNumericDelay = (value: string | undefined): number => {
 const readXmlAttrNumber = (value: string | undefined): number | undefined => {
   const n = Number(value)
   return Number.isFinite(n) ? n : undefined
+}
+
+const readMotionChannelValue = (
+  $: cheerio.CheerioAPI,
+  ctn: cheerio.Cheerio<any>,
+  attrName: 'ppt_x' | 'ppt_y',
+  tm: '0' | '100000'
+): string | undefined => {
+  const motionNode = ctn
+    .find('p\\:anim')
+    .filter((_, node) => {
+      const el = $(node)
+      return el.find('p\\:attrName').first().text() === attrName
+    })
+    .first()
+  if (!motionNode.length) return undefined
+  return (
+    motionNode
+      .find(`p\\:tav[tm="${tm}"] p\\:strVal`)
+      .first()
+      .attr('val') || undefined
+  )
+}
+
+const parseDeltaFromMotionExpression = (
+  value: string | undefined,
+  axis: 'x' | 'y'
+): number | undefined => {
+  const raw = String(value || '').trim()
+  if (!raw) return undefined
+  const prefix = axis === 'x' ? '#ppt_x' : '#ppt_y'
+  if (raw === prefix) return 0
+  const match = raw.match(new RegExp(`^${prefix}([+-]\\d+(?:\\.\\d+)?)$`))
+  if (!match) return undefined
+  const delta = Number(match[1])
+  return Number.isFinite(delta) ? delta : undefined
+}
+
+const buildLinearPathFromMotion = (args: {
+  motionXFrom?: string
+  motionXTo?: string
+  motionYFrom?: string
+  motionYTo?: string
+}): string | undefined => {
+  if (args.motionXFrom !== '#ppt_x' || args.motionYFrom !== '#ppt_y') return undefined
+  const deltaX = parseDeltaFromMotionExpression(args.motionXTo, 'x')
+  const deltaY = parseDeltaFromMotionExpression(args.motionYTo, 'y')
+  if (deltaX === undefined || deltaY === undefined) return undefined
+  return `M 0 0 L ${deltaX} ${deltaY}`
 }
 
 const readSlideEmuSize = (
@@ -120,19 +171,45 @@ export const parsePptxSlideAnimationPlan = (
   $('[presetID]').each((_, node) => {
     const ctn = $(node)
     const nodeType = ctn.attr('nodeType')
+    const grpId = ctn.attr('grpId')
     const presetId = ctn.attr('presetID')
     const presetSubtype = ctn.attr('presetSubtype')
     const presetClass = ctn.attr('presetClass')
     const effectFilter = ctn.find('p\\:animEffect').first().attr('filter')
+    const scaleNode = ctn.find('p\\:animScale').first()
+    const scaleFrom = readXmlAttrNumber(scaleNode.find('p\\:from').first().attr('x'))
+    const scaleTo = readXmlAttrNumber(scaleNode.find('p\\:to').first().attr('x'))
+    const motionXFrom = readMotionChannelValue($, ctn, 'ppt_x', '0')
+    const motionXTo = readMotionChannelValue($, ctn, 'ppt_x', '100000')
+    const motionYFrom = readMotionChannelValue($, ctn, 'ppt_y', '0')
+    const motionYTo = readMotionChannelValue($, ctn, 'ppt_y', '100000')
     const type = mapPptxPresetToDataAnimType({
       presetId,
       presetSubtype,
       presetClass,
-      hasScale: ctn.find('p\\:animScale').length > 0,
-      effectFilter
+      hasScale: scaleNode.length > 0,
+      scaleFrom,
+      scaleTo,
+      effectFilter,
+      motionXFrom,
+      motionXTo,
+      motionYFrom,
+      motionYTo
     })
-    const from = mapPptxPresetToDataAnimFrom({ presetSubtype, effectFilter })
-    const trigger: ImportedAnimationTrigger = nodeType === 'clickEffect' ? 'click' : 'load'
+    const from = mapPptxPresetToDataAnimFrom({
+      presetId,
+      presetSubtype,
+      presetClass,
+      effectFilter,
+      motionXFrom,
+      motionXTo,
+      motionYFrom,
+      motionYTo
+    })
+    const trigger: ImportedAnimationTrigger =
+      nodeType === 'clickEffect' || (nodeType === 'withEffect' && grpId && grpId !== '0')
+        ? 'click'
+        : 'load'
     const delay = parseNumericDelay(
       ctn.children('p\\:stCondLst').find('p\\:cond').first().attr('delay')
     )
@@ -155,11 +232,15 @@ export const parsePptxSlideAnimationPlan = (
     for (const spid of spids) {
       const target = targets.get(spid)
       id += 1
-      animations.push({
+      const animation: ImportedElementAnimation = {
         id,
         type,
         trigger,
         from,
+        path:
+          type === 'path'
+            ? buildLinearPathFromMotion({ motionXFrom, motionXTo, motionYFrom, motionYTo })
+            : undefined,
         duration: clampMs(duration, 500),
         delay,
         sourceId: spid,
@@ -168,7 +249,11 @@ export const parsePptxSlideAnimationPlan = (
         y: target?.y,
         w: target?.w,
         h: target?.h
-      })
+      }
+      if (trigger === 'click' && grpId && grpId !== '0') {
+        animation.clickGroup = grpId
+      }
+      animations.push(animation)
     }
   })
 

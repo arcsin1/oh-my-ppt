@@ -1,10 +1,10 @@
 (function initPptRuntime(global) {
   if (!global || typeof global !== "object") return;
-  // @ohmyppt-ppt-runtime:arcsin1:v2.0.13
+  // @ohmyppt-ppt-runtime:arcsin1:v2.0.17
 
   var ppt = global.PPT && typeof global.PPT === "object" ? global.PPT : (global.PPT = {});
-  if (ppt.__runtimeVersion === "2.0.13") return;
-  ppt.__runtimeVersion = "2.0.13";
+  if (ppt.__runtimeVersion === "2.0.17") return;
+  ppt.__runtimeVersion = "2.0.17";
 
   function resolveSearchParams() {
     try {
@@ -690,14 +690,23 @@
     "fade-right": true,
     "scale-in": true,
     "slide-up": true,
+    "slide-down": true,
     "slide-left": true,
+    "slide-right": true,
     "fly-in": true,
     "wipe": true,
     "zoom-in": true,
     "spin-in": true,
+    "grow-shrink-soft": true,
     "grow-shrink": true,
+    "grow-shrink-strong": true,
+    "pulse-soft": true,
     "pulse": true,
+    "pulse-strong": true,
     "exit-fade": true,
+    "exit-scale": true,
+    "exit-zoom": true,
+    "exit-wipe": true,
     "exit-fly": true,
     "path": true,
     "lottie": true
@@ -711,7 +720,9 @@
     "fade-right": true,
     "scale-in": true,
     "slide-up": true,
+    "slide-down": true,
     "slide-left": true,
+    "slide-right": true,
     "fly-in": true,
     "wipe": true,
     "zoom-in": true,
@@ -726,7 +737,9 @@
     "fade-right": { opacity: "0", transform: "translateX(-20px)" },
     "scale-in":   { opacity: "0", transform: "scale(0.85)" },
     "slide-up":   { opacity: "0", transform: "translateY(40px)" },
+    "slide-down": { opacity: "0", transform: "translateY(-40px)" },
     "slide-left": { opacity: "0", transform: "translateX(40px)" },
+    "slide-right":{ opacity: "0", transform: "translateX(-40px)" },
     "zoom-in":    { opacity: "0", transform: "scale(0.75)" },
     "spin-in":    { opacity: "0", transform: "rotate(-12deg) scale(0.92)" }
   };
@@ -738,7 +751,13 @@
     if (normalized === "zoom" || normalized === "zoomin") return "zoom-in";
     if (normalized === "spin" || normalized === "spinin") return "spin-in";
     if (normalized === "grow" || normalized === "growshrink") return "grow-shrink";
+    if (normalized === "growsoft" || normalized === "growshrinksoft") return "grow-shrink-soft";
+    if (normalized === "growstrong" || normalized === "growshrinkstrong") return "grow-shrink-strong";
     if (normalized === "emphasis") return "pulse";
+    if (normalized === "pulsesoft") return "pulse-soft";
+    if (normalized === "pulsestrong") return "pulse-strong";
+    if (normalized === "exitscale") return "exit-scale";
+    if (normalized === "exitzoom") return "exit-zoom";
     if (DATA_ANIM_TYPES[normalized]) return normalized;
     return "fade-up";
   }
@@ -752,6 +771,23 @@
       return normalized;
     }
     return "load";
+  }
+
+  function normalizeAnimSequence(sequence) {
+    var normalized = String(sequence || "").trim().toLowerCase();
+    if (normalized === "after-previous") return "after";
+    if (normalized === "with-previous") return "with";
+    if (normalized === "with" || normalized === "after") return normalized;
+    return "";
+  }
+
+  function normalizeAnimClickGroup(group) {
+    var normalized = String(group || "").trim();
+    return normalized || "";
+  }
+
+  function isContiguousClickGroupValue(group) {
+    return /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(String(group || ""));
   }
 
   function normalizeAnimSide(side, fallback) {
@@ -770,11 +806,16 @@
       case "slide-up":
         return "bottom";
       case "fade-down":
+      case "slide-down":
         return "top";
       case "fade-left":
       case "slide-left":
         return "right";
       case "fade-right":
+      case "slide-right":
+        return "left";
+      case "wipe":
+      case "exit-wipe":
         return "left";
       default:
         return "bottom";
@@ -899,14 +940,27 @@
 
       var trigger = normalizeAnimTrigger(el.getAttribute("data-anim-trigger") || "load");
       var effectiveTrigger = trigger === "click" ? "click" : "load";
+      var sequence = normalizeAnimSequence(el.getAttribute("data-anim-sequence") || "");
+      var clickGroup = normalizeAnimClickGroup(el.getAttribute("data-anim-click-group") || "");
+      if (clickGroup && (!isContiguousClickGroupValue(clickGroup) || effectiveTrigger !== "click")) {
+        clickGroup = "";
+      }
       var from = normalizeAnimSide(el.getAttribute("data-anim-from"), defaultAnimSideForType(type));
       var duration = Number(el.getAttribute("data-anim-duration")) || 500;
       var easing = (el.getAttribute("data-anim-easing") || "easeOutCubic").trim();
       var delayRaw = (el.getAttribute("data-anim-delay") || "0").trim();
+      var staggerRaw = (el.getAttribute("data-anim-stagger") || "").trim();
       var delay = 0;
       var boundedDuration = Math.max(100, Math.min(5000, duration));
 
-      if (delayRaw.indexOf("stagger") === 0) {
+      if (staggerRaw) {
+        var staggerGap = Number(staggerRaw);
+        var normalizedGap = Number.isFinite(staggerGap) ? Math.max(0, staggerGap) : 0;
+        var staggerGroupKey = effectiveTrigger;
+        if (staggerCounters[staggerGroupKey] === undefined) staggerCounters[staggerGroupKey] = 0;
+        delay = staggerCounters[staggerGroupKey] * normalizedGap;
+        staggerCounters[staggerGroupKey] += 1;
+      } else if (delayRaw.indexOf("stagger") === 0) {
         var match = delayRaw.match(/stagger\s*\(\s*(\d+)\s*\)/);
         var gap = match ? Number(match[1]) : 50;
         var groupKey = effectiveTrigger;
@@ -918,11 +972,12 @@
       }
 
       if (effectiveTrigger === "load") {
-        if (trigger === "after") {
+        var sequencingMode = sequence || trigger;
+        if (sequencingMode === "after") {
           delay += lastSequenceEnd;
           lastSequenceStart = delay;
           lastSequenceEnd = Math.max(lastSequenceEnd, delay + boundedDuration);
-        } else if (trigger === "with") {
+        } else if (sequencingMode === "with") {
           delay += lastSequenceStart;
           lastSequenceEnd = Math.max(lastSequenceEnd, delay + boundedDuration);
         } else {
@@ -942,10 +997,13 @@
         type: type,
         trigger: trigger,
         effectiveTrigger: effectiveTrigger,
+        sequence: sequence || undefined,
+        clickGroup: clickGroup || undefined,
         from: from,
         duration: boundedDuration,
         easing: easing,
         delay: delay,
+        stagger: staggerRaw ? Math.max(0, Number(staggerRaw) || 0) : undefined,
         repeat: normalizeAnimRepeat(el.getAttribute("data-anim-repeat")),
         direction: (el.getAttribute("data-anim-direction") || "normal").trim().toLowerCase(),
         path: (el.getAttribute("data-anim-path") || "").trim(),
@@ -965,9 +1023,21 @@
     var loadAnims = animConfigs.filter(function (a) { return a.effectiveTrigger === "load"; });
     var clickAnims = animConfigs.filter(function (a) { return a.effectiveTrigger === "click"; });
 
-    ppt.clicks.setTotal(clickAnims.length);
+    var clickSteps = [];
+    clickAnims.forEach(function (animDef) {
+        var previousStep = clickSteps.length > 0 ? clickSteps[clickSteps.length - 1] : null;
+        var previousGroup =
+          previousStep && previousStep.length > 0 ? previousStep[0].clickGroup || "" : "";
+        if (animDef.clickGroup && previousStep && previousGroup === animDef.clickGroup) {
+          previousStep.push(animDef);
+          return;
+        }
+        clickSteps.push([animDef]);
+    });
 
-    return { load: loadAnims, click: clickAnims, all: animConfigs };
+    ppt.clicks.setTotal(clickSteps.length);
+
+    return { load: loadAnims, click: clickAnims, clickSteps: clickSteps, all: animConfigs };
   }
 
   function executeDataAnimConfig(config) {
@@ -1020,9 +1090,17 @@
           params.opacity = [0, 1];
           params.translateY = [40, 0];
           break;
+        case "slide-down":
+          params.opacity = [0, 1];
+          params.translateY = [-40, 0];
+          break;
         case "slide-left":
           params.opacity = [0, 1];
           params.translateX = [40, 0];
+          break;
+        case "slide-right":
+          params.opacity = [0, 1];
+          params.translateX = [-40, 0];
           break;
         case "fly-in": {
           var fly = getSideOffset(animDef.from, 40);
@@ -1049,14 +1127,38 @@
           params.rotate = [-12, 0];
           params.scale = [0.92, 1];
           break;
+        case "grow-shrink-soft":
+          params.scale = [0.95, 1.04, 1];
+          break;
         case "grow-shrink":
           params.scale = [0.9, 1.08, 1];
+          break;
+        case "grow-shrink-strong":
+          params.scale = [0.85, 1.12, 1];
+          break;
+        case "pulse-soft":
+          params.scale = [1, 1.03, 1];
           break;
         case "pulse":
           params.scale = [1, 1.06, 1];
           break;
+        case "pulse-strong":
+          params.scale = [1, 1.1, 1];
+          break;
         case "exit-fade":
           params.opacity = [1, 0];
+          break;
+        case "exit-scale":
+          params.opacity = [1, 0];
+          params.scale = [1, 0.85];
+          break;
+        case "exit-zoom":
+          params.opacity = [1, 0];
+          params.scale = [1, 0.75];
+          break;
+        case "exit-wipe":
+          params.opacity = [1, 0];
+          params.clipPath = [getWipeClipPath(animDef.from, true), getWipeClipPath(animDef.from, false)];
           break;
         case "exit-fly": {
           var exitFly = getSideOffset(animDef.from, 40);

@@ -124,7 +124,9 @@ export type HtmlToPptxAnimationFrom = DataAnimFrom
 export interface HtmlToPptxAnimationTrace {
   type: HtmlToPptxAnimationType
   trigger: HtmlToPptxAnimationTrigger
+  clickGroup?: string
   from?: HtmlToPptxAnimationFrom
+  path?: string
   duration: number
   delay: number
   order: number

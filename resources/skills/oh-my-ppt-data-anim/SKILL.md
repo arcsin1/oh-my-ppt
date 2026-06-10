@@ -24,7 +24,7 @@ Before adding animation, answer these:
 
 1. **Reading path**: which elements should appear first, second, third? Animation follows the reading path.
 2. **Trigger**: load (default), stagger (repeated items), with (group together), after (sequence), click (presentation control only)?
-3. **Type**: fade, slide, scale, fly, wipe, zoom, pulse — match the visual intent.
+3. **Type**: fade, slide, scale, fly, wipe, zoom, bounded emphasis — match the visual intent.
 4. **Duration**: 300–1200ms. Shorter for subtle, longer for dramatic.
 
 ## How to add animation
@@ -41,7 +41,7 @@ Add `data-anim` attributes directly on HTML elements. This works in preview and 
 
 ### 2. Supported animation types
 
-`fade`, `fade-up`, `fade-down`, `fade-left`, `fade-right`, `scale-in`, `slide-up`, `slide-left`, `fly-in`, `wipe`, `zoom-in`, `spin-in`, `grow-shrink`, `pulse`, `exit-fade`, `exit-fly`, `path`
+`fade`, `fade-up`, `fade-down`, `fade-left`, `fade-right`, `scale-in`, `slide-up`, `slide-down`, `slide-left`, `slide-right`, `fly-in`, `wipe`, `zoom-in`, `spin-in`, `grow-shrink-soft`, `grow-shrink`, `grow-shrink-strong`, `pulse-soft`, `pulse`, `pulse-strong`, `exit-fade`, `exit-scale`, `exit-zoom`, `exit-wipe`, `exit-fly`, `path`
 
 ### 3. Attributes
 
@@ -49,13 +49,13 @@ Add `data-anim` attributes directly on HTML elements. This works in preview and 
 |---|---|---|
 | `data-anim` | type from supported list | required |
 | `data-anim-trigger` | `load`, `click`, `with`, `after` | omit for `load` |
+| `data-anim-sequence` | `with`, `after` | preferred load-order control for new content |
+| `data-anim-click-group` | stable token such as `step-1` | only for contiguous `click` animations that should reveal on the same click |
 | `data-anim-from` | `left`, `right`, `top`, `bottom`, `center` | direction/origin |
 | `data-anim-delay` | ms or `stagger(N)` | stagger for repeated items |
+| `data-anim-stagger` | ms | preferred new declarative stagger gap |
 | `data-anim-duration` | ms | prefer 300–1200 |
-| `data-anim-easing` | anime.js easing | prefer `easeOutQuad`, `easeOutCubic`, `easeInOutQuad` |
-| `data-anim-repeat` | number or `infinite` | use `infinite` only when user asks |
-| `data-anim-direction` | `normal`, `reverse`, `alternate` | |
-| `data-anim-path` | SVG path selector or string | for `path` type |
+| `data-anim-path` | inline linear path string such as `M 0 0 L 120 30` | only for `path` type |
 
 ### 4. Trigger patterns
 
@@ -63,6 +63,12 @@ Add `data-anim` attributes directly on HTML elements. This works in preview and 
 ```html
 <div data-anim="fade-up" data-anim-delay="stagger(90)">Point 1</div>
 <div data-anim="fade-up" data-anim-delay="stagger(90)">Point 2</div>
+```
+
+**data-anim-stagger="N"** — preferred new syntax for repeated items:
+```html
+<div data-anim="fade-up" data-anim-stagger="90">Point 1</div>
+<div data-anim="fade-up" data-anim-stagger="90">Point 2</div>
 ```
 
 **with** — group starts together with previous animated element:
@@ -78,15 +84,46 @@ Add `data-anim` attributes directly on HTML elements. This works in preview and 
 <div data-anim="fade-up" data-anim-trigger="after">3. Third</div>
 ```
 
+For new content, prefer `data-anim-sequence` so trigger semantics stay separate from load ordering:
+```html
+<div data-anim="fade-up">1. First</div>
+<div data-anim="fade" data-anim-sequence="with" data-anim-delay="80">Supporting note</div>
+<div data-anim="fade-up" data-anim-sequence="after">2. Second</div>
+```
+
 **click** — only for explicit presentation control (step-by-step, one-by-one reveal). Use `load`, `stagger`, `with`, or `after` for timelines, processes, steps, and flows.
+
+**click-group** — multiple contiguous click-triggered elements on the same build step:
+```html
+<div data-anim="fade-up" data-anim-trigger="click" data-anim-click-group="reveal">Headline</div>
+<div data-anim="pulse-soft" data-anim-trigger="click" data-anim-click-group="reveal">Badge</div>
+<div data-anim="fade" data-anim-trigger="click">Next click step</div>
+```
+
+- Use only on `data-anim-trigger="click"` elements.
+- Keep the grouped elements contiguous in DOM order.
+- Do not use click-group as a timeline DSL or to jump across unrelated click steps.
+
+## Preview-only boundary
+
+- Keep the standard editable lane focused on whole-element motion.
+- `splitText`, per-letter/per-word choreography, SVG draw/morph helpers, and arbitrary path choreography are not part of the normal editable contract.
+- The only supported path-like public motion in the editable lane is the constrained `data-anim="path"` semantic with an inline linear path string such as `M 0 0 L 120 30`. Richer path/draw/morph ideas belong to a future preview-only lane.
+- `data-anim-easing`, `data-anim-repeat`, and `data-anim-direction` are runtime-only compatibility attributes. Do not use them in standard generated editable/exportable pages because PPTX export/import does not preserve them semantically.
 
 ### 5. Directional examples
 
 ```html
 <div data-anim="fly-in" data-anim-from="left">Side metric</div>
 <div data-anim="wipe" data-anim-from="right">Process bar</div>
+<div data-anim="slide-right">Supporting card</div>
+<div data-anim="exit-wipe" data-anim-from="top">Dismissed panel</div>
+<div data-anim="exit-scale">Quietly de-emphasized chip</div>
+<div data-anim="exit-zoom">Dramatic hero outro</div>
 <div data-anim="zoom-in">Hero number</div>
-<div data-anim="pulse" data-anim-repeat="2" data-anim-direction="alternate">Key risk</div>
+<div data-anim="pulse">Key risk</div>
+<div data-anim="pulse-strong" data-anim-trigger="click">Escalation callout</div>
+<div data-anim="grow-shrink-soft">Subtle confirmation</div>
 ```
 
 ## Scripted animation escape hatch
@@ -109,6 +146,9 @@ PPT.animate(".card", {
 ## Hard rules
 
 - Prefer no animation, `load`, `stagger`, `with`, or `after` before `click`.
+- Use `data-anim-click-group="name"` only for contiguous `click` animations that share one reveal step.
+- Keep emphasis choices bounded: `pulse-soft|pulse|pulse-strong` and `grow-shrink-soft|grow-shrink|grow-shrink-strong`.
+- Do not use `data-anim-easing`, `data-anim-repeat`, or `data-anim-direction` in normal generated editable pages. Those attributes are runtime-only compatibility and are not part of the export-friendly contract.
 - Use `PPT.animate(selector, params)` — targets is the first argument, not an object property. Call `PPT.animate(...)`, never `anime(...)` or `anime.timeline(...)`.
 - The runtime handles initial hidden states automatically. Do not set `opacity-0`, `invisible`, `visibility:hidden`, `display:none`, or inline `opacity:0` on animated elements.
 - Use only the supported data-anim types listed above.
