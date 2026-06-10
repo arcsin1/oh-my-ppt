@@ -11,6 +11,8 @@ export interface PptxAnimationPreset {
   scale?: boolean
   scaleFrom?: number
   scaleTo?: number
+  rotateFrom?: number
+  rotateTo?: number
   fade?: boolean
   effectFilter?: 'wipe'
   transition?: 'in' | 'out'
@@ -147,6 +149,8 @@ export const PPTX_ANIMATION_PRESETS: Record<DataAnimType, PptxAnimationPreset> =
     scale: true,
     scaleFrom: 92000,
     scaleTo: 100000,
+    rotateFrom: -720000,
+    rotateTo: 0,
     fade: true
   },
   'grow-shrink-soft': {
@@ -270,6 +274,7 @@ export const mapPptxPresetToDataAnimType = (args: {
   presetSubtype?: string
   presetClass?: string
   hasScale: boolean
+  hasRotation?: boolean
   scaleFrom?: number
   scaleTo?: number
   effectFilter?: string
@@ -318,6 +323,7 @@ export const mapPptxPresetToDataAnimType = (args: {
   }
   if (args.effectFilter?.startsWith('wipe') || args.presetId === '5') return 'wipe'
   if (args.hasScale) {
+    if (args.hasRotation) return 'spin-in'
     if (args.scaleFrom !== undefined && args.scaleTo !== undefined) {
       return ENTRANCE_SCALE_PRESETS.reduce(
         (best, preset) => {
@@ -386,10 +392,10 @@ export const mapPptxPresetToDataAnimFrom = (args: {
     return undefined
   }
   if (args.effectFilter?.startsWith('wipe')) {
-    if (args.effectFilter.includes('(l)')) return 'right'
-    if (args.effectFilter.includes('(r)')) return 'left'
-    if (args.effectFilter.includes('(u)')) return 'bottom'
-    if (args.effectFilter.includes('(d)')) return 'top'
+    if (args.effectFilter.includes('(l)') || args.effectFilter.includes('(left)')) return 'right'
+    if (args.effectFilter.includes('(r)') || args.effectFilter.includes('(right)')) return 'left'
+    if (args.effectFilter.includes('(u)') || args.effectFilter.includes('(up)')) return 'bottom'
+    if (args.effectFilter.includes('(d)') || args.effectFilter.includes('(down)')) return 'top'
   }
   const motionDirection = inferMotionDirection()
   if (motionDirection) return motionDirection

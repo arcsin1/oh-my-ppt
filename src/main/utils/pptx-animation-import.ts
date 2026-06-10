@@ -177,6 +177,7 @@ export const parsePptxSlideAnimationPlan = (
     const presetClass = ctn.attr('presetClass')
     const effectFilter = ctn.find('p\\:animEffect').first().attr('filter')
     const scaleNode = ctn.find('p\\:animScale').first()
+    const rotationNode = ctn.find('p\\:animRot').first()
     const scaleFrom = readXmlAttrNumber(scaleNode.find('p\\:from').first().attr('x'))
     const scaleTo = readXmlAttrNumber(scaleNode.find('p\\:to').first().attr('x'))
     const motionXFrom = readMotionChannelValue($, ctn, 'ppt_x', '0')
@@ -188,6 +189,7 @@ export const parsePptxSlideAnimationPlan = (
       presetSubtype,
       presetClass,
       hasScale: scaleNode.length > 0,
+      hasRotation: rotationNode.length > 0,
       scaleFrom,
       scaleTo,
       effectFilter,

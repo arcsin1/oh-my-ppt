@@ -94,6 +94,16 @@ describe('buildSlideTimingXml', () => {
     expect(xml).toContain('<p:to x="100000" y="100000"/>')
   })
 
+  it('emits native rotation timing for spin-in in addition to scale timing', () => {
+    const xml = buildSlideTimingXml([makeAnim({ type: 'spin-in' })])
+
+    expect(xml).toContain('presetID="31"')
+    expect(xml).toContain('<p:animScale>')
+    expect(xml).toContain('<p:animRot')
+    expect(xml).toContain('from="-720000"')
+    expect(xml).toContain('to="0"')
+  })
+
   it('emits distinct native exit scale ranges for exit-scale and exit-zoom', () => {
     const xml = buildSlideTimingXml([
       makeAnim({ spid: 3, type: 'exit-scale', trigger: 'click' }),

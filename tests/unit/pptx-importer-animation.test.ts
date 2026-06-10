@@ -102,6 +102,31 @@ describe('parsePptxSlideAnimationPlan', () => {
     expect(plan.animations[3]).toMatchObject({ type: 'exit-zoom', trigger: 'click', duration: 430 })
   })
 
+  it('preserves spin-in when native rotation timing is present', () => {
+    const xml = `<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:sp><p:nvSpPr><p:cNvPr id="16" name="Spin Native"/></p:nvSpPr></p:sp>
+  </p:spTree></p:cSld>
+  <p:timing><p:tnLst>
+    <p:par><p:cTn id="80" presetID="31" presetClass="entr" nodeType="withEffect">
+      <p:childTnLst>
+        <p:animScale><p:cBhvr><p:cTn id="81" dur="430"/><p:tgtEl><p:spTgt spid="16"/></p:tgtEl></p:cBhvr><p:from x="92000" y="92000"/><p:to x="100000" y="100000"/></p:animScale>
+        <p:animRot from="-720000" to="0"><p:cBhvr><p:cTn id="82" dur="430"/><p:tgtEl><p:spTgt spid="16"/></p:tgtEl></p:cBhvr></p:animRot>
+      </p:childTnLst>
+    </p:cTn></p:par>
+  </p:tnLst></p:timing>
+</p:sld>`
+
+    const plan = parsePptxSlideAnimationPlan(xml, null, { width: 960, height: 540 })
+
+    expect(plan.animations[0]).toMatchObject({
+      type: 'spin-in',
+      trigger: 'load',
+      duration: 430,
+      sourceName: 'Spin Native'
+    })
+  })
+
   it('imports native wipe and exit timing as extended data-anim entries', () => {
     const xml = `<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
   <p:cSld><p:spTree>
@@ -136,6 +161,44 @@ describe('parsePptxSlideAnimationPlan', () => {
       from: 'bottom',
       trigger: 'click',
       sourceName: 'Outro'
+    })
+  })
+
+  it('accepts long-form wipe filter directions from external PPTX sources', () => {
+    const xml = `<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:sp><p:nvSpPr><p:cNvPr id="17" name="Panel Left"/></p:nvSpPr></p:sp>
+    <p:sp><p:nvSpPr><p:cNvPr id="18" name="Panel Down"/></p:nvSpPr></p:sp>
+  </p:spTree></p:cSld>
+  <p:timing><p:tnLst>
+    <p:par><p:cTn id="90" presetID="5" presetClass="entr" nodeType="withEffect">
+      <p:childTnLst><p:animEffect transition="in" filter="wipe(left)">
+        <p:cBhvr><p:cTn id="91" dur="480"/><p:tgtEl><p:spTgt spid="17"/></p:tgtEl></p:cBhvr>
+      </p:animEffect></p:childTnLst>
+    </p:cTn></p:par>
+    <p:par><p:cTn id="92" presetID="5" presetClass="exit" nodeType="clickEffect">
+      <p:childTnLst><p:animEffect transition="out" filter="wipe(down)">
+        <p:cBhvr><p:cTn id="93" dur="500"/><p:tgtEl><p:spTgt spid="18"/></p:tgtEl></p:cBhvr>
+      </p:animEffect></p:childTnLst>
+    </p:cTn></p:par>
+  </p:tnLst></p:timing>
+</p:sld>`
+
+    const plan = parsePptxSlideAnimationPlan(xml, null, { width: 960, height: 540 })
+
+    expect(plan.animations[0]).toMatchObject({
+      type: 'wipe',
+      from: 'right',
+      trigger: 'load',
+      duration: 480,
+      sourceName: 'Panel Left'
+    })
+    expect(plan.animations[1]).toMatchObject({
+      type: 'exit-wipe',
+      from: 'top',
+      trigger: 'click',
+      duration: 500,
+      sourceName: 'Panel Down'
     })
   })
 

@@ -204,6 +204,19 @@ const scaleXml = (
   <p:to x="${to}" y="${to}"/>
 </p:animScale>`
 
+const rotationXml = (
+  spid: number,
+  id: number,
+  duration: number,
+  from = 0,
+  to = 0
+): string => `<p:animRot from="${from}" to="${to}">
+  <p:cBhvr additive="base">
+    <p:cTn id="${id}" dur="${duration}" fill="hold"/>
+    ${targetXml(spid)}
+  </p:cBhvr>
+</p:animRot>`
+
 const effectXml = (
   anim: PptxTargetAnimation,
   nextId: () => number,
@@ -217,6 +230,9 @@ const effectXml = (
   const chunks = [visibilitySetXml(anim.spid, nextId()), ...motionXml(anim, duration, nextId)]
   if (preset.scale) {
     chunks.push(scaleXml(anim.spid, nextId(), duration, preset.scaleFrom, preset.scaleTo))
+  }
+  if (preset.rotateFrom !== undefined || preset.rotateTo !== undefined) {
+    chunks.push(rotationXml(anim.spid, nextId(), duration, preset.rotateFrom, preset.rotateTo))
   }
   if (preset.effectFilter === 'wipe') {
     chunks.push(fadeXml(anim.spid, nextId(), duration, preset.transition ?? 'in', wipeFilterForFrom(anim.from)))

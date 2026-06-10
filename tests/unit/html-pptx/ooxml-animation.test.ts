@@ -282,6 +282,36 @@ describe('buildSlideXml animation export', () => {
     expect(xml).toContain('<p:to x="75000" y="75000"/>')
   })
 
+  it('exports spin-in with native rotation timing in addition to scale timing', () => {
+    const slide: HtmlToPptxSlide = {
+      texts: [{ text: 'Spin', x: 1, y: 1, w: 3, h: 1, fontSize: 24 }],
+      shapes: [],
+      images: [],
+      tables: [],
+      animationTraces: [
+        {
+          type: 'spin-in',
+          trigger: 'load',
+          duration: 500,
+          delay: 0,
+          order: 0,
+          x: 100,
+          y: 100,
+          w: 300,
+          h: 100
+        }
+      ]
+    }
+
+    const xml = buildSlideXml(slide, new Map(), 1)
+
+    expect(xml).toContain('presetID="31" presetClass="entr"')
+    expect(xml).toContain('<p:animScale>')
+    expect(xml).toContain('<p:animRot')
+    expect(xml).toContain('from="-720000"')
+    expect(xml).toContain('to="0"')
+  })
+
   it('exports constrained path motion as linear PPTX channels', () => {
     const slide: HtmlToPptxSlide = {
       texts: [{ text: 'Path', x: 1, y: 1, w: 3, h: 1, fontSize: 24 }],
