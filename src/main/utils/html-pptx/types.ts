@@ -73,6 +73,7 @@ export interface HtmlToPptxShape {
   border?: HtmlToPptxBorder
   shapeType?: HtmlToPptxShapeType
   rotate?: number
+  flipV?: boolean
   order?: number
 }
 

@@ -255,7 +255,13 @@ function buildImagePic(id: number, rId: string, img: HtmlToPptxImage): string {
 function buildShapeXml(id: number, shape: HtmlToPptxShape): string {
   const preset = mapShapePreset(shape.shapeType)
 
-  const rot = shape.rotate ? ` rot="${degToRot(shape.rotate)}"` : ''
+  const xfrmAttrs = [
+    shape.rotate ? `rot="${degToRot(shape.rotate)}"` : '',
+    shape.flipV ? 'flipV="1"' : ''
+  ]
+    .filter(Boolean)
+    .join(' ')
+  const xfrmAttrXml = xfrmAttrs ? ` ${xfrmAttrs}` : ''
 
   // Geometry
   let geomXml: string
@@ -309,7 +315,7 @@ function buildShapeXml(id: number, shape: HtmlToPptxShape): string {
       <p:nvPr/>
     </p:nvSpPr>
     <p:spPr>
-      <a:xfrm${rot}>
+      <a:xfrm${xfrmAttrXml}>
         <a:off x="${inToEmu(shape.x)}" y="${inToEmu(shape.y)}"/>
         <a:ext cx="${inToEmu(shape.w)}" cy="${inToEmu(shape.h)}"/>
       </a:xfrm>

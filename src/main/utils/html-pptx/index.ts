@@ -19,6 +19,7 @@ export type {
 } from './types'
 
 import type {
+  HtmlToPptxTextRun,
   HtmlToPptxTextBox,
   HtmlToPptxShape,
   HtmlToPptxImage,
@@ -253,7 +254,14 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
   const isVisible = (element, style, rect) => {
     if (!style || style.display === 'none' || style.visibility === 'hidden') return false;
     if (Number(style.opacity || '1') < 0.04) return false;
-    if (rect.width < 2 || rect.height < 2) return false;
+    const hasVisibleBorder =
+      ['Top', 'Right', 'Bottom', 'Left'].some((side) => {
+        const width = Number.parseFloat(style['border' + side + 'Width'] || '0') || 0;
+        const borderStyle = style['border' + side + 'Style'];
+        return width > 0 && borderStyle !== 'none';
+      });
+    if ((rect.width < 2 || rect.height < 2) && !hasVisibleBorder) return false;
+    if (rect.width < 2 && rect.height < 2) return false;
     if (rect.bottom < 0 || rect.right < 0 || rect.left > pageWidthPx || rect.top > pageHeightPx) return false;
     if (element.closest('script, style, noscript, .katex, .katex-mathml, [data-pptx-formula-block]')) return false;
     return true;
@@ -649,6 +657,45 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
     const value = Number.parseFloat(arbitrary[1]);
     return Number.isFinite(value) ? Math.max(0, value) : undefined;
   };
+  const parseTailwindBorderSideWidth = (utility) => {
+    const match = String(utility || '').match(/^border-([trblxy])(?:-(0|2|4|8|\\[(-?\\d*\\.?\\d+)px\\]))?$/);
+    if (!match) return null;
+    const sideKey = match[1];
+    const widthToken = match[2];
+    const arbitraryValue = match[3];
+    const width = arbitraryValue !== undefined
+      ? Number.parseFloat(arbitraryValue)
+      : widthToken
+        ? Number.parseFloat(widthToken)
+        : 1;
+    // Keep 0 as an explicit side override; collectBorderSides consumes it by removing that side.
+    if (!Number.isFinite(width) || width < 0) return null;
+    const sides =
+      sideKey === 'x' ? ['left', 'right'] :
+      sideKey === 'y' ? ['top', 'bottom'] :
+      sideKey === 't' ? ['top'] :
+      sideKey === 'r' ? ['right'] :
+      sideKey === 'b' ? ['bottom'] :
+      ['left'];
+    return { sides, width };
+  };
+  const parseTailwindBorderSideColor = (utility) => {
+    const match = String(utility || '').match(/^border-([trblxy])-(.+)$/);
+    if (!match) return null;
+    const value = match[2];
+    if (/^(?:0|2|4|8|\\[-?\\d*\\.?\\d+px\\])$/.test(value)) return null;
+    const colorSource = parseTailwindBorderColor('border-' + value);
+    if (!colorSource) return null;
+    const sideKey = match[1];
+    const sides =
+      sideKey === 'x' ? ['left', 'right'] :
+      sideKey === 'y' ? ['top', 'bottom'] :
+      sideKey === 't' ? ['top'] :
+      sideKey === 'r' ? ['right'] :
+      sideKey === 'b' ? ['bottom'] :
+      ['left'];
+    return { sides, colorSource };
+  };
   const parseTailwindRadius = (utility) => {
     if (utility === 'rounded-full') return { full: true };
     if (tailwindRadiusPxMap.has(utility)) return { px: tailwindRadiusPxMap.get(utility) };
@@ -681,12 +728,187 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
     const value = Number.parseInt(raw, 10);
     return Number.isFinite(value) && value > 0 ? value : undefined;
   };
+  const resolveInlineFontWeight = (element) => {
+    const raw = element?.style?.fontWeight;
+    if (!raw) return undefined;
+    return resolveComputedFontWeight({ fontWeight: raw });
+  };
+  const normalizeRunText = (value) =>
+    String(value || '')
+      .replace(/\\s+/g, ' ')
+      .replace(/[\\u200b-\\u200d\\ufeff]/g, '');
+  const textRunFor = (text, style, element) => {
+    const runText = normalizeRunText(text);
+    if (!runText) return null;
+    const fontSizePx = Number.parseFloat(style.fontSize || '16') || 16;
+    const inlineFontWeight = resolveInlineFontWeight(element);
+    const tailwindFontWeight = resolveTailwindFontWeight(element);
+    const computedFontWeight = resolveComputedFontWeight(style);
+    const fontWeight = inlineFontWeight || tailwindFontWeight || computedFontWeight || 400;
+    const fontFace = String(style.fontFamily || 'Aptos').split(',')[0].replace(/["']/g, '').trim() || 'Aptos';
+    const textPaint = resolveTextPaint(style);
+    return {
+      text: runText,
+      fontSize: Math.max(6, Math.min(${MAX_EXPORT_FONT_SIZE_PT}, fontSizePx * pointsPerPx)),
+      fontFace,
+      color: textPaint.color,
+      bold: fontWeight >= 600 || /^H[1-6]$/i.test(element?.tagName || ''),
+      italic: style.fontStyle === 'italic' || style.fontStyle === 'oblique',
+      underline: String(style.textDecoration || '').includes('underline'),
+      strike: String(style.textDecoration || '').includes('line-through')
+    };
+  };
+  const trimRunEdges = (runs) => {
+    while (runs.length > 0) {
+      runs[0].text = String(runs[0].text || '').trimStart();
+      if (runs[0].text) break;
+      runs.shift();
+    }
+    while (runs.length > 0) {
+      const last = runs[runs.length - 1];
+      last.text = String(last.text || '').trimEnd();
+      if (last.text) break;
+      runs.pop();
+    }
+    return runs.filter((run) => run.text);
+  };
+  const sameTextRunStyle = (left, right) =>
+    left &&
+    right &&
+    left.fontSize === right.fontSize &&
+    left.fontFace === right.fontFace &&
+    left.color === right.color &&
+    Boolean(left.bold) === Boolean(right.bold) &&
+    Boolean(left.italic) === Boolean(right.italic) &&
+    Boolean(left.underline) === Boolean(right.underline) &&
+    Boolean(left.strike) === Boolean(right.strike);
+  const collectInlineTextRuns = (element, baseStyle) => {
+    if (!element || isVerticalWritingMode(baseStyle)) return undefined;
+    const runs = [];
+    const visit = (node, inheritedElement, inheritedStyle) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const run = textRunFor(node.textContent, inheritedStyle, inheritedElement);
+        if (run) runs.push(run);
+        return;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+      const child = node;
+      if (child.closest?.('script, style, noscript, svg, canvas, video, iframe, .katex, .katex-mathml, [data-pptx-formula-block]')) return;
+      const childStyle = window.getComputedStyle(child);
+      child.childNodes.forEach((next) => visit(next, child, childStyle));
+    };
+    element.childNodes.forEach((child) => visit(child, element, baseStyle));
+    trimRunEdges(runs);
+    if (runs.length === 0) return undefined;
+    const combinedText = normalize(runs.map((run) => run.text).join(''));
+    const elementText = normalize(element.innerText || element.textContent);
+    if (!combinedText || combinedText !== elementText) return undefined;
+    const baseRun = textRunFor(elementText, baseStyle, element);
+    const hasStyledRun = runs.some((run) => !sameTextRunStyle(run, baseRun));
+    return hasStyledRun ? runs : undefined;
+  };
+  const appendTextRun = (runs, run) => {
+    if (!run || !run.text) return;
+    const last = runs[runs.length - 1];
+    if (sameTextRunStyle(last, run)) {
+      last.text += run.text;
+    } else {
+      runs.push({ ...run });
+    }
+  };
+  const collectInlineTextLineRuns = (element, baseStyle) => {
+    if (!element || isVerticalWritingMode(baseStyle)) return [];
+    const sourceText = normalize(element.innerText || element.textContent);
+    if (!sourceText || sourceText.length > maxPreciseLineRunChars) return [];
+    const groups = [];
+    let activeGroup = null;
+    const visit = (node, inheritedElement, inheritedStyle) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const source = String(node.textContent || '');
+        for (let offset = 0; offset < source.length; offset += 1) {
+          const char = source[offset];
+          if (!char) continue;
+          const range = document.createRange();
+          range.setStart(node, offset);
+          range.setEnd(node, offset + 1);
+          const charRect = range.getBoundingClientRect();
+          range.detach();
+          if (charRect.width < 0.5 || charRect.height < 0.5) {
+            if (activeGroup && /\\s/.test(char)) {
+              appendTextRun(activeGroup.runs, textRunFor(char, inheritedStyle, inheritedElement));
+              activeGroup.text += char;
+            }
+            continue;
+          }
+          let group = groups.find((item) => Math.abs(item.top - charRect.top) < Math.max(3, charRect.height * 0.3));
+          if (!group) {
+            group = {
+              top: charRect.top,
+              left: charRect.left,
+              right: charRect.right,
+              bottom: charRect.bottom,
+              text: '',
+              runs: []
+            };
+            groups.push(group);
+          }
+          appendTextRun(group.runs, textRunFor(char, inheritedStyle, inheritedElement));
+          group.text += char;
+          group.left = Math.min(group.left, charRect.left);
+          group.right = Math.max(group.right, charRect.right);
+          group.bottom = Math.max(group.bottom, charRect.bottom);
+          activeGroup = group;
+        }
+        return;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+      const child = node;
+      if (child.closest?.('script, style, noscript, svg, canvas, video, iframe, .katex, .katex-mathml, [data-pptx-formula-block]')) return;
+      const childStyle = window.getComputedStyle(child);
+      child.childNodes.forEach((next) => visit(next, child, childStyle));
+    };
+    element.childNodes.forEach((child) => visit(child, element, baseStyle));
+    const lineRuns = groups
+      .sort((a, b) => a.top - b.top || a.left - b.left)
+      .map((group) => {
+        trimRunEdges(group.runs);
+        const text = normalize(group.runs.map((run) => run.text).join(''));
+        if (!text) return null;
+        return {
+          text,
+          rect: {
+            left: group.left,
+            top: group.top,
+            right: group.right,
+            bottom: group.bottom,
+            width: group.right - group.left,
+            height: group.bottom - group.top
+          },
+          runs: group.runs
+        };
+      })
+      .filter(Boolean);
+    const combinedText = normalize(lineRuns.map((line) => line.text).join(''));
+    return combinedText === sourceText ? lineRuns : [];
+  };
   const resolveTailwindVisualHints = (element) => {
     const hints = {
       ringWidthPx: undefined,
       ringColorSource: '',
       ringInset: false,
       borderWidthPx: undefined,
+      borderSideWidthPx: {
+        left: undefined,
+        top: undefined,
+        right: undefined,
+        bottom: undefined
+      },
+      borderSideColorSource: {
+        left: '',
+        top: '',
+        right: '',
+        bottom: ''
+      },
       borderColorSource: '',
       borderDash: undefined,
       backgroundColorSource: '',
@@ -708,6 +930,18 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
       if (ringColor) hints.ringColorSource = ringColor;
       const borderWidth = parseTailwindBorderWidth(utility);
       if (borderWidth !== undefined) hints.borderWidthPx = borderWidth;
+      const borderSideWidth = parseTailwindBorderSideWidth(utility);
+      if (borderSideWidth) {
+        borderSideWidth.sides.forEach((side) => {
+          hints.borderSideWidthPx[side] = borderSideWidth.width;
+        });
+      }
+      const borderSideColor = parseTailwindBorderSideColor(utility);
+      if (borderSideColor) {
+        borderSideColor.sides.forEach((side) => {
+          hints.borderSideColorSource[side] = borderSideColor.colorSource;
+        });
+      }
       const borderColor = parseTailwindBorderColor(utility);
       if (borderColor) hints.borderColorSource = borderColor;
       const backgroundColor = parseTailwindBackgroundColor(utility);
@@ -756,7 +990,7 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
   const shapes = [];
   const minShapeArea = layoutWidthPx * layoutHeightPx * 0.005;
   for (const element of shapeNodes) {
-    if (shapes.length >= maxShapes) break;
+    if (shapes.length >= maxShapes) continue;
     // Skip table elements that have been consumed by table extraction
     if (isInsideConsumedTable(element)) continue;
     const style = window.getComputedStyle(element);
@@ -786,18 +1020,75 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
         { side: 'bottom', w: style.borderBottomWidth, c: style.borderBottomColor, s: style.borderBottomStyle }
       ];
       const visibleSides = [];
+      const upsertSide = (sideInfo, force = false) => {
+        const existingIndex = visibleSides.findIndex((side) => side.side === sideInfo.side);
+        if (existingIndex >= 0) {
+          if (force) visibleSides[existingIndex] = sideInfo;
+          return;
+        }
+        visibleSides.push(sideInfo);
+      };
+      const removeSide = (sideName) => {
+        const existingIndex = visibleSides.findIndex((side) => side.side === sideName);
+        if (existingIndex >= 0) visibleSides.splice(existingIndex, 1);
+      };
       for (const side of sides) {
         const w = Number.parseFloat(side.w || '0') || 0;
         if (w <= 0 || side.s === 'none') continue;
         const c = rgbToHex(side.c);
         if (!c) continue;
-        visibleSides.push({
+        upsertSide({
           side: side.side,
           w,
           c,
           colorSource: side.c,
           dash: side.s === 'dashed' || side.s === 'dotted' ? 'dash' : 'solid'
         });
+      }
+      if (tailwindVisualHints.borderWidthPx > 0) {
+        const colorSource =
+          tailwindVisualHints.borderColorSource ||
+          style.borderColor ||
+          'rgba(229, 231, 235, 1)';
+        const color = rgbToHex(colorSource);
+        if (color && parseAlpha(colorSource) * opacity >= 0.04) {
+          for (const sideName of ['left', 'top', 'right', 'bottom']) {
+            upsertSide({
+              side: sideName,
+              w: tailwindVisualHints.borderWidthPx,
+              c: color,
+              colorSource,
+              dash: tailwindVisualHints.borderDash || 'solid'
+            }, true);
+          }
+        }
+      }
+      for (const sideName of ['left', 'top', 'right', 'bottom']) {
+        const hintedWidth = tailwindVisualHints.borderSideWidthPx?.[sideName];
+        const hintedColorSource = tailwindVisualHints.borderSideColorSource?.[sideName];
+        if (hintedWidth === undefined && !hintedColorSource) continue;
+        if (hintedWidth !== undefined && hintedWidth <= 0) {
+          removeSide(sideName);
+          continue;
+        }
+        const existingSide = visibleSides.find((side) => side.side === sideName);
+        const width = hintedWidth > 0 ? hintedWidth : existingSide?.w;
+        if (!(width > 0)) continue;
+        const colorSource =
+          hintedColorSource ||
+          existingSide?.colorSource ||
+          tailwindVisualHints.borderColorSource ||
+          style.borderColor ||
+          'rgba(229, 231, 235, 1)';
+        const color = rgbToHex(colorSource);
+        if (!color || parseAlpha(colorSource) * opacity < 0.04) continue;
+        upsertSide({
+          side: sideName,
+          w: width,
+          c: color,
+          colorSource,
+          dash: existingSide?.dash || tailwindVisualHints.borderDash || 'solid'
+        }, true);
       }
       return visibleSides;
     };
@@ -829,47 +1120,50 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
       return best;
     };
     const borderInfo = resolveBorder();
-    const borderColor = borderInfo ? borderInfo.c : '';
-    const borderWidth = borderInfo ? borderInfo.w : 0;
+    const sameBorderSide = (left, right) =>
+      left &&
+      right &&
+      left.c === right.c &&
+      left.dash === right.dash &&
+      Math.abs(left.w - right.w) < 0.1 &&
+      Math.abs(transparencyFor(left.colorSource, opacity) - transparencyFor(right.colorSource, opacity)) <= 1;
+    const hasUniformFourSideBorder =
+      borderSides.length === 4 &&
+      borderSides.every((side) => sameBorderSide(side, borderSides[0]));
+    const shouldSplitBorderSides =
+      borderSides.length > 0 && !hasUniformFourSideBorder && !tailwindVisualHints.ringWidthPx;
+    const mainBorderInfo = shouldSplitBorderSides ? null : borderInfo;
+    const borderColor = mainBorderInfo ? mainBorderInfo.c : '';
+    const borderWidth = mainBorderInfo ? mainBorderInfo.w : 0;
     const hasBorder = Boolean(borderInfo);
+    const hasMainBorder = Boolean(mainBorderInfo);
     const minSide = Math.min(rect.width, rect.height);
     const computedRadius = Number.parseFloat(style.borderTopLeftRadius || style.borderRadius || '0') || 0;
     const radius = computedRadius || (tailwindVisualHints.radiusFull
       ? minSide / 2
       : tailwindVisualHints.radiusPx || 0);
     const hasShadow = Boolean(style.boxShadow && style.boxShadow !== 'none');
-    // Skip elements with no visual distinction.
-    // BUT keep elements with rounded corners or box-shadow (e.g. cards with bg-white
-    // that visually stand out from the page root background).
-    if ((!fill || (fill === backgroundColor && !radius && !hasShadow)) && !hasBorder) continue;
-    // Skip small elements, BUT keep small badges/buttons (colored fill + radius/shadow)
-    // e.g. timeline year circles (48x48px with bg color + rounded-full + shadow-md)
-    const isSmallBadge = fill && fill !== backgroundColor && (radius > 0 || hasShadow);
-    if (!hasBorder && !isSmallBadge && rect.width * rect.height < minShapeArea) continue;
-    if (rect.width < 12 || rect.height < 12) continue;
-    const singleBorderSide = borderSides.length === 1 ? borderSides[0] : null;
-    const shouldExportSingleBorderLine =
-      singleBorderSide && !fill && !radius && !hasShadow && !tailwindVisualHints.ringWidthPx;
-    if (shouldExportSingleBorderLine) {
+    const buildBorderLineShape = (borderSide) => {
+      if (!borderSide) return null;
       const minLineSize = 0.001;
       let lineX = x;
       let lineY = y;
       let lineW = w;
       let lineH = minLineSize;
-      if (singleBorderSide.side === 'bottom') {
-        lineY = pxToInY(rect.bottom - singleBorderSide.w / 2);
-      } else if (singleBorderSide.side === 'top') {
-        lineY = pxToInY(rect.top + singleBorderSide.w / 2);
-      } else if (singleBorderSide.side === 'right') {
-        lineX = pxToInX(rect.right - singleBorderSide.w / 2);
+      if (borderSide.side === 'bottom') {
+        lineY = pxToInY(rect.bottom - borderSide.w / 2);
+      } else if (borderSide.side === 'top') {
+        lineY = pxToInY(rect.top + borderSide.w / 2);
+      } else if (borderSide.side === 'right') {
+        lineX = pxToInX(rect.right - borderSide.w / 2);
         lineW = minLineSize;
         lineH = h;
       } else {
-        lineX = pxToInX(rect.left + singleBorderSide.w / 2);
+        lineX = pxToInX(rect.left + borderSide.w / 2);
         lineW = minLineSize;
         lineH = h;
       }
-      shapes.push({
+      return {
         x: lineX,
         y: lineY,
         w: Math.max(minLineSize, lineW),
@@ -881,15 +1175,122 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
         shapeType: 'line',
         rotate: parseRotate(style),
         border: {
-          color: singleBorderSide.c,
-          widthPt: singleBorderSide.w * 0.75,
-          transparency: transparencyFor(singleBorderSide.colorSource, opacity),
-          dash: singleBorderSide.dash || 'solid'
+          color: borderSide.c,
+          widthPt: borderSide.w * 0.75,
+          transparency: transparencyFor(borderSide.colorSource, opacity),
+          dash: borderSide.dash || 'solid'
         }
-      });
+      };
+    };
+    const isBorderOnlyElement = !fill && !radius && !hasShadow;
+    const hasCornerBorderSides = (first, second) => {
+      const sideNames = borderSides.map((side) => side.side).sort().join('|');
+      return sideNames === [first, second].sort().join('|');
+    };
+    const isCssChevronBorder =
+      isBorderOnlyElement &&
+      borderSides.length === 2 &&
+      parseRotate(style) !== undefined &&
+      rect.width <= 42 &&
+      rect.height <= 42 &&
+      (
+        hasCornerBorderSides('top', 'right') ||
+        hasCornerBorderSides('right', 'bottom') ||
+        hasCornerBorderSides('bottom', 'left') ||
+        hasCornerBorderSides('left', 'top')
+      );
+    const buildCssChevronLineShapes = () => {
+      if (!isCssChevronBorder) return [];
+      const lineStyle = borderSides[0];
+      if (!lineStyle) return [];
+      // The source CSS is a small rotated border corner. These fractions rebuild
+      // the visible chevron inside its transformed bounding box as two PPT lines.
+      const left = rect.left + rect.width * 0.18;
+      const top = rect.top + rect.height * 0.18;
+      const lineWidth = rect.width * 0.58;
+      const lineHeight = rect.height * 0.32;
+      const common = {
+        order: orderFor(element),
+        paintId: registerPaintTarget(element),
+        fill: undefined,
+        transparency: 100,
+        shapeType: 'line',
+        border: {
+          color: lineStyle.c,
+          widthPt: lineStyle.w * 0.75,
+          transparency: transparencyFor(lineStyle.colorSource, opacity),
+          dash: lineStyle.dash || 'solid'
+        }
+      };
+      return [
+        {
+          ...common,
+          x: pxToInX(left),
+          y: pxToInY(top),
+          w: Math.max(0.001, sizeToInX(lineWidth)),
+          h: Math.max(0.001, sizeToInY(lineHeight))
+        },
+        {
+          ...common,
+          x: pxToInX(left),
+          y: pxToInY(top + rect.height * 0.32),
+          w: Math.max(0.001, sizeToInX(lineWidth)),
+          h: Math.max(0.001, sizeToInY(lineHeight)),
+          flipV: true
+        }
+      ];
+    };
+    const cssChevronLineShapes = buildCssChevronLineShapes();
+    if (cssChevronLineShapes.length > 0) {
+      if (shapes.length + cssChevronLineShapes.length > maxShapes) continue;
+      cssChevronLineShapes.forEach((shape) => shapes.push(shape));
       element.setAttribute('data-pptx-extracted-shape', '1');
       continue;
     }
+    const splitBorderLineShapes = shouldSplitBorderSides
+      ? borderSides.map((side) => buildBorderLineShape(side)).filter(Boolean)
+      : [];
+    const shouldExportOnlyBorderLines =
+      splitBorderLineShapes.length > 0 && isBorderOnlyElement;
+    if (shouldExportOnlyBorderLines) {
+      if (shapes.length + splitBorderLineShapes.length > maxShapes) continue;
+      splitBorderLineShapes.forEach((shape) => shapes.push(shape));
+      element.setAttribute('data-pptx-extracted-shape', '1');
+      continue;
+    }
+    // Skip elements with no visual distinction.
+    // BUT keep elements with rounded corners or box-shadow (e.g. cards with bg-white
+    // that visually stand out from the page root background).
+    if ((!fill || (fill === backgroundColor && !radius && !hasShadow)) && !hasBorder) continue;
+    // Skip small elements, BUT keep small badges/buttons (colored fill + radius/shadow)
+    // e.g. timeline year circles (48x48px with bg color + rounded-full + shadow-md)
+    const isSmallBadge = fill && fill !== backgroundColor && (radius > 0 || hasShadow);
+    const parentDisplay = element.parentElement
+      ? String(window.getComputedStyle(element.parentElement).display || '')
+      : '';
+    const isGridPaintCell =
+      fill &&
+      fill !== backgroundColor &&
+      !hasBorder &&
+      !radius &&
+      !hasShadow &&
+      /grid/i.test(parentDisplay) &&
+      !normalize(element.innerText || element.textContent) &&
+      rect.width >= 8 &&
+      rect.height >= 8;
+    const isThinPaintStrip =
+      fill &&
+      fill !== backgroundColor &&
+      !radius &&
+      !hasShadow &&
+      !normalize(element.innerText || element.textContent) &&
+      (
+        (rect.width >= 24 && rect.height >= 2 && rect.height < 12) ||
+        (rect.height >= 24 && rect.width >= 2 && rect.width < 12)
+      );
+    if (!hasBorder && !isSmallBadge && !isGridPaintCell && rect.width * rect.height < minShapeArea) continue;
+    if ((rect.width < 12 || rect.height < 12) && !isThinPaintStrip) continue;
+    if (shapes.length + 1 + splitBorderLineShapes.length > maxShapes) continue;
     const radiusPx = Math.max(0, Math.min(radius, minSide / 2));
     const radiusAdj = radiusPx > 0 && minSide > 0
       ? Math.max(0, Math.min(50000, Math.round((radiusPx / minSide) * 100000)))
@@ -913,15 +1314,18 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
       radiusAdj,
       shapeType,
       rotate: parseRotate(style),
-      border: hasBorder
+      border: hasMainBorder
         ? {
             color: borderColor,
             widthPt: borderWidth * 0.75,
-            transparency: transparencyFor(borderInfo.colorSource || style.borderColor, opacity),
-            dash: borderInfo.dash || 'solid'
+            transparency: transparencyFor(mainBorderInfo.colorSource || style.borderColor, opacity),
+            dash: mainBorderInfo.dash || 'solid'
           }
         : undefined
     });
+    if (splitBorderLineShapes.length > 0) {
+      splitBorderLineShapes.forEach((shape) => shapes.push(shape));
+    }
     element.setAttribute('data-pptx-extracted-shape', '1');
   }
 
@@ -1153,7 +1557,10 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
       insets &&
       (insets.paddingLeft || insets.paddingRight || insets.paddingTop || insets.paddingBottom)
     );
-    if (shouldWrap && !isVerticalText && !bullet && !hasInsets) {
+    const richTextRuns = Array.isArray(options.runs)
+      ? options.runs.filter((run) => run && normalize(run.text))
+      : undefined;
+    if (shouldWrap && !isVerticalText && !bullet && !hasInsets && !richTextRuns?.length) {
       const pretextLayout = layoutTextWithPretext(text, rect, parentStyle);
       if (pretextLayout && pretextLayout.lines.length > 0) {
         pretextLayout.lines.forEach((line) => pushTextBox(line.text, line.rect, parentStyle, parentElement, false));
@@ -1165,8 +1572,10 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
     textSeen.add(key);
     const fontSizePx = Number.parseFloat(parentStyle.fontSize || '16') || 16;
     const fontSizePt = Math.max(6, Math.min(${MAX_EXPORT_FONT_SIZE_PT}, fontSizePx * pointsPerPx));
+    const inlineFontWeight = resolveInlineFontWeight(parentElement);
+    const tailwindFontWeight = resolveTailwindFontWeight(parentElement);
     const computedFontWeight = resolveComputedFontWeight(parentStyle);
-    const fontWeight = computedFontWeight || resolveTailwindFontWeight(parentElement) || 400;
+    const fontWeight = inlineFontWeight || tailwindFontWeight || computedFontWeight || 400;
     const fontFace = String(parentStyle.fontFamily || 'Aptos').split(',')[0].replace(/["']/g, '').trim() || 'Aptos';
     const x = pxToInX(rect.left);
     const textPaint = resolveTextPaint(parentStyle);
@@ -1219,6 +1628,7 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
       charSpacing: parentStyle.letterSpacing && parentStyle.letterSpacing !== 'normal'
         ? (Number.parseFloat(parentStyle.letterSpacing) || 0) * pointsPerPx
         : undefined,
+      ...(richTextRuns?.length ? { runs: richTextRuns } : {}),
       wrap: shouldWrap
     });
   };
@@ -1278,8 +1688,21 @@ export const buildHtmlToPptxExtractScript = (options: HtmlToPptxExtractOptions):
       const fontSizePx = Number.parseFloat(style.fontSize || '16') || 16;
       const singleLine = rect.height <= fontSizePx * 1.55;
       const largeText = fontSizePx >= 28 || /^H[1-6]$/.test(element.tagName);
+      const inlineRuns = collectInlineTextRuns(element, style);
+      const inlineLineRuns = inlineRuns?.length ? collectInlineTextLineRuns(element, style) : [];
+      if (inlineLineRuns.length > 1 && !resolveListBullet(element)) {
+        inlineLineRuns.forEach((line) => {
+          pushTextBox(line.text, line.rect, style, element, false, {
+            runs: line.runs
+          });
+        });
+        consumedTextElements.add(element);
+        element.setAttribute('data-pptx-extracted-text', '1');
+        continue;
+      }
       pushTextBox(text, rect, style, element, !(singleLine && largeText), {
-        useElementInsets: true
+        useElementInsets: true,
+        runs: inlineRuns
       });
       consumedTextElements.add(element);
       element.setAttribute('data-pptx-extracted-text', '1');
@@ -1740,6 +2163,22 @@ const normalizeTable = (raw: unknown): HtmlToPptxTable | null => {
   }
 }
 
+const normalizeTextRun = (raw: unknown): HtmlToPptxTextRun | null => {
+  const row = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  const text = normalizePptxText(String(row.text || ''))
+  if (!text) return null
+  return {
+    text,
+    fontSize: Number(row.fontSize) > 0 ? clamp(Number(row.fontSize), 6, MAX_EXPORT_FONT_SIZE_PT) : undefined,
+    fontFace: resolveExportFontFace(text, String(row.fontFace || '')),
+    color: normalizeHexColor(String(row.color || ''), '111827'),
+    bold: Boolean(row.bold),
+    italic: Boolean(row.italic),
+    underline: Boolean(row.underline),
+    strike: Boolean(row.strike)
+  }
+}
+
 export const normalizeExtractedHtmlToPptxSlide = (
   raw: unknown,
   fallbackTitle?: string
@@ -1754,6 +2193,9 @@ export const normalizeExtractedHtmlToPptxSlide = (
       const row = item && typeof item === 'object' ? (item as Record<string, unknown>) : {}
       const text = normalizePptxText(String(row.text || '')).slice(0, DEFAULT_MAX_TEXT_CHARS)
       if (!text) return null
+      const runs = Array.isArray(row.runs)
+        ? row.runs.map(normalizeTextRun).filter((run): run is HtmlToPptxTextRun => run !== null)
+        : []
       const bulletRaw =
         row.bullet && typeof row.bullet === 'object'
           ? (row.bullet as Record<string, unknown>)
@@ -1814,6 +2256,7 @@ export const normalizeExtractedHtmlToPptxSlide = (
         paddingBottom:
           Number(row.paddingBottom) > 0 ? clamp(Number(row.paddingBottom), 0, 1) : undefined,
         bullet,
+        runs: runs.length > 0 ? runs : undefined,
         wrap: Boolean(row.wrap),
         order: Number.isFinite(Number(row.order)) ? Math.max(0, Number(row.order)) : undefined
       }
@@ -1855,6 +2298,7 @@ export const normalizeExtractedHtmlToPptxSlide = (
           : undefined,
         shapeType,
         rotate: clamp(Number(row.rotate ?? 0), -360, 360),
+        flipV: Boolean(row.flipV),
         order: Number.isFinite(Number(row.order)) ? Math.max(0, Number(row.order)) : undefined
       }
     })
