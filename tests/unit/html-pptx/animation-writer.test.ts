@@ -43,7 +43,8 @@ describe('buildSlideTimingXml', () => {
     expect(xml).toContain('presetSubtype="3"')
     expect(xml).toContain('delay="200"')
     expect(xml).toContain('<p:attrName>ppt_x</p:attrName>')
-    expect(xml).toContain('<p:strVal val="#ppt_x+#ppt_w/2"/>')
+    expect(xml).toContain('<p:strVal val="#ppt_x+20"/>')
+    expect(xml).toContain('<p:strVal val="#ppt_x"/>')
   })
 
   it('maps slide-down and slide-right to directional entrance preset subtypes', () => {
@@ -54,8 +55,22 @@ describe('buildSlideTimingXml', () => {
 
     expect(xml).toContain('presetSubtype="1"')
     expect(xml).toContain('presetSubtype="2"')
-    expect(xml).toContain('<p:strVal val="#ppt_y-#ppt_h/2"/>')
-    expect(xml).toContain('<p:strVal val="#ppt_x-#ppt_w/2"/>')
+    expect(xml).toContain('<p:strVal val="#ppt_y-40"/>')
+    expect(xml).toContain('<p:strVal val="#ppt_x-40"/>')
+  })
+
+  it('emits distinct explicit deltas for fade and slide entrance variants', () => {
+    const xml = buildSlideTimingXml([
+      makeAnim({ spid: 3, type: 'fade-up' }),
+      makeAnim({ spid: 4, type: 'slide-up', order: 1 }),
+      makeAnim({ spid: 5, type: 'fade-left', order: 2 }),
+      makeAnim({ spid: 6, type: 'slide-left', order: 3 })
+    ])
+
+    expect(xml).toContain('<p:strVal val="#ppt_y+20"/>')
+    expect(xml).toContain('<p:strVal val="#ppt_y+40"/>')
+    expect(xml).toContain('<p:strVal val="#ppt_x+20"/>')
+    expect(xml).toContain('<p:strVal val="#ppt_x+40"/>')
   })
 
   it('emits exit-wipe as an exit wipe effect instead of generic fade-out', () => {

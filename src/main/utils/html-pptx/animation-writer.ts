@@ -120,6 +120,31 @@ const formatSignedDelta = (value: number): string => {
   return rounded >= 0 ? `+${rounded}` : `${rounded}`
 }
 
+const resolveExplicitEntranceDelta = (
+  anim: PptxTargetAnimation
+): { x?: number; y?: number } | null => {
+  switch (anim.type) {
+    case 'fade-up':
+      return { y: 20 }
+    case 'fade-down':
+      return { y: -20 }
+    case 'fade-left':
+      return { x: 20 }
+    case 'fade-right':
+      return { x: -20 }
+    case 'slide-up':
+      return { y: 40 }
+    case 'slide-down':
+      return { y: -40 }
+    case 'slide-left':
+      return { x: 40 }
+    case 'slide-right':
+      return { x: -40 }
+    default:
+      return null
+  }
+}
+
 const motionXml = (anim: PptxTargetAnimation, duration: number, nextId: () => number): string[] => {
   const preset = getPptxAnimationPreset(anim.type)
   if (anim.type === 'path') {
@@ -128,6 +153,17 @@ const motionXml = (anim: PptxTargetAnimation, duration: number, nextId: () => nu
     return [
       numericAnimXml(anim.spid, nextId(), duration, 'ppt_x', '#ppt_x', `#ppt_x${formatSignedDelta(delta.x)}`),
       numericAnimXml(anim.spid, nextId(), duration, 'ppt_y', '#ppt_y', `#ppt_y${formatSignedDelta(delta.y)}`)
+    ]
+  }
+  const explicitEntranceDelta = resolveExplicitEntranceDelta(anim)
+  if (explicitEntranceDelta && preset?.presetClass === 'entr') {
+    const xFrom =
+      explicitEntranceDelta.x === undefined ? '#ppt_x' : `#ppt_x${formatSignedDelta(explicitEntranceDelta.x)}`
+    const yFrom =
+      explicitEntranceDelta.y === undefined ? '#ppt_y' : `#ppt_y${formatSignedDelta(explicitEntranceDelta.y)}`
+    return [
+      numericAnimXml(anim.spid, nextId(), duration, 'ppt_x', xFrom, '#ppt_x'),
+      numericAnimXml(anim.spid, nextId(), duration, 'ppt_y', yFrom, '#ppt_y')
     ]
   }
   const motion = preset?.motion === 'fromTrace' ? resolveTraceMotion(anim.from) : preset?.motion

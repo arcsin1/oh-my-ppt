@@ -16,6 +16,21 @@ export interface PptxAnimationPreset {
   transition?: 'in' | 'out'
 }
 
+const SIMPLE_ENTRANCE_DELTA_THRESHOLD = 30
+
+const parseNumericMotionDelta = (
+  from: string | undefined,
+  to: string | undefined,
+  axis: 'x' | 'y'
+): number | undefined => {
+  const base = axis === 'x' ? '#ppt_x' : '#ppt_y'
+  if (to !== base || !from?.startsWith(base)) return undefined
+  const match = from.match(new RegExp(`^${base}([+-]\\d+(?:\\.\\d+)?)$`))
+  if (!match) return undefined
+  const value = Number(match[1])
+  return Number.isFinite(value) ? value : undefined
+}
+
 const EMPHASIS_PRESETS = [
   { type: 'grow-shrink-soft', scaleFrom: 95000, scaleTo: 104000 },
   { type: 'grow-shrink', scaleFrom: 90000, scaleTo: 108000 },
@@ -270,6 +285,8 @@ export const mapPptxPresetToDataAnimType = (args: {
     (args.motionYFrom !== undefined &&
       args.motionYTo !== undefined &&
       args.motionYFrom !== args.motionYTo)
+  const simpleEntranceDeltaX = parseNumericMotionDelta(args.motionXFrom, args.motionXTo, 'x')
+  const simpleEntranceDeltaY = parseNumericMotionDelta(args.motionYFrom, args.motionYTo, 'y')
   if (args.presetClass === 'exit') {
     if (args.effectFilter?.startsWith('wipe') || args.presetId === '5') return 'exit-wipe'
     if (args.hasScale) {
@@ -326,14 +343,22 @@ export const mapPptxPresetToDataAnimType = (args: {
     }
     switch (args.presetSubtype) {
       case '1':
-        return 'fade-down'
+        return Math.abs(simpleEntranceDeltaY || 0) >= SIMPLE_ENTRANCE_DELTA_THRESHOLD
+          ? 'slide-down'
+          : 'fade-down'
       case '2':
-        return 'fade-right'
+        return Math.abs(simpleEntranceDeltaX || 0) >= SIMPLE_ENTRANCE_DELTA_THRESHOLD
+          ? 'slide-right'
+          : 'fade-right'
       case '3':
       case '4':
-        return 'fade-left'
+        return Math.abs(simpleEntranceDeltaX || 0) >= SIMPLE_ENTRANCE_DELTA_THRESHOLD
+          ? 'slide-left'
+          : 'fade-left'
       case '8':
-        return 'fade-up'
+        return Math.abs(simpleEntranceDeltaY || 0) >= SIMPLE_ENTRANCE_DELTA_THRESHOLD
+          ? 'slide-up'
+          : 'fade-up'
       default:
         return 'fade-up'
     }

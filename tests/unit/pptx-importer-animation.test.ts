@@ -300,4 +300,124 @@ describe('parsePptxSlideAnimationPlan', () => {
     expect(plan.animations[0]).toMatchObject({ type: 'pulse-soft', trigger: 'load', duration: 420 })
     expect(plan.animations[1]).toMatchObject({ type: 'grow-shrink-strong', trigger: 'load', duration: 420 })
   })
+
+  it('roundtrips fade and slide entrance variants without collapsing their semantic distance', () => {
+    const slide: HtmlToPptxSlide = {
+      texts: [
+        { text: 'Fade Up', x: 1, y: 1, w: 3, h: 1, fontSize: 24 },
+        { text: 'Slide Up', x: 1, y: 2.2, w: 3, h: 1, fontSize: 24 },
+        { text: 'Fade Down', x: 1, y: 3.4, w: 3, h: 1, fontSize: 24 },
+        { text: 'Slide Down', x: 1, y: 4.6, w: 3, h: 1, fontSize: 24 },
+        { text: 'Fade Left', x: 1, y: 5.8, w: 3, h: 1, fontSize: 24 },
+        { text: 'Slide Left', x: 5, y: 1, w: 3, h: 1, fontSize: 24 },
+        { text: 'Fade Right', x: 5, y: 2.2, w: 3, h: 1, fontSize: 24 },
+        { text: 'Slide Right', x: 5, y: 3.4, w: 3, h: 1, fontSize: 24 }
+      ],
+      shapes: [],
+      images: [],
+      tables: [],
+      animationTraces: [
+        {
+          type: 'fade-up',
+          trigger: 'load',
+          duration: 500,
+          delay: 0,
+          order: 0,
+          x: 100,
+          y: 100,
+          w: 300,
+          h: 100
+        },
+        {
+          type: 'slide-up',
+          trigger: 'load',
+          duration: 500,
+          delay: 0,
+          order: 1,
+          x: 100,
+          y: 220,
+          w: 300,
+          h: 100
+        },
+        {
+          type: 'fade-down',
+          trigger: 'load',
+          duration: 500,
+          delay: 0,
+          order: 2,
+          x: 100,
+          y: 340,
+          w: 300,
+          h: 100
+        },
+        {
+          type: 'slide-down',
+          trigger: 'load',
+          duration: 500,
+          delay: 0,
+          order: 3,
+          x: 100,
+          y: 460,
+          w: 300,
+          h: 100
+        },
+        {
+          type: 'fade-left',
+          trigger: 'load',
+          duration: 500,
+          delay: 0,
+          order: 4,
+          x: 100,
+          y: 696,
+          w: 300,
+          h: 100
+        },
+        {
+          type: 'slide-left',
+          trigger: 'load',
+          duration: 500,
+          delay: 0,
+          order: 5,
+          x: 500,
+          y: 100,
+          w: 300,
+          h: 100
+        },
+        {
+          type: 'fade-right',
+          trigger: 'load',
+          duration: 500,
+          delay: 0,
+          order: 6,
+          x: 500,
+          y: 220,
+          w: 300,
+          h: 100
+        },
+        {
+          type: 'slide-right',
+          trigger: 'load',
+          duration: 500,
+          delay: 0,
+          order: 7,
+          x: 500,
+          y: 340,
+          w: 300,
+          h: 100
+        }
+      ]
+    }
+
+    const xml = buildSlideXml(slide, new Map(), 1)
+    const plan = parsePptxSlideAnimationPlan(xml, { cx: 12192000, cy: 6858000 }, { width: 960, height: 540 })
+
+    expect(plan.animations[0]).toMatchObject({ type: 'fade-up', trigger: 'load' })
+    expect(plan.animations[1]).toMatchObject({ type: 'slide-up', trigger: 'load' })
+    expect(plan.animations[2]).toMatchObject({ type: 'fade-down', trigger: 'load' })
+    expect(plan.animations[3]).toMatchObject({ type: 'slide-down', trigger: 'load' })
+    expect(plan.animations[4]).toMatchObject({ type: 'fade-left', trigger: 'load' })
+    expect(plan.animations[5]).toMatchObject({ type: 'slide-left', trigger: 'load' })
+    expect(plan.animations[6]).toMatchObject({ type: 'fade-right', trigger: 'load' })
+    expect(plan.animations[7]).toMatchObject({ type: 'slide-right', trigger: 'load' })
+  })
 })
