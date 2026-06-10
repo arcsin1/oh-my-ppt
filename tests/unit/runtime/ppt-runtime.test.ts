@@ -1,7 +1,7 @@
 /**
  * @vitest-environment happy-dom
  *
- * Unit tests for ppt-runtime.js v2.0.13:
+ * Unit tests for ppt-runtime.js v2.0.17:
  *   - PPT.stopAnimations() / PPT.resumeAnimations()
  *   - PPT.clicks state machine (advance returns boolean, _dispatch exact match)
  *   - PPT.scanDataAnim() / PPT.executeDataAnim() (routed through PPT.animate)
@@ -453,10 +453,73 @@ describe('PPT.scanDataAnim', () => {
     expect(Number(result.all[1].delay)).toBeGreaterThan(0)
   })
 
+  it('supports declarative data-anim-stagger as the preferred stagger syntax', () => {
+    document.body.innerHTML = `
+      <div class="ppt-page-root">
+        <div data-anim="fade-up" data-anim-stagger="80" id="a">A</div>
+        <div data-anim="fade-up" data-anim-stagger="80" id="b">B</div>
+        <div data-anim="fade-up" data-anim-stagger="80" id="c">C</div>
+      </div>
+    `
+
+    const result = (PPT.scanDataAnim as Function)(document.querySelector('.ppt-page-root')) as {
+      load: Array<Record<string, unknown>>
+    }
+
+    expect(result.load).toHaveLength(3)
+    expect(result.load[0]).toMatchObject({ delay: 0, stagger: 80 })
+    expect(result.load[1]).toMatchObject({ delay: 80, stagger: 80 })
+    expect(result.load[2]).toMatchObject({ delay: 160, stagger: 80 })
+  })
+
+  it('supports data-anim-sequence without overloading trigger semantics for new content', () => {
+    document.body.innerHTML = `
+      <div class="ppt-page-root">
+        <div data-anim="fade-up" data-anim-duration="400" id="lead">Lead</div>
+        <div data-anim="fade" data-anim-sequence="with" data-anim-delay="80" data-anim-duration="300" id="with">With</div>
+        <div data-anim="fade-up" data-anim-sequence="after" data-anim-duration="200" id="after">After</div>
+      </div>
+    `
+
+    const result = (PPT.scanDataAnim as Function)(document.querySelector('.ppt-page-root')) as {
+      load: Array<Record<string, unknown>>
+    }
+
+    expect(result.load).toHaveLength(3)
+    expect(result.load[0]).toMatchObject({ trigger: 'load', effectiveTrigger: 'load', delay: 0 })
+    expect(result.load[1]).toMatchObject({ trigger: 'load', effectiveTrigger: 'load', sequence: 'with', delay: 80 })
+    expect(result.load[2]).toMatchObject({ trigger: 'load', effectiveTrigger: 'load', sequence: 'after', delay: 400 })
+  })
+
+  it('groups contiguous click animations with the same click-group into one click step', () => {
+    document.body.innerHTML = `
+      <div class="ppt-page-root">
+        <div data-anim="fade-up" data-anim-trigger="click" data-anim-click-group="reveal" id="a">A</div>
+        <div data-anim="pulse-soft" data-anim-trigger="click" data-anim-click-group="reveal" id="b">B</div>
+        <div data-anim="pulse-strong" data-anim-trigger="click" id="c">C</div>
+      </div>
+    `
+
+    const result = (PPT.scanDataAnim as Function)(document.querySelector('.ppt-page-root')) as {
+      click: Array<Record<string, unknown>>
+      clickSteps: Array<Array<Record<string, unknown>>>
+    }
+
+    expect(result.click).toHaveLength(3)
+    expect(result.clickSteps).toHaveLength(2)
+    expect(result.clickSteps[0]).toHaveLength(2)
+    expect(result.clickSteps[0][0]).toMatchObject({ clickGroup: 'reveal', type: 'fade-up' })
+    expect(result.clickSteps[0][1]).toMatchObject({ clickGroup: 'reveal', type: 'pulse-soft' })
+    expect(result.clickSteps[1]).toHaveLength(1)
+    expect(result.clickSteps[1][0]).toMatchObject({ type: 'pulse-strong' })
+    expect(getClicks(PPT).total).toBe(2)
+  })
+
   it('does not hide click-triggered emphasis or exit animations before playback', () => {
     document.body.innerHTML = `
       <div class="ppt-page-root">
         <div data-anim="pulse" data-anim-trigger="click" id="pulse">Pulse</div>
+        <div data-anim="exit-scale" data-anim-trigger="click" id="scale-exit">Scale Exit</div>
         <div data-anim="exit-fly" data-anim-trigger="click" data-anim-from="bottom" id="exit">Exit</div>
       </div>
     `
@@ -464,9 +527,11 @@ describe('PPT.scanDataAnim', () => {
     ;(PPT.scanDataAnim as Function)(document.querySelector('.ppt-page-root'))
 
     expect(document.getElementById('pulse')!.style.opacity).toBe('')
+    expect(document.getElementById('scale-exit')!.style.opacity).toBe('')
     expect(document.getElementById('exit')!.style.opacity).toBe('')
     expect(document.getElementById('pulse')!.getAttribute('data-ppt-anim-initialized')).toBeNull()
-    expect(getClicks(PPT).total).toBe(2)
+    expect(document.getElementById('scale-exit')!.getAttribute('data-ppt-anim-initialized')).toBeNull()
+    expect(getClicks(PPT).total).toBe(3)
   })
 })
 
@@ -516,6 +581,28 @@ describe('PPT.executeDataAnim (routed through PPT.animate)', () => {
     animateSpy.mockRestore()
   })
 
+  it('slide-down params include opacity for downward directional entry', () => {
+    const animateSpy = vi.spyOn(PPT, 'animate' as never)
+    const el = document.getElementById('el1')!
+    const config = [{ targets: el, type: 'slide-down', duration: 500, easing: 'easeOutCubic', delay: 0 }]
+    ;(PPT.executeDataAnim as Function)(config)
+    const params = animateSpy.mock.calls[0][1] as Record<string, unknown>
+    expect(params.opacity).toEqual([0, 1])
+    expect(params.translateY).toEqual([-40, 0])
+    animateSpy.mockRestore()
+  })
+
+  it('slide-right params include opacity for rightward directional entry', () => {
+    const animateSpy = vi.spyOn(PPT, 'animate' as never)
+    const el = document.getElementById('el1')!
+    const config = [{ targets: el, type: 'slide-right', duration: 500, easing: 'easeOutCubic', delay: 0 }]
+    ;(PPT.executeDataAnim as Function)(config)
+    const params = animateSpy.mock.calls[0][1] as Record<string, unknown>
+    expect(params.opacity).toEqual([0, 1])
+    expect(params.translateX).toEqual([-40, 0])
+    animateSpy.mockRestore()
+  })
+
   it('maps fly-in direction to real translate params', () => {
     const animateSpy = vi.spyOn(PPT, 'animate' as never)
     const el = document.getElementById('el1')!
@@ -550,6 +637,23 @@ describe('PPT.executeDataAnim (routed through PPT.animate)', () => {
     animateSpy.mockRestore()
   })
 
+  it('maps bounded emphasis variants to distinct scale arrays', () => {
+    const animateSpy = vi.spyOn(PPT, 'animate' as never)
+    const el = document.getElementById('el1')!
+    ;(PPT.executeDataAnim as Function)([
+      { targets: el, type: 'pulse-soft', duration: 500, easing: 'easeOutCubic', delay: 0 },
+      { targets: el, type: 'pulse-strong', duration: 500, easing: 'easeOutCubic', delay: 0 },
+      { targets: el, type: 'grow-shrink-soft', duration: 500, easing: 'easeOutCubic', delay: 0 },
+      { targets: el, type: 'grow-shrink-strong', duration: 500, easing: 'easeOutCubic', delay: 0 }
+    ])
+
+    expect((animateSpy.mock.calls[0][1] as Record<string, unknown>).scale).toEqual([1, 1.03, 1])
+    expect((animateSpy.mock.calls[1][1] as Record<string, unknown>).scale).toEqual([1, 1.1, 1])
+    expect((animateSpy.mock.calls[2][1] as Record<string, unknown>).scale).toEqual([0.95, 1.04, 1])
+    expect((animateSpy.mock.calls[3][1] as Record<string, unknown>).scale).toEqual([0.85, 1.12, 1])
+    animateSpy.mockRestore()
+  })
+
   it('maps exit-fly to visible-to-hidden movement', () => {
     const animateSpy = vi.spyOn(PPT, 'animate' as never)
     const el = document.getElementById('el1')!
@@ -558,6 +662,31 @@ describe('PPT.executeDataAnim (routed through PPT.animate)', () => {
     const params = animateSpy.mock.calls[0][1] as Record<string, unknown>
     expect(params.opacity).toEqual([1, 0])
     expect(params.translateY).toEqual([0, 40])
+    animateSpy.mockRestore()
+  })
+
+  it('maps exit-wipe to visible-to-hidden clipPath conceal semantics', () => {
+    const animateSpy = vi.spyOn(PPT, 'animate' as never)
+    const el = document.getElementById('el1')!
+    const config = [{ targets: el, type: 'exit-wipe', from: 'right', duration: 500, easing: 'easeOutCubic', delay: 0 }]
+    ;(PPT.executeDataAnim as Function)(config)
+    const params = animateSpy.mock.calls[0][1] as Record<string, unknown>
+    expect(params.opacity).toEqual([1, 0])
+    expect(params.clipPath).toEqual(['inset(0% 0% 0% 0%)', 'inset(0% 0% 0% 100%)'])
+    animateSpy.mockRestore()
+  })
+
+  it('maps exit-scale and exit-zoom to visible-to-hidden scale semantics', () => {
+    const animateSpy = vi.spyOn(PPT, 'animate' as never)
+    const el = document.getElementById('el1')!
+    ;(PPT.executeDataAnim as Function)([
+      { targets: el, type: 'exit-scale', duration: 500, easing: 'easeOutCubic', delay: 0 },
+      { targets: el, type: 'exit-zoom', duration: 500, easing: 'easeOutCubic', delay: 0 }
+    ])
+    expect((animateSpy.mock.calls[0][1] as Record<string, unknown>).opacity).toEqual([1, 0])
+    expect((animateSpy.mock.calls[0][1] as Record<string, unknown>).scale).toEqual([1, 0.85])
+    expect((animateSpy.mock.calls[1][1] as Record<string, unknown>).opacity).toEqual([1, 0])
+    expect((animateSpy.mock.calls[1][1] as Record<string, unknown>).scale).toEqual([1, 0.75])
     animateSpy.mockRestore()
   })
 
@@ -741,8 +870,8 @@ describe('PPT.createChart tick formatters', () => {
 })
 
 describe('Version guard', () => {
-  it('runtime version is 2.0.13', () => {
+  it('runtime version is 2.0.17', () => {
     const PPT = setupRuntime().PPT
-    expect(PPT.__runtimeVersion).toBe('2.0.13')
+    expect(PPT.__runtimeVersion).toBe('2.0.17')
   })
 })

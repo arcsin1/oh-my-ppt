@@ -179,4 +179,136 @@ describe('buildSlideXml animation export', () => {
     expect(xml).toContain('nodeType="clickEffect"')
     expect(xml).toContain('val="#ppt_y+#ppt_h/2"')
   })
+
+  it('exports symmetry-completion candidates instead of dropping them', () => {
+    const slide: HtmlToPptxSlide = {
+      texts: [
+        { text: 'Down', x: 1, y: 1, w: 3, h: 1, fontSize: 24 },
+        { text: 'Right', x: 1, y: 2.2, w: 3, h: 1, fontSize: 24 },
+        { text: 'Exit Wipe', x: 1, y: 3.4, w: 3, h: 1, fontSize: 24 }
+      ],
+      shapes: [],
+      images: [],
+      tables: [],
+      animationTraces: [
+        {
+          type: 'slide-down',
+          trigger: 'load',
+          from: 'top',
+          duration: 500,
+          delay: 0,
+          order: 0,
+          x: 100,
+          y: 100,
+          w: 300,
+          h: 100
+        },
+        {
+          type: 'slide-right',
+          trigger: 'load',
+          from: 'left',
+          duration: 500,
+          delay: 0,
+          order: 1,
+          x: 100,
+          y: 220,
+          w: 300,
+          h: 100
+        },
+        {
+          type: 'exit-wipe',
+          trigger: 'click',
+          from: 'top',
+          duration: 500,
+          delay: 0,
+          order: 2,
+          x: 100,
+          y: 340,
+          w: 300,
+          h: 100
+        }
+      ]
+    }
+
+    const xml = buildSlideXml(slide, new Map(), 1)
+
+    expect(xml).toContain('presetSubtype="1"')
+    expect(xml).toContain('presetSubtype="2"')
+    expect(xml).toContain('filter="wipe(d)"')
+    expect(xml).toContain('presetClass="exit"')
+  })
+
+  it('exports exit scale primitives as distinct native exit scale ranges', () => {
+    const slide: HtmlToPptxSlide = {
+      texts: [
+        { text: 'Soft Exit', x: 1, y: 1, w: 3, h: 1, fontSize: 24 },
+        { text: 'Zoom Exit', x: 1, y: 2.2, w: 3, h: 1, fontSize: 24 }
+      ],
+      shapes: [],
+      images: [],
+      tables: [],
+      animationTraces: [
+        {
+          type: 'exit-scale',
+          trigger: 'click',
+          duration: 500,
+          delay: 0,
+          order: 0,
+          x: 100,
+          y: 100,
+          w: 300,
+          h: 100
+        },
+        {
+          type: 'exit-zoom',
+          trigger: 'click',
+          duration: 500,
+          delay: 0,
+          order: 1,
+          x: 100,
+          y: 220,
+          w: 300,
+          h: 100
+        }
+      ]
+    }
+
+    const xml = buildSlideXml(slide, new Map(), 1)
+
+    expect(xml).toContain('presetID="31" presetClass="exit"')
+    expect(xml).toContain('transition="out"')
+    expect(xml).toContain('<p:from x="100000" y="100000"/>')
+    expect(xml).toContain('<p:to x="85000" y="85000"/>')
+    expect(xml).toContain('<p:to x="75000" y="75000"/>')
+  })
+
+  it('exports constrained path motion as linear PPTX channels', () => {
+    const slide: HtmlToPptxSlide = {
+      texts: [{ text: 'Path', x: 1, y: 1, w: 3, h: 1, fontSize: 24 }],
+      shapes: [],
+      images: [],
+      tables: [],
+      animationTraces: [
+        {
+          type: 'path',
+          trigger: 'load',
+          path: 'M 0 0 L 120 30',
+          duration: 500,
+          delay: 0,
+          order: 0,
+          x: 100,
+          y: 100,
+          w: 300,
+          h: 100
+        }
+      ]
+    }
+
+    const xml = buildSlideXml(slide, new Map(), 1)
+
+    expect(xml).toContain('<p:attrName>ppt_x</p:attrName>')
+    expect(xml).toContain('<p:strVal val="#ppt_x+120"/>')
+    expect(xml).toContain('<p:attrName>ppt_y</p:attrName>')
+    expect(xml).toContain('<p:strVal val="#ppt_y+30"/>')
+  })
 })
