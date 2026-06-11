@@ -3,6 +3,10 @@ import { escapeHtml } from '../utils'
 import * as cheerio from 'cheerio'
 import { BASE_PAGE_STYLE_TAG, FIT_SCRIPT } from '../../tools'
 import { buildSessionAssetHeadTags } from './page-assets'
+import {
+  DEFAULT_INDEX_TRANSITION_CONFIG,
+  buildIndexTransitionConfigScript
+} from '../../session/index-transition'
 
 export interface DeckPageFile {
   id?: string
@@ -57,7 +61,7 @@ export const buildPageScaffoldHtml = (page: {
     </style>
   </head>
   <body data-page-id="${page.pageId}">
-    <main class="ppt-page-root p-2" data-ppt-guard-root="1">
+    <main class="ppt-page-root" data-ppt-guard-root="1">
       <div class="ppt-page-fit-scope">
         <div class="ppt-page-content">
           <section class="scaffold-card" data-page-scaffold="1" data-placeholder-page="1">
@@ -230,9 +234,10 @@ export const buildProjectIndexHtml = (title: string, pages: DeckPageFile[]): str
         font-size: 13px;
         font-weight: 600;
       }
-      body.present .ppt-layout { padding: 0; }
-      body.present .ppt-stage { border-radius: 0; border: none; box-shadow: none; padding: 0; }
-      body.present .ppt-preview-viewport { border-radius: 0; }
+      body.present { background: #000000; }
+      body.present .ppt-layout { padding: 0; background: #000000; }
+      body.present .ppt-stage { border-radius: 0; border: none; box-shadow: none; padding: 0; background: #000000; }
+      body.present .ppt-preview-viewport { border-radius: 0; background: #000000; }
       body.present .ppt-controls, body.present .ppt-deck-switcher { display: none !important; }
       body.embed .ppt-layout { padding: 0; }
       body.embed .ppt-stage { border-radius: 0; border: none; box-shadow: none; padding: 0; }
@@ -273,6 +278,8 @@ export const buildProjectIndexHtml = (title: string, pages: DeckPageFile[]): str
       <button class="ppt-control-btn" id="fullscreenBtn">全屏</button>
     </div>
     <script type="application/json" id="pages-data">${pagesData}</script>
+    ${buildIndexTransitionConfigScript(DEFAULT_INDEX_TRANSITION_CONFIG)}
+    <script src="./assets/anime.v4.js"></script>
     <script src="./assets/index-runtime.js"></script>
   </body>
 </html>`

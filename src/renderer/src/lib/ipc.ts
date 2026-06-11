@@ -19,6 +19,7 @@ import type {
 import type { UpdateAvailablePayload } from '@shared/app-update.js'
 import type { SpeechConfig } from '@shared/speech'
 import type { HistoryVersion, RollbackHistoryResult } from '@shared/history.js'
+import type { IndexTransitionConfig, IndexTransitionType } from '@shared/index-transition.js'
 import type {
   ThinkingStage,
   ThinkingChatMessage,
@@ -37,6 +38,7 @@ import type {
   ImageModelConfig,
   ImageModelProvider
 } from '@shared/image-generation.js'
+import type { ExportProgressPayload } from '@shared/export-progress.js'
 
 type IpcRendererLike = Window['electron']['ipcRenderer']
 
@@ -120,6 +122,8 @@ export interface ExportDeckResult {
   path?: string
   warnings?: string[]
   pageCount?: number
+  durationMs?: number
+  frameCount?: number
 }
 
 export interface ImportSessionFileResult {
@@ -317,6 +321,17 @@ export const ipc = {
         status?: string
         error?: string | null
       }>
+    }>,
+  getIndexTransition: (sessionId: string) =>
+    getIpc().invoke('session:getIndexTransition', { sessionId }) as Promise<IndexTransitionConfig>,
+  setIndexTransition: (payload: {
+    sessionId: string
+    type: IndexTransitionType
+    durationMs?: number
+  }) =>
+    getIpc().invoke('session:setIndexTransition', payload) as Promise<{
+      ok: boolean
+      transition: IndexTransitionConfig
     }>,
   migratePageOutlinesToSourceSkeletons: (payload: { sessionId: string }) =>
     getIpc().invoke('session:migratePageOutlinesToSourceSkeletons', payload) as Promise<{
@@ -565,6 +580,8 @@ export const ipc = {
     getIpc().invoke('export:pdf', { sessionId }) as Promise<ExportDeckResult>,
   exportPng: (sessionId: string) =>
     getIpc().invoke('export:png', { sessionId }) as Promise<ExportDeckResult>,
+  exportVideo: (sessionId: string, options?: { pageId?: string }) =>
+    getIpc().invoke('export:video', { sessionId, ...options }) as Promise<ExportDeckResult>,
   exportPptx: (
     sessionId: string,
     options?: {
@@ -580,6 +597,13 @@ export const ipc = {
     getIpc().invoke('export:sessionZip', { sessionId }) as Promise<ExportDeckResult>,
   exportOutlinesMarkdown: (sessionId: string) =>
     getIpc().invoke('export:outlinesMarkdown', { sessionId }) as Promise<ExportDeckResult>,
+  onExportProgress: (callback: (payload: ExportProgressPayload) => void): (() => void) => {
+    const channel = 'export:progress'
+    const handler = (_event: unknown, payload: unknown): void =>
+      callback(payload as ExportProgressPayload)
+    getIpc().on(channel, handler)
+    return () => getIpc().removeListener(channel, handler)
+  },
   getSettings: () => getIpc().invoke('settings:get') as Promise<Record<string, unknown>>,
   listModelConfigs: () => getIpc().invoke('settings:listModelConfigs') as Promise<ModelConfig[]>,
   listImageModelConfigs: () =>

@@ -38,6 +38,10 @@ export interface HtmlToPptxTextBox {
   paragraphSpacingBefore?: number
   paragraphSpacingAfter?: number
   verticalAlign?: 'top' | 'middle' | 'bottom'
+  paddingLeft?: number
+  paddingRight?: number
+  paddingTop?: number
+  paddingBottom?: number
   bullet?: {
     type: 'bullet' | 'number'
     level?: number
@@ -48,7 +52,7 @@ export interface HtmlToPptxTextBox {
   order?: number
 }
 
-export type HtmlToPptxShapeType = 'rect' | 'roundRect' | 'ellipse'
+export type HtmlToPptxShapeType = 'rect' | 'roundRect' | 'ellipse' | 'line'
 
 export interface HtmlToPptxBorder {
   color: string
@@ -65,9 +69,11 @@ export interface HtmlToPptxShape {
   fill?: string
   transparency?: number
   radius?: number
+  radiusAdj?: number
   border?: HtmlToPptxBorder
   shapeType?: HtmlToPptxShapeType
   rotate?: number
+  flipV?: boolean
   order?: number
 }
 

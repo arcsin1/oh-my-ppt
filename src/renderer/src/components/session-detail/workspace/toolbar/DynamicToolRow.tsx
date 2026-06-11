@@ -16,7 +16,7 @@ const toolRows: Record<
   preview: { render: PreviewToolRow, hasContent: false },
   browse: { render: PreviewToolRow, hasContent: false },
   edit: { render: InsertToolRow, hasContent: true },
-  animation: { render: AnimationToolRow, hasContent: false },
+  animation: { render: AnimationToolRow, hasContent: true },
   speech: { render: SpeechToolRow, hasContent: false },
   ai: { render: AiToolRow, hasContent: false }
 }

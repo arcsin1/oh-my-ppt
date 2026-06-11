@@ -12,126 +12,15 @@ import {
   serializedWrite
 } from './page-writer'
 import { progressLabel } from '@shared/progress'
+import {
+  INDEX_TRANSITION_TYPES,
+  normalizeIndexTransitionConfig,
+  patchIndexTransitionConfig,
+  validateIndexShellHtml
+} from '../session/index-transition'
 
 const uiText = (locale: 'zh' | 'en' | undefined, zh: string, en: string): string =>
   locale === 'en' ? en : zh
-
-function validateIndexShellHtml(content: string): string[] {
-  const errors: string[] = []
-  if (!/<html[\s>]/i.test(content)) errors.push('缺少 <html> 标签')
-  if (!/<body[\s>]/i.test(content)) errors.push('缺少 <body> 标签')
-  if (!/<\/body>/i.test(content)) errors.push('缺少 </body> 闭合标签')
-  if (!/<\/html>/i.test(content)) errors.push('缺少 </html> 闭合标签')
-  if (!/id=["']frameViewport["']/i.test(content)) errors.push('缺少 frameViewport 容器')
-  if (!/id=["']pages-data["']/i.test(content)) errors.push('缺少 pages-data 元数据脚本')
-  if (!/ppt-preview-frame/i.test(content)) errors.push('缺少 .ppt-preview-frame 预览 iframe 壳')
-  if (!/ppt-controls/i.test(content)) errors.push('缺少 .ppt-controls 控制栏')
-
-  const openScriptCount = (content.match(/<script\b/gi) || []).length
-  const closeScriptCount = (content.match(/<\/script>/gi) || []).length
-  if (closeScriptCount < openScriptCount) {
-    errors.push('存在未闭合的 <script> 标签')
-  }
-
-  const pagesDataMatch = content.match(
-    /<script\b[^>]*id=["']pages-data["'][^>]*>([\s\S]*?)<\/script>/i
-  )
-  if (!pagesDataMatch) {
-    errors.push('pages-data 脚本缺失或未闭合')
-  } else {
-    try {
-      const parsed = JSON.parse((pagesDataMatch[1] || '').trim() || '[]')
-      if (!Array.isArray(parsed)) {
-        errors.push('pages-data 必须是 JSON 数组')
-      }
-    } catch (error) {
-      errors.push(
-        `pages-data JSON 解析失败: ${error instanceof Error ? error.message : String(error)}`
-      )
-    }
-  }
-
-  const inlineScriptMatches = Array.from(
-    content.matchAll(
-      /<script\b(?![^>]*\bsrc=)(?![^>]*type=["']application\/json["'])[^>]*>([\s\S]*?)<\/script>/gi
-    )
-  )
-  if (inlineScriptMatches.length === 0) {
-    errors.push('缺少主逻辑内联脚本')
-  } else {
-    for (const [index, match] of inlineScriptMatches.entries()) {
-      const scriptBody = (match[1] || '').trim()
-      if (!scriptBody) {
-        errors.push(`第 ${index + 1} 个内联脚本为空`)
-        continue
-      }
-      try {
-        // Compile-only syntax check to avoid writing broken index shell.
-        new Function(scriptBody)
-      } catch (error) {
-        errors.push(
-          `第 ${index + 1} 个内联脚本语法错误: ${error instanceof Error ? error.message : String(error)}`
-        )
-      }
-    }
-    const mergedInlineScripts = inlineScriptMatches
-      .map((match) => String(match[1] || ''))
-      .join('\n')
-    if (!/hashchange/i.test(mergedInlineScripts)) errors.push('缺少 hashchange 路由监听逻辑')
-    if (!/applyPage/i.test(mergedInlineScripts)) errors.push('缺少 applyPage 页面切换逻辑')
-    if (!/framePool/i.test(mergedInlineScripts)) errors.push('缺少 framePool iframe 池逻辑')
-  }
-
-  return errors
-}
-
-function clampTransitionDuration(value: number | undefined): number {
-  if (!Number.isFinite(value)) return 420
-  return Math.max(120, Math.min(1200, Math.round(value as number)))
-}
-
-function patchIndexTransitionStyle(
-  content: string,
-  args: {
-    type: 'none' | 'fade' | 'slide-left' | 'slide-up' | 'push' | 'wipe' | 'zoom'
-    durationMs?: number
-  }
-): string {
-  const withoutOldStyle = content.replace(
-    /\n?\s*<style\b[^>]*id=["']ppt-index-transition-style["'][^>]*>[\s\S]*?<\/style>/gi,
-    ''
-  )
-  // Also remove old transition config
-  const withoutOldConfig = withoutOldStyle.replace(
-    /\n?\s*<script\b[^>]*id=["']ppt-index-transition-config["'][^>]*>[\s\S]*?<\/script>/gi,
-    ''
-  )
-
-  if (args.type === 'none') {
-    const configScript = `<script id="ppt-index-transition-config" type="application/json">${JSON.stringify({ type: 'none', durationMs: 0 })}</script>`
-    return withoutOldConfig.replace(/<\/head>/i, `${configScript}\n  </head>`)
-  }
-  const durationMs = clampTransitionDuration(args.durationMs)
-  const style = `
-    <style id="ppt-index-transition-style" data-transition-type="${args.type}">
-      .ppt-preview-frame {
-        display: block !important;
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity ${durationMs}ms ease;
-      }
-      .ppt-preview-frame.active {
-        opacity: 1;
-        pointer-events: auto;
-      }
-    </style>`
-  // Inject transition config for the enhanced View Transition API runtime
-  const configScript = `
-    <script id="ppt-index-transition-config" type="application/json">
-      ${JSON.stringify({ type: args.type, durationMs })}
-    </script>`
-  return withoutOldConfig.replace(/<\/head>/i, `${style}\n  ${configScript}\n  </head>`)
-}
 
 export function createSessionBoundDeckTools(context: SessionDeckGenerationContext): unknown[] {
   let lastReportedProgress = 0
@@ -389,13 +278,10 @@ export function createSessionBoundDeckTools(context: SessionDeckGenerationContex
         if (!fs.existsSync(context.indexPath)) {
           throw new Error(`index.html 缺失：${context.indexPath}`)
         }
-        const validTypes = ['none', 'fade', 'slide-left', 'slide-up', 'push', 'wipe', 'zoom']
-        const transitionType = validTypes.includes(type) ? type : 'fade'
+        const transitionConfig = normalizeIndexTransitionConfig({ type, durationMs })
+        const transitionType = transitionConfig.type
         const current = await fs.promises.readFile(context.indexPath, 'utf-8')
-        const next = patchIndexTransitionStyle(current, {
-          type: transitionType,
-          durationMs: Number(durationMs)
-        })
+        const next = patchIndexTransitionConfig(current, transitionConfig)
         const indexErrors = validateIndexShellHtml(next)
         if (indexErrors.length > 0) {
           emitNormalizedToolStatus(config, {
@@ -415,8 +301,8 @@ export function createSessionBoundDeckTools(context: SessionDeckGenerationContex
               ? uiText(context.appLocale, '已恢复无过渡切换', 'Restored instant page switching')
               : uiText(
                   context.appLocale,
-                  `已设置 ${transitionType} ${clampTransitionDuration(Number(durationMs))}ms`,
-                  `Set ${transitionType} transition to ${clampTransitionDuration(Number(durationMs))}ms`
+                  `已设置 ${transitionType} ${transitionConfig.durationMs}ms`,
+                  `Set ${transitionType} transition to ${transitionConfig.durationMs}ms`
                 ),
           progress: 72
         })
@@ -429,7 +315,7 @@ export function createSessionBoundDeckTools(context: SessionDeckGenerationContex
           indexPath: context.indexPath,
           type: transitionType,
           durationMs:
-            transitionType === 'none' ? null : clampTransitionDuration(Number(durationMs)),
+            transitionType === 'none' ? null : transitionConfig.durationMs,
           agentName: getAgentNameFromToolConfig(config) || 'unknown'
         })
         return result
@@ -440,12 +326,12 @@ export function createSessionBoundDeckTools(context: SessionDeckGenerationContex
                 'Controlled tool for the main session: configure index.html page transition animation without rewriting the index shell.',
               schema: z.object({
                 type: z
-                  .enum(['fade', 'slide-left', 'slide-up', 'push', 'wipe', 'zoom', 'none'])
-                  .describe('Transition type: fade (cross-fade), slide-left/up (slide), push (push), wipe (wipe), zoom (scale), none (disable)'),
+                  .enum(INDEX_TRANSITION_TYPES)
+                  .describe(`Transition type: ${INDEX_TRANSITION_TYPES.join(', ')}`),
                 durationMs: z
                   .number()
                   .optional()
-                  .describe('Animation duration, 120-1200ms, default 420ms')
+                  .describe('Animation duration, 120-1200ms, default 600ms')
               })
             }
           )

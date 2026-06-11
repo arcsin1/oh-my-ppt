@@ -4,6 +4,7 @@ import type { GenerateChunkEvent } from '@shared/generation'
 import { ipc } from '@renderer/lib/ipc'
 import { useToastStore } from '@renderer/store'
 import { useT } from '@renderer/i18n'
+import { createGenerationNotificationToast } from './generationNotificationToast'
 
 const MAX_NOTIFIED_RUNS = 200
 const MAX_CACHED_TITLES = 100
@@ -62,28 +63,13 @@ export function useGenerationNotifications(): void {
         onClick: () => navigate(`/sessions/${sessionId}`)
       }
 
-      if (isCompleted) {
-        const failedPageCount = Math.max(0, Number(event.payload.failedPageCount) || 0)
-        if (failedPageCount > 0) {
-          useToastStore
-            .getState()
-            .warning(t('generationNotifications.partial', { title, count: failedPageCount }), {
-              action,
-              duration: 8000
-            })
-          return
-        }
-        useToastStore
-          .getState()
-          .success(t('generationNotifications.completed', { title }), { action, duration: 6000 })
-        return
-      }
-
-      useToastStore.getState().error(t('generationNotifications.failed', { title }), {
+      const toast = createGenerationNotificationToast({
+        event,
+        title,
         action,
-        description: event.payload.message,
-        duration: 8000
+        t
       })
+      useToastStore.getState()[toast.type](toast.message, toast.options)
     }
 
     const unsubscribe = ipc.onGenerateChunk((event) => {

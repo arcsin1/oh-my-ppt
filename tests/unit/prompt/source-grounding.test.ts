@@ -125,6 +125,20 @@ describe('source-grounded prompt rules', () => {
     expect(engineGenerate).toContain('Source document context:')
   })
 
+  it('single-slide planning can preserve explicit topic lists', () => {
+    const engineGenerate = readSource('src/main/ipc/engine/generate.ts')
+    const generationUser = readSource('src/main/prompt/generation-user.ts')
+    const planningSource = readSource('src/main/prompt/planning.ts')
+    const runtimeUserSource = readSource('src/main/prompt/runtime-user.ts')
+
+    expect(engineGenerate).toContain('keyPoints must contain 1-10 short phrases')
+    expect(engineGenerate).toContain('preserve each listed topic as a separate key point')
+    expect(generationUser).toContain('If there are 2-10 points')
+    expect(generationUser).toContain('keep them as distinct visible topics')
+    expect(planningSource).toContain('Provide 1-10 key points per slide')
+    expect(runtimeUserSource).toContain('keyPoints must contain 1-10 strings')
+  })
+
   it('blocks generic filler slides during planning', () => {
     const sharedSource = readSource('src/main/prompt/shared.ts')
     const planningSource = readSource('src/main/prompt/planning.ts')

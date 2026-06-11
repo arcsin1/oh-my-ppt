@@ -360,7 +360,7 @@ export const extractHtmlPageToPptxSlide = async ({
       buildHtmlToPptxExtractScript({
         pageWidthPx: PPTX_CAPTURE_WIDTH,
         pageHeightPx: PPTX_CAPTURE_HEIGHT,
-        maxShapes: 80,
+        maxShapes: 240,
         maxImages: 40
       }),
       true

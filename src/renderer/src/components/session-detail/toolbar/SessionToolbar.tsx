@@ -13,7 +13,8 @@ import {
   Monitor,
   MoreHorizontal,
   Package,
-  Presentation
+  Presentation,
+  Video
 } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { useSessionDetailRuntimeStore, useSessionDetailUiStore } from '@renderer/store'
@@ -73,12 +74,14 @@ export function SessionToolbar({
   const isExportingPdf = useSessionDetailUiStore((state) => state.isExportingPdf)
   const isExportingPng = useSessionDetailUiStore((state) => state.isExportingPng)
   const isExportingPptx = useSessionDetailUiStore((state) => state.isExportingPptx)
+  const isExportingVideo = useSessionDetailUiStore((state) => state.isExportingVideo)
   const isExportingSlidePack = useSessionDetailUiStore((state) => state.isExportingSlidePack)
   const isExportingSessionZip = useSessionDetailUiStore((state) => state.isExportingSessionZip)
   const isExporting =
     isExportingPdf ||
     isExportingPng ||
     isExportingPptx ||
+    isExportingVideo ||
     isExportingSlidePack ||
     isExportingSessionZip
 
@@ -156,6 +159,10 @@ export function SessionToolbar({
               <DropdownMenuItem onClick={() => void exportActions.exportPng()}>
                 <ImageIcon className={dropIconClass} />
                 {t('sessionDetail.toolbarExportPng')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => void exportActions.exportVideo()}>
+                <Video className={dropIconClass} />
+                {t('sessionDetail.toolbarExportVideo')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => void exportActions.exportPdf()}>
                 <FileDown className={dropIconClass} />

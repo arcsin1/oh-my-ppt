@@ -1,6 +1,7 @@
 node_modules
 dist
 out
+resources/ffmpeg/
 .DS_Store
 .eslintcache
 *.log*

@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import log from 'electron-log/main.js'
 import fs from 'fs'
 import os from 'os'
@@ -6,6 +6,7 @@ import path from 'path'
 import { execFileSync } from 'child_process'
 import { is } from '@electron-toolkit/utils'
 import { nanoid } from 'nanoid'
+import pLimit from 'p-limit'
 import { zipSync } from 'fflate'
 import { PDFDocument } from 'pdf-lib'
 import type { IpcContext } from '../context'
@@ -20,13 +21,71 @@ import {
   captureHtmlPageToPptxImageSlide,
   extractHtmlPageToPptxSlide
 } from '../../utils/html-pptx/renderer'
+import {
+  exportHtmlPagesToVideo,
+  normalizeVideoExportFps,
+  normalizeVideoExportSecondsPerPage
+} from '../../utils/html-video/exporter'
+import type {
+  ExportKind,
+  ExportProgressPayload,
+  ExportProgressStage
+} from '@shared/export-progress'
 
 type PptxExportPayload = {
   sessionId?: unknown
   imageOnly?: unknown
   embedFonts?: unknown
   pageId?: unknown
+  fps?: unknown
+  captureFps?: unknown
+  secondsPerPage?: unknown
 }
+
+const EXPORT_PAGE_RENDER_CONCURRENCY = Math.max(1, Math.min(2, os.cpus().length || 1))
+
+const clampExportProgress = (progress: number): number =>
+  Math.max(0, Math.min(100, Math.round(progress)))
+
+const scaleExportProgress = (
+  current: number,
+  total: number,
+  startProgress: number,
+  endProgress: number
+): number => {
+  if (total <= 0) return clampExportProgress(startProgress)
+  const ratio = Math.max(0, Math.min(1, current / total))
+  return clampExportProgress(startProgress + (endProgress - startProgress) * ratio)
+}
+
+const createExportProgressSender =
+  (event: IpcMainInvokeEvent, sessionId: string, kind: ExportKind) =>
+  (payload: {
+    stage: ExportProgressStage
+    progress: number
+    current?: number
+    total?: number
+  }): void => {
+    const progressPayload: ExportProgressPayload = {
+      sessionId,
+      kind,
+      stage: payload.stage,
+      progress: clampExportProgress(payload.progress),
+      current: payload.current,
+      total: payload.total
+    }
+    event.sender.send('export:progress', progressPayload)
+  }
+
+const mapPageBatch = async <T, R>(
+  items: T[],
+  worker: (item: T, index: number) => Promise<R>
+): Promise<R[]> => {
+  const limit = pLimit(EXPORT_PAGE_RENDER_CONCURRENCY)
+  return Promise.all(items.map((item, index) => limit(() => worker(item, index))))
+}
+
+const isString = (value: unknown): value is string => typeof value === 'string'
 
 const parseSessionId = (payload: unknown): string => {
   if (
@@ -129,7 +188,10 @@ const escapeXmlText = (value: string): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;')
 
-const buildMacInfoPlist = (appName: string, executableName: string): string => `<?xml version="1.0" encoding="UTF-8"?>
+const buildMacInfoPlist = (
+  appName: string,
+  executableName: string
+): string => `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -163,10 +225,7 @@ const collectMacAppZipFiles = (
       collectMacAppZipFiles(appRoot, appName, zipFiles, fullPath)
     } else if (entry.isFile()) {
       const mode = fs.statSync(fullPath).mode & 0o777
-      zipFiles[zipPath] = [
-        fs.readFileSync(fullPath),
-        { os: 3, attrs: (mode || 0o644) << 16 }
-      ]
+      zipFiles[zipPath] = [fs.readFileSync(fullPath), { os: 3, attrs: (mode || 0o644) << 16 }]
     }
   }
 }
@@ -198,9 +257,13 @@ const writeMacAppZip = (
 
     if (process.platform === 'darwin') {
       try {
-        execFileSync('codesign', ['--force', '--deep', '--sign', '-', '--timestamp=none', appRoot], {
-          stdio: 'pipe'
-        })
+        execFileSync(
+          'codesign',
+          ['--force', '--deep', '--sign', '-', '--timestamp=none', appRoot],
+          {
+            stdio: 'pipe'
+          }
+        )
       } catch (error) {
         log.warn('[export:slidePack] codesign failed, continuing with unsigned app bundle', {
           appName,
@@ -262,33 +325,60 @@ export function registerExportHandlers(ctx: IpcContext): void {
       return { success: false, cancelled: true }
     }
 
+    const sendProgress = createExportProgressSender(event, sessionId, 'pdf')
     const warnings: string[] = []
     try {
+      let renderedCount = 0
+      sendProgress({
+        stage: 'preparing',
+        progress: 3,
+        current: 0,
+        total: pages.length
+      })
       const mergedPdf = await PDFDocument.create()
       const pdfPageWidth = 16 * 72
       const pdfPageHeight = 9 * 72
 
-      for (const page of pages) {
-        log.info('[export:pdf] render page', {
-          sessionId,
-          pageId: page.pageId,
-          htmlPath: page.htmlPath
+      for (let start = 0; start < pages.length; start += EXPORT_PAGE_RENDER_CONCURRENCY) {
+        const pageBatch = pages.slice(start, start + EXPORT_PAGE_RENDER_CONCURRENCY)
+        const renderedPages = await mapPageBatch(pageBatch, async (page) => {
+          log.info('[export:pdf] render page', {
+            sessionId,
+            pageId: page.pageId,
+            htmlPath: page.htmlPath
+          })
+          return renderPageToPdfBuffer({
+            page,
+            timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS
+          })
         })
-        const rendered = await renderPageToPdfBuffer({
-          page,
-          timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS
-        })
-        if (rendered.warning) warnings.push(rendered.warning)
-        const embeddedImage = await mergedPdf.embedPng(rendered.pngBuffer)
-        const pageDoc = mergedPdf.addPage([pdfPageWidth, pdfPageHeight])
-        pageDoc.drawImage(embeddedImage, {
-          x: 0,
-          y: 0,
-          width: pdfPageWidth,
-          height: pdfPageHeight
-        })
+
+        for (const rendered of renderedPages) {
+          if (rendered.warning) warnings.push(rendered.warning)
+          const embeddedImage = await mergedPdf.embedPng(rendered.pngBuffer)
+          const pageDoc = mergedPdf.addPage([pdfPageWidth, pdfPageHeight])
+          pageDoc.drawImage(embeddedImage, {
+            x: 0,
+            y: 0,
+            width: pdfPageWidth,
+            height: pdfPageHeight
+          })
+          renderedCount += 1
+          sendProgress({
+            stage: 'rendering',
+            progress: scaleExportProgress(renderedCount, pages.length, 8, 88),
+            current: renderedCount,
+            total: pages.length
+          })
+        }
       }
 
+      sendProgress({
+        stage: 'writing',
+        progress: 94,
+        current: pages.length,
+        total: pages.length
+      })
       const outputBytes = await mergedPdf.save()
       await fs.promises.writeFile(saveResult.filePath, outputBytes)
       const project = await db.getProject(sessionId)
@@ -343,25 +433,44 @@ export function registerExportHandlers(ctx: IpcContext): void {
 
     const outputParentDir = directoryResult.filePaths[0]
     const outputDir = path.join(outputParentDir, `ohmyppt-export-image_${nanoid(8)}`)
+    const sendProgress = createExportProgressSender(event, sessionId, 'png')
     const warnings: string[] = []
 
     try {
+      let renderedCount = 0
+      sendProgress({
+        stage: 'preparing',
+        progress: 3,
+        current: 0,
+        total: pages.length
+      })
       await fs.promises.mkdir(outputDir, { recursive: true })
-      for (const page of pages) {
-        log.info('[export:png] render page', {
-          sessionId,
-          pageId: page.pageId,
-          htmlPath: page.htmlPath
+      for (let start = 0; start < pages.length; start += EXPORT_PAGE_RENDER_CONCURRENCY) {
+        const pageBatch = pages.slice(start, start + EXPORT_PAGE_RENDER_CONCURRENCY)
+        const batchWarnings = await mapPageBatch(pageBatch, async (page) => {
+          log.info('[export:png] render page', {
+            sessionId,
+            pageId: page.pageId,
+            htmlPath: page.htmlPath
+          })
+          const rendered = await renderPageToPdfBuffer({
+            page,
+            timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS
+          })
+          await fs.promises.writeFile(
+            path.join(outputDir, buildPngFileName(page.pageNumber, page.title)),
+            rendered.pngBuffer
+          )
+          return rendered.warning
         })
-        const rendered = await renderPageToPdfBuffer({
-          page,
-          timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS
+        warnings.push(...batchWarnings.filter(isString))
+        renderedCount += pageBatch.length
+        sendProgress({
+          stage: 'rendering',
+          progress: scaleExportProgress(renderedCount, pages.length, 8, 92),
+          current: renderedCount,
+          total: pages.length
         })
-        if (rendered.warning) warnings.push(rendered.warning)
-        await fs.promises.writeFile(
-          path.join(outputDir, buildPngFileName(page.pageNumber, page.title)),
-          rendered.pngBuffer
-        )
       }
 
       const project = await db.getProject(sessionId)
@@ -438,35 +547,55 @@ export function registerExportHandlers(ctx: IpcContext): void {
       return { success: false, cancelled: true }
     }
 
+    const sendProgress = createExportProgressSender(event, sessionId, 'pptx')
     const warnings: string[] = []
 
     try {
+      let extractedCount = 0
+      sendProgress({
+        stage: 'preparing',
+        progress: 3,
+        current: 0,
+        total: pages.length
+      })
       const slides: HtmlToPptxSlide[] = []
-      for (const page of pages) {
-        const mode = imageOnly ? 'image' : 'editable'
-        log.info('[export:pptx] extract page', {
-          sessionId,
-          sessionPageId: page.id,
-          pageId: page.pageId,
-          htmlPath: page.htmlPath,
-          mode,
-          singlePage: Boolean(requestedPageId)
+      for (let start = 0; start < pages.length; start += EXPORT_PAGE_RENDER_CONCURRENCY) {
+        const pageBatch = pages.slice(start, start + EXPORT_PAGE_RENDER_CONCURRENCY)
+        const extractedPages = await mapPageBatch(pageBatch, async (page) => {
+          const mode = imageOnly ? 'image' : 'editable'
+          log.info('[export:pptx] extract page', {
+            sessionId,
+            sessionPageId: page.id,
+            pageId: page.pageId,
+            htmlPath: page.htmlPath,
+            mode,
+            singlePage: Boolean(requestedPageId)
+          })
+          return imageOnly
+            ? captureHtmlPageToPptxImageSlide({
+                page,
+                timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS,
+                settleMs: EXPORT_CAPTURE_SETTLE_MS,
+                waitForPrintReadySignal
+              })
+            : extractHtmlPageToPptxSlide({
+                page,
+                timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS,
+                settleMs: EXPORT_CAPTURE_SETTLE_MS,
+                waitForPrintReadySignal
+              })
         })
-        const extracted = imageOnly
-          ? await captureHtmlPageToPptxImageSlide({
-              page,
-              timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS,
-              settleMs: EXPORT_CAPTURE_SETTLE_MS,
-              waitForPrintReadySignal
-            })
-          : await extractHtmlPageToPptxSlide({
-              page,
-              timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS,
-              settleMs: EXPORT_CAPTURE_SETTLE_MS,
-              waitForPrintReadySignal
-            })
-        slides.push(extracted.slide)
-        if (extracted.warning) warnings.push(extracted.warning)
+        for (const extracted of extractedPages) {
+          slides.push(extracted.slide)
+          if (extracted.warning) warnings.push(extracted.warning)
+          extractedCount += 1
+          sendProgress({
+            stage: 'rendering',
+            progress: scaleExportProgress(extractedCount, pages.length, 8, 82),
+            current: extractedCount,
+            total: pages.length
+          })
+        }
       }
 
       if (!imageOnly) {
@@ -481,6 +610,12 @@ export function registerExportHandlers(ctx: IpcContext): void {
       let embeddedFonts: HtmlToPptxEmbeddedFont[] = []
       if (!imageOnly) {
         try {
+          sendProgress({
+            stage: 'packaging',
+            progress: 88,
+            current: pages.length,
+            total: pages.length
+          })
           embeddedFonts = await collectEmbeddedFonts(projectDir, slides, {
             mode: fontEmbedMode,
             maxTotalBytes: 20 * 1024 * 1024
@@ -494,6 +629,12 @@ export function registerExportHandlers(ctx: IpcContext): void {
         }
       }
 
+      sendProgress({
+        stage: 'writing',
+        progress: 94,
+        current: pages.length,
+        total: pages.length
+      })
       try {
         await writeHtmlToPptx(saveResult.filePath, {
           title: sessionTitle,
@@ -541,6 +682,128 @@ export function registerExportHandlers(ctx: IpcContext): void {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       log.error('[export:pptx] failed', {
+        sessionId,
+        message
+      })
+      throw error
+    }
+  })
+
+  ipcMain.handle('export:video', async (event, payload: unknown) => {
+    const sessionId = parseSessionId(payload)
+    if (!sessionId) {
+      throw new Error('sessionId 不能为空')
+    }
+    const requestedPageId = parseExportPageId(payload)
+    const fps = normalizeVideoExportFps(
+      payload && typeof payload === 'object' ? (payload as PptxExportPayload).fps : undefined
+    )
+    const secondsPerPage = normalizeVideoExportSecondsPerPage(
+      payload && typeof payload === 'object'
+        ? (payload as PptxExportPayload).secondsPerPage
+        : undefined
+    )
+
+    const { session, pages: allPages, projectDir } = await resolveSessionPageFiles(sessionId)
+    const pages = requestedPageId
+      ? allPages.filter((page) => page.id === requestedPageId)
+      : allPages
+    if (requestedPageId && pages.length === 0) {
+      throw new Error(`页面不存在：${requestedPageId}`)
+    }
+    const sessionTitle =
+      typeof session.title === 'string' && session.title.trim().length > 0
+        ? session.title.trim()
+        : `ohmyppt-${sessionId}`
+    const singlePage = requestedPageId && pages.length === 1 ? pages[0] : null
+    const singlePageTitle = singlePage
+      ? singlePage.title.trim() || `P${String(singlePage.pageNumber).padStart(2, '0')}`
+      : ''
+    const sanitizedBaseName = sanitizeExportBaseName(
+      singlePage ? `【Video】${singlePageTitle}` : `【Video】${sessionTitle}`,
+      `ohmyppt-${sessionId}`
+    )
+
+    const ownerWindow =
+      BrowserWindow.fromWebContents(event.sender) ?? BrowserWindow.getFocusedWindow() ?? mainWindow
+    const saveResult = await dialog.showSaveDialog(ownerWindow, {
+      title: '导出视频',
+      defaultPath: path.join(path.dirname(projectDir), `${sanitizedBaseName}.mp4`),
+      filters: [{ name: 'MP4 Video', extensions: ['mp4'] }],
+      properties: ['createDirectory', 'showOverwriteConfirmation']
+    })
+
+    if (saveResult.canceled || !saveResult.filePath) {
+      return { success: false, cancelled: true }
+    }
+
+    const sendProgress = createExportProgressSender(event, sessionId, 'video')
+    try {
+      sendProgress({
+        stage: 'preparing',
+        progress: 3,
+        current: 0,
+        total: pages.length
+      })
+      log.info('[export:video] starting', {
+        sessionId,
+        pageCount: pages.length,
+        filePath: saveResult.filePath,
+        fps,
+        secondsPerPage,
+        sessionPageId: requestedPageId || undefined
+      })
+      const exported = await exportHtmlPagesToVideo({
+        pages,
+        outputPath: saveResult.filePath,
+        tempRootDir: path.dirname(projectDir),
+        fps,
+        captureFps:
+          payload && typeof payload === 'object'
+            ? normalizeVideoExportFps((payload as PptxExportPayload).captureFps)
+            : undefined,
+        secondsPerPage,
+        timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS,
+        settleMs: EXPORT_CAPTURE_SETTLE_MS,
+        waitForPrintReadySignal,
+        onProgress: (progress) => {
+          sendProgress({
+            stage: progress.stage,
+            progress:
+              progress.stage === 'writing'
+                ? 94
+                : scaleExportProgress(progress.current || 0, progress.total || pages.length, 8, 86),
+            current: progress.current,
+            total: progress.total
+          })
+        }
+      })
+      const project = await db.getProject(sessionId)
+      if (project?.id) {
+        await db.updateProjectStatus(project.id, 'exported')
+      }
+
+      log.info('[export:video] completed', {
+        sessionId,
+        pageCount: exported.pageCount,
+        frameCount: exported.frameCount,
+        durationMs: exported.durationMs,
+        filePath: saveResult.filePath,
+        warningCount: exported.warnings.length
+      })
+      shell.showItemInFolder(saveResult.filePath)
+      return {
+        success: true,
+        cancelled: false,
+        path: saveResult.filePath,
+        pageCount: exported.pageCount,
+        durationMs: exported.durationMs,
+        frameCount: exported.frameCount,
+        warnings: exported.warnings
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      log.error('[export:video] failed', {
         sessionId,
         message
       })
@@ -625,17 +888,38 @@ export function registerExportHandlers(ctx: IpcContext): void {
         : path.join(process.resourcesPath, 'app.asar.unpacked', 'resources')
 
       const targets = [
-        { platform: 'macos-arm64', bin: 'slide-pack-darwin-arm64', ext: '', os: 'darwin', arch: 'arm64' },
-        { platform: 'macos-amd64', bin: 'slide-pack-darwin-amd64', ext: '', os: 'darwin', arch: 'x64' },
-        { platform: 'windows-amd64', bin: 'slide-pack-windows-amd64.exe', ext: '.exe', os: 'win32', arch: 'x64' }
+        {
+          platform: 'macos-arm64',
+          bin: 'slide-pack-darwin-arm64',
+          ext: '',
+          os: 'darwin',
+          arch: 'arm64'
+        },
+        {
+          platform: 'macos-amd64',
+          bin: 'slide-pack-darwin-amd64',
+          ext: '',
+          os: 'darwin',
+          arch: 'x64'
+        },
+        {
+          platform: 'windows-amd64',
+          bin: 'slide-pack-windows-amd64.exe',
+          ext: '.exe',
+          os: 'win32',
+          arch: 'x64'
+        }
       ]
 
-      const rawTitle = typeof session.title === 'string' && session.title.trim() ? session.title.trim() : 'slides'
+      const rawTitle =
+        typeof session.title === 'string' && session.title.trim() ? session.title.trim() : 'slides'
       const sessionName = sanitizeExportBaseName(rawTitle, 'slides')
 
       // Let user choose save directory
       const ownerWindow =
-        BrowserWindow.fromWebContents(event.sender) ?? BrowserWindow.getFocusedWindow() ?? mainWindow
+        BrowserWindow.fromWebContents(event.sender) ??
+        BrowserWindow.getFocusedWindow() ??
+        mainWindow
       const saveResult = await dialog.showOpenDialog(ownerWindow, {
         title: '选择打包导出目录',
         defaultPath: path.dirname(projectDir),
@@ -651,11 +935,16 @@ export function registerExportHandlers(ctx: IpcContext): void {
         throw new Error('打包导出目录不能选择当前会话目录或其子目录，请选择会话目录外的位置。')
       }
 
+      const sendProgress = createExportProgressSender(event, sessionId, 'slidePack')
       // Create output folder
       const outputFolder = path.join(outputParentDir, `ohmyppt-${nanoid(8)}`)
       fs.mkdirSync(outputFolder, { recursive: true })
 
       log.info('[export:slidePack] starting', { sessionId, projectDir, outputFolder })
+      sendProgress({
+        stage: 'preparing',
+        progress: 5
+      })
 
       // ZIP all slides
       const zipFiles: Record<string, Uint8Array> = {}
@@ -672,13 +961,21 @@ export function registerExportHandlers(ctx: IpcContext): void {
         }
       }
       collectFiles(projectDir, '')
+      sendProgress({
+        stage: 'packaging',
+        progress: 45
+      })
       const zipData = zipSync(zipFiles)
 
-      log.info('[export:slidePack] zip created', { fileCount: Object.keys(zipFiles).length, zipSize: zipData.byteLength })
+      log.info('[export:slidePack] zip created', {
+        fileCount: Object.keys(zipFiles).length,
+        zipSize: zipData.byteLength
+      })
 
       const generatedFiles: string[] = []
 
       // macOS uses an app bundle with slides.zip in Resources; Windows keeps the trailer format.
+      let generatedTargetCount = 0
       for (const t of targets) {
         const viewerPath = path.join(resourcesDir, t.bin)
         if (!fs.existsSync(viewerPath)) {
@@ -705,8 +1002,19 @@ export function registerExportHandlers(ctx: IpcContext): void {
           fs.chmodSync(outputPath, 0o755)
           generatedFiles.push(outputName)
         }
+        generatedTargetCount += 1
+        sendProgress({
+          stage: 'packaging',
+          progress: scaleExportProgress(generatedTargetCount, targets.length, 55, 90),
+          current: generatedTargetCount,
+          total: targets.length
+        })
       }
 
+      sendProgress({
+        stage: 'writing',
+        progress: 95
+      })
       // Write README.txt
       const readmeContent = `演示文稿预览包
 ================
@@ -780,16 +1088,29 @@ export function registerExportHandlers(ctx: IpcContext): void {
         throw new Error('ZIP 会话文件包不能导出到当前会话目录或其子目录，请选择会话目录外的位置。')
       }
 
+      const sendProgress = createExportProgressSender(event, sessionId, 'sessionZip')
       log.info('[export:sessionZip] starting', {
         sessionId,
         projectDir,
         filePath: saveResult.filePath
       })
+      sendProgress({
+        stage: 'preparing',
+        progress: 5
+      })
 
       const zipRootName = `ohmyppt-session-${sessionName}`
       const zipFiles: Record<string, Uint8Array> = {}
       collectDirectoryZipFiles(projectDir, zipRootName, zipFiles)
+      sendProgress({
+        stage: 'packaging',
+        progress: 55
+      })
       const zipData = zipSync(zipFiles)
+      sendProgress({
+        stage: 'writing',
+        progress: 94
+      })
       await fs.promises.writeFile(saveResult.filePath, Buffer.from(zipData))
 
       log.info('[export:sessionZip] completed', {

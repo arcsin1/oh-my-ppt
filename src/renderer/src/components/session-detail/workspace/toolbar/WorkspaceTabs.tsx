@@ -33,11 +33,10 @@ export function WorkspaceTabs({
               'inline-flex h-6 min-w-[68px] shrink-0 items-center justify-center gap-1 rounded-full px-2 text-[10px] font-bold leading-none transition-all',
               activeTab === tab.id
                 ? 'bg-[#5d6b4d] text-white shadow-[0_4px_10px_rgba(62,74,50,0.16)]'
-                : 'text-[#4f5f40] hover:bg-[#fffaf1]/54 hover:text-[#314028]',
-              tab.id === 'animation' && 'cursor-not-allowed opacity-40 hover:bg-transparent hover:text-[#4f5f40]'
+                : 'text-[#4f5f40] hover:bg-[#fffaf1]/54 hover:text-[#314028]'
             )}
             onClick={() => onActivate(tab.id)}
-            disabled={disabled || tab.id === 'animation'}
+            disabled={disabled}
           >
             {tab.icon}
             {tab.label}

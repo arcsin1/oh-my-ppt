@@ -1,5 +1,39 @@
 # 更新日志 / Changelog
 
+## 2026-06-11 · v2.0.16
+
+### 中文
+
+- 新增 MP4 视频导出功能：可将整套演示导出为视频文件，适合分享、归档或在不方便播放 PPT 的场景中直接使用。
+- 新增页面切换动画：支持淡入、滑动、推进、擦除、缩放、翻转、立方体、封面流、模糊、聚焦展开等多种切页效果，演示节奏更接近正式放映（只在浏览器打开和演示模式有效）。
+- 新增鼠标滚轮翻页：演示和浏览时可使用鼠标滚轮切换页面，翻页手感更自然，并减少连续滚动导致的误触。
+- 新增导出进度提示：PPTX、图片和视频导出过程中会显示实时进度、当前阶段和完成结果，长文件导出时更安心。
+- 增强 PPTX 导出质量：导出的可编辑 PPTX 对文字、图片、图表、表格、动画和页面结构的还原更稳定，复杂页面在 PowerPoint 和 WPS 中的表现更可靠（因为没有大量测试模版，不能做到100%还原，大概80%-95%效果）。
+- 增强 PPTX 导出速度：长演示和复杂页面的导出等待时间减少，批量导出体验更顺畅。
+- 增强 PPTX 导入：导入已有 PPTX 时可更好识别图表、表格和页面内容，导入后的页面更容易继续编辑和复用。
+- 优化页面画布：生成页与预览页减少默认边距干扰，页面更接近真正的全屏幻灯片效果，背景和主体内容的边界更一致。
+- 优化生成布局质量：AI 会先根据内容密度选择合适的版式，再进行宽高自检，减少内容超出画布、上下堆叠和卡片过密的问题，同时保留更自由的创意布局。
+- 优化图表页面生成：图表页会更明确地区分主图表、辅助信息和注释，减少图表过高、信息区挤压或多行卡片堆叠的问题。
+- 优化大纲与资料生成：当用户明确列出多个要点时，页面规划会更完整地保留这些重点，减少漏点、合并不当或结构偏移。
+- 优化生成完成提醒：生成任务通知更清晰，完成、失败和部分完成状态更容易识别。
+- 修复思考文档刷新异常：部分场景下思考内容不及时更新的问题已改善。
+
+### English
+
+- Added MP4 video export: export an entire presentation as a video for sharing, archiving, or playback when a PPT file is not the best fit.
+- Added slide transitions: choose from fade, slide, push, wipe, zoom, flip, cube, cover flow, blur, iris, swing, and center reveal for a more presentation-ready rhythm.
+- Added mouse wheel navigation: move between slides with the mouse wheel while browsing or presenting, with smoother control and fewer accidental jumps.
+- Added export progress feedback: PPTX, image, and video exports now show live progress, the current stage, and the final result, making long exports easier to follow.
+- Improved PPTX export quality: editable PPTX files now preserve text, images, charts, tables, animations, and slide structure more reliably, with better results in PowerPoint and WPS.
+- Improved PPTX export speed: long presentations and complex slides now export with less waiting, making batch export smoother.
+- Improved PPTX import: existing PPTX files now restore charts, tables, and slide content more accurately, so imported slides are easier to edit and reuse.
+- Improved the slide canvas: generated and previewed slides now feel closer to true full-screen slides, with less default spacing around the canvas.
+- Improved generated layout quality: AI now chooses layouts based on content density and checks width and height before writing, reducing overflow, vertical stacking, and overcrowded cards while keeping layouts more creative.
+- Improved chart slide generation: chart pages now better separate the main chart, supporting information, and notes, reducing oversized charts, squeezed content, and stacked support cards.
+- Improved outline and source-based generation: when users provide explicit points, slide planning preserves them more completely and reduces missing points, unwanted merging, or structural drift.
+- Improved generation completion notifications: task updates are clearer, making completed, failed, and partially completed states easier to recognize.
+- Fixed thinking document refresh issues in some sessions.
+
 ## 2026-06-07 · v2.0.15
 
 ### 中文

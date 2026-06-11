@@ -1,14 +1,14 @@
 /**
  * @vitest-environment happy-dom
  *
- * Unit tests for ppt-runtime.js v2.0.13:
+ * Unit tests for ppt-runtime.js v2.0.16:
  *   - PPT.stopAnimations() / PPT.resumeAnimations()
  *   - PPT.clicks state machine (advance returns boolean, _dispatch exact match)
  *   - PPT.scanDataAnim() / PPT.executeDataAnim() (routed through PPT.animate)
  *   - Click-triggered initial hidden state
  *   - Lottie hook (PPT.playLottie placeholder)
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 
@@ -66,6 +66,7 @@ function setupRuntime(options?: { search?: string; parent?: { postMessage: Retur
 
   const existingPPT = (globalThis as Record<string, unknown>).PPT as Record<string, unknown> | undefined
   if (existingPPT) existingPPT.__runtimeVersion = null
+  ;(globalThis as Record<string, unknown>).__ohmypptPlaybackBridgeInstalled = false
   ;(globalThis as Record<string, unknown>).anime = anime
   window.history.replaceState(null, '', `/page.html${options?.search || ''}`)
   try {
@@ -97,6 +98,37 @@ type ClicksAPI = {
 function getClicks(PPT: Record<string, unknown>): ClicksAPI {
   return PPT.clicks as ClicksAPI
 }
+
+function dispatchWheel(
+  target: EventTarget,
+  options: Partial<{
+    deltaX: number
+    deltaY: number
+    deltaMode: number
+    ctrlKey: boolean
+    metaKey: boolean
+  }> = {}
+): Event {
+  const event = new Event('wheel', { bubbles: true, cancelable: true })
+  Object.defineProperties(event, {
+    deltaX: { value: options.deltaX ?? 0 },
+    deltaY: { value: options.deltaY ?? 0 },
+    deltaMode: { value: options.deltaMode ?? 0 },
+    ctrlKey: { value: options.ctrlKey ?? false },
+    metaKey: { value: options.metaKey ?? false }
+  })
+  target.dispatchEvent(event)
+  return event
+}
+
+afterEach(() => {
+  try {
+    vi.runOnlyPendingTimers()
+  } catch {
+    // Some tests use real timers.
+  }
+  vi.useRealTimers()
+})
 
 describe('PPT.stopAnimations / PPT.resumeAnimations', () => {
   let PPT: Record<string, unknown>
@@ -257,6 +289,7 @@ describe('PPT playback bridge', () => {
     c.setTotal(1)
 
     document.body.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    dispatchWheel(document.body, { deltaY: 90 })
 
     expect(c.current).toBe(0)
     expect(parent.postMessage).not.toHaveBeenCalled()
@@ -330,6 +363,145 @@ describe('PPT playback bridge', () => {
     }))
 
     expect(c.current).toBe(0)
+    expect(parent.postMessage).not.toHaveBeenCalled()
+  })
+
+  it('navigates parent deck from wheel events inside the slide iframe', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1000)
+    const parent = { postMessage: vi.fn() }
+    setupRuntime({ search: '?pptPlayback=1', parent })
+
+    const event = dispatchWheel(document.body, { deltaY: 90 })
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(parent.postMessage).toHaveBeenCalledWith({
+      type: 'ohmyppt:playback:goto',
+      offset: 1,
+      requestId: expect.any(String)
+    }, '*')
+  })
+
+  it('uses upward wheel motion for previous page inside playback mode', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1000)
+    const parent = { postMessage: vi.fn() }
+    setupRuntime({ search: '?pptPlayback=1', parent })
+
+    dispatchWheel(document.body, { deltaY: -90 })
+
+    expect(parent.postMessage).toHaveBeenCalledWith({
+      type: 'ohmyppt:playback:goto',
+      offset: -1,
+      requestId: expect.any(String)
+    }, '*')
+  })
+
+  it('wheel consumes click-triggered animation before asking parent deck to navigate', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1000)
+    const parent = { postMessage: vi.fn() }
+    const { PPT } = setupRuntime({ search: '?pptPlayback=1', parent })
+    const c = getClicks(PPT)
+    c.setTotal(1)
+
+    dispatchWheel(document.body, { deltaY: 90 })
+    expect(c.current).toBe(1)
+    expect(parent.postMessage).not.toHaveBeenCalled()
+
+    vi.advanceTimersByTime(600)
+    dispatchWheel(document.body, { deltaY: 90 })
+    expect(parent.postMessage).toHaveBeenCalledWith({
+      type: 'ohmyppt:playback:goto',
+      offset: 1,
+      requestId: expect.any(String)
+    }, '*')
+  })
+
+  it('locks one continuous trackpad wheel gesture to a single page turn', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1000)
+    const parent = { postMessage: vi.fn() }
+    setupRuntime({ search: '?pptPlayback=1', parent })
+
+    dispatchWheel(document.body, { deltaY: 90 })
+    for (let i = 0; i < 7; i++) {
+      vi.advanceTimersByTime(100)
+      dispatchWheel(document.body, { deltaY: 90 })
+    }
+
+    expect(parent.postMessage).toHaveBeenCalledTimes(1)
+
+    vi.advanceTimersByTime(300)
+    dispatchWheel(document.body, { deltaY: 90 })
+
+    expect(parent.postMessage).toHaveBeenCalledTimes(2)
+  })
+
+  it('allows immediate reverse wheel navigation while the previous direction is locked', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1000)
+    const parent = { postMessage: vi.fn() }
+    setupRuntime({ search: '?pptPlayback=1', parent })
+
+    dispatchWheel(document.body, { deltaY: 90 })
+    vi.advanceTimersByTime(100)
+    dispatchWheel(document.body, { deltaY: -90 })
+
+    expect(parent.postMessage).toHaveBeenNthCalledWith(1, {
+      type: 'ohmyppt:playback:goto',
+      offset: 1,
+      requestId: expect.any(String)
+    }, '*')
+    expect(parent.postMessage).toHaveBeenNthCalledWith(2, {
+      type: 'ohmyppt:playback:goto',
+      offset: -1,
+      requestId: expect.any(String)
+    }, '*')
+  })
+
+  it('unlocks wheel gesture when parent reports boundary navigation did not move', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1000)
+    const parent = { postMessage: vi.fn() }
+    setupRuntime({ search: '?pptPlayback=1', parent })
+
+    dispatchWheel(document.body, { deltaY: 90 })
+    const firstMessage = parent.postMessage.mock.calls[0]?.[0] as { requestId?: string }
+    expect(firstMessage.requestId).toEqual(expect.any(String))
+
+    window.dispatchEvent(new MessageEvent('message', {
+      data: {
+        type: 'ohmyppt:playback:navigation-result',
+        requestId: firstMessage.requestId,
+        navigated: false
+      }
+    }))
+
+    vi.advanceTimersByTime(100)
+    dispatchWheel(document.body, { deltaY: 90 })
+
+    expect(parent.postMessage).toHaveBeenCalledTimes(2)
+    expect(parent.postMessage.mock.calls[1]?.[0]).toEqual({
+      type: 'ohmyppt:playback:goto',
+      offset: 1,
+      requestId: expect.any(String)
+    })
+  })
+
+  it('keeps wheel zoom gestures and editable targets untouched in playback mode', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1000)
+    const parent = { postMessage: vi.fn() }
+    setupRuntime({ search: '?pptPlayback=1', parent })
+
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+    const zoomEvent = dispatchWheel(document.body, { deltaY: 100, ctrlKey: true })
+    const editEvent = dispatchWheel(input, { deltaY: 100 })
+
+    expect(zoomEvent.defaultPrevented).toBe(false)
+    expect(editEvent.defaultPrevented).toBe(false)
     expect(parent.postMessage).not.toHaveBeenCalled()
   })
 })
@@ -741,8 +913,8 @@ describe('PPT.createChart tick formatters', () => {
 })
 
 describe('Version guard', () => {
-  it('runtime version is 2.0.13', () => {
+  it('runtime version is 2.0.16', () => {
     const PPT = setupRuntime().PPT
-    expect(PPT.__runtimeVersion).toBe('2.0.13')
+    expect(PPT.__runtimeVersion).toBe('2.0.16')
   })
 })

@@ -54,6 +54,7 @@ const mapAlign = (align?: string): string => {
 const mapShapePreset = (shapeType?: string): string => {
   switch (shapeType) {
     case 'ellipse': return 'ellipse'
+    case 'line': return 'line'
     case 'roundRect': return 'roundRect'
     default: return 'rect'
   }
@@ -193,6 +194,10 @@ function buildTextShape(id: number, tb: HtmlToPptxTextBox): string {
     : '<a:noAutofit/>'
   const anchor =
     tb.verticalAlign === 'middle' ? 'ctr' : tb.verticalAlign === 'bottom' ? 'b' : 't'
+  const lIns = inToEmu(Math.max(0, tb.paddingLeft ?? 0))
+  const rIns = inToEmu(Math.max(0, tb.paddingRight ?? 0))
+  const tIns = inToEmu(Math.max(0, tb.paddingTop ?? 0))
+  const bIns = inToEmu(Math.max(0, tb.paddingBottom ?? 0))
 
   return `<p:sp>
     <p:nvSpPr>
@@ -209,7 +214,7 @@ function buildTextShape(id: number, tb: HtmlToPptxTextBox): string {
       <a:noFill/>
     </p:spPr>
     <p:txBody>
-      <a:bodyPr wrap="${wrap}" lIns="0" tIns="0" rIns="0" bIns="0" anchor="${anchor}">${autoFit}</a:bodyPr>
+      <a:bodyPr wrap="${wrap}" lIns="${lIns}" tIns="${tIns}" rIns="${rIns}" bIns="${bIns}" anchor="${anchor}">${autoFit}</a:bodyPr>
       <a:lstStyle/>
 ${paragraphs}
     </p:txBody>
@@ -250,12 +255,23 @@ function buildImagePic(id: number, rId: string, img: HtmlToPptxImage): string {
 function buildShapeXml(id: number, shape: HtmlToPptxShape): string {
   const preset = mapShapePreset(shape.shapeType)
 
-  const rot = shape.rotate ? ` rot="${degToRot(shape.rotate)}"` : ''
+  const xfrmAttrs = [
+    shape.rotate ? `rot="${degToRot(shape.rotate)}"` : '',
+    shape.flipV ? 'flipV="1"' : ''
+  ]
+    .filter(Boolean)
+    .join(' ')
+  const xfrmAttrXml = xfrmAttrs ? ` ${xfrmAttrs}` : ''
 
   // Geometry
   let geomXml: string
   if (preset === 'roundRect' && shape.radius) {
-    const adj = Math.min(50000, Math.max(0, Math.round(shape.radius * 500)))
+    const fallbackRadiusIn = shape.radius / 120
+    const fallbackAdj =
+      Math.min(shape.w, shape.h) > 0
+        ? Math.round((fallbackRadiusIn / Math.min(shape.w, shape.h)) * 100000)
+        : 0
+    const adj = Math.min(50000, Math.max(0, Math.round(shape.radiusAdj || fallbackAdj)))
     geomXml = `<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val ${adj}"/></a:avLst></a:prstGeom>`
   } else {
     geomXml = `<a:prstGeom prst="${preset}"><a:avLst/></a:prstGeom>`
@@ -299,7 +315,7 @@ function buildShapeXml(id: number, shape: HtmlToPptxShape): string {
       <p:nvPr/>
     </p:nvSpPr>
     <p:spPr>
-      <a:xfrm${rot}>
+      <a:xfrm${xfrmAttrXml}>
         <a:off x="${inToEmu(shape.x)}" y="${inToEmu(shape.y)}"/>
         <a:ext cx="${inToEmu(shape.w)}" cy="${inToEmu(shape.h)}"/>
       </a:xfrm>

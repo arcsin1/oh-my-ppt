@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { unzipSync, zipSync } from 'fflate'
 import { __pptxImporterTestUtils } from '../../src/main/utils/pptx-importer'
 
 vi.mock('../../src/main/ipc/engine/template', () => ({
@@ -49,6 +50,41 @@ describe('pptx importer table and chart blocks', () => {
 
     expect(result.changed).toBe(false)
     expect(result.xml).toBe(original)
+  })
+
+  it('normalizes string xVal chart caches for pptxtojson compatibility', () => {
+    const result = __pptxImporterTestUtils.normalizeChartValueCacheXml(
+      '<c:strRef><c:f>Sheet1!$A$2:$A$3</c:f><c:strCache><c:ptCount val="2"/><c:pt idx="0"><c:v>1月</c:v></c:pt><c:pt idx="1"><c:v>2月</c:v></c:pt></c:strCache></c:strRef>'
+    )
+
+    expect(result.changed).toBe(true)
+    expect(result.xml).toContain('<c:numRef>')
+    expect(result.xml).toContain('<c:f>Sheet1!$A$2:$A$3</c:f>')
+    expect(result.xml).toContain('<c:numCache>')
+    expect(result.xml).toContain('<c:pt idx="0"><c:v>0</c:v></c:pt>')
+    expect(result.xml).toContain('<c:pt idx="1"><c:v>1</c:v></c:pt>')
+    expect(result.xml).not.toContain('<c:strRef>')
+  })
+
+  it('rewrites incompatible chart value caches inside pptx archives', () => {
+    const chartXml =
+      '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart><c:plotArea><c:lineChart><c:ser><c:xVal><c:strRef><c:f>Sheet1!$A$2:$A$3</c:f><c:strCache><c:ptCount val="2"/><c:pt idx="0"><c:v>Jan</c:v></c:pt><c:pt idx="1"><c:v>Feb</c:v></c:pt></c:strCache></c:strRef></c:xVal><c:yVal><c:numRef><c:f>Sheet1!$B$2:$B$3</c:f><c:numCache><c:ptCount val="2"/><c:pt idx="0"><c:v>10</c:v></c:pt><c:pt idx="1"><c:v>20</c:v></c:pt></c:numCache></c:numRef></c:yVal></c:ser></c:lineChart></c:plotArea></c:chart></c:chartSpace>'
+    const input = Buffer.from(
+      zipSync({
+        'ppt/charts/chart19.xml': new TextEncoder().encode(chartXml),
+        'ppt/slides/slide1.xml': new TextEncoder().encode('<p:sld/>')
+      })
+    )
+
+    const result = __pptxImporterTestUtils.normalizePptxChartValueCaches(input)
+    const files = unzipSync(new Uint8Array(result.arrayBuffer))
+    const output = new TextDecoder().decode(files['ppt/charts/chart19.xml'])
+
+    expect(result.normalizedChartValueCount).toBe(1)
+    expect(output).toContain('<c:xVal><c:numRef>')
+    expect(output).toContain('<c:pt idx="1"><c:v>1</c:v></c:pt>')
+    expect(output).toContain('<c:yVal><c:numRef>')
+    expect(output).toContain('<c:pt idx="1"><c:v>20</c:v></c:pt>')
   })
 
   it('preserves table dimensions, borders, merged cells, and stable cell ids', () => {
@@ -166,12 +202,45 @@ describe('pptx importer table and chart blocks', () => {
     expect(html).toContain('"fill":true')
   })
 
+  it('converts paired x and y chart arrays into editable scatter charts', () => {
+    const html = __pptxImporterTestUtils.buildChartBlock({
+      element: {
+        type: 'chart',
+        chartType: 'scatterChart',
+        left: 0,
+        top: 0,
+        width: 320,
+        height: 180,
+        order: 1,
+        colors: ['#305598'],
+        data: [
+          [0, 1],
+          [3584, 7825]
+        ]
+      } as never,
+      blockId: 'chart-scatter',
+      pageId: 'page-1',
+      chartIndex: 2,
+      scaleX: 1,
+      scaleY: 1,
+      zIndex: 2,
+      offsetX: 0,
+      offsetY: 0
+    })
+
+    expect(html).toContain('data-pptx-import-mode="editable"')
+    expect(html).toContain('data-pptx-chart-type="scatterChart"')
+    expect(html).toContain('"type":"scatter"')
+    expect(html).toContain('"data":[{"x":0,"y":3584},{"x":1,"y":7825}]')
+    expect(html).toContain('"showLine":true')
+  })
+
   it('marks unsupported chart data as a placeholder with warnings', () => {
     const warnings: Array<{ pageNumber?: number; message: string }> = []
     const html = __pptxImporterTestUtils.buildChartBlock({
       element: {
         type: 'chart',
-        chartType: 'bubbleChart',
+        chartType: 'stockChart',
         left: 0,
         top: 0,
         width: 320,
@@ -196,11 +265,11 @@ describe('pptx importer table and chart blocks', () => {
     })
 
     expect(html).toContain('data-pptx-import-mode="placeholder"')
-    expect(html).toContain('data-pptx-chart-type="bubbleChart"')
+    expect(html).toContain('data-pptx-chart-type="stockChart"')
     expect(warnings).toEqual([
       {
         pageNumber: 4,
-        message: '图表 chart-2（bubbleChart）暂不支持结构化导入，已作为占位导入'
+        message: '图表 chart-2（stockChart）暂不支持结构化导入，已作为占位导入'
       }
     ])
   })

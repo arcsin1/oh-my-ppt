@@ -44,6 +44,18 @@ type ChartSeries = {
   values?: Array<{ x?: string; y?: number }>
 }
 
+type MappedChartType = {
+  type: string
+  indexAxis?: 'x' | 'y'
+  fill?: boolean
+  showLine?: boolean
+}
+
+type ChartTypeMapping = {
+  pattern: RegExp
+  map: (chartType: string, barDir?: string) => MappedChartType
+}
+
 type ImportedTableBorder = {
   borderColor?: string
   borderWidth?: number
@@ -100,6 +112,26 @@ export type ImportedPptxDeck = {
   pages: ImportedPptxPage[]
   warnings: string[]
 }
+
+export type PptxChartRewriteRequest = {
+  element: Chart
+  blockId: string
+  pageId: string
+  chartIndex: number
+  canvasId: string
+  frameStyle: string
+  animationAttrs: string
+  pageNumber?: number
+}
+
+export type PptxChartRewriteResult = {
+  config: Record<string, unknown>
+  warnings?: string[]
+}
+
+export type PptxChartRewriteHandler = (
+  request: PptxChartRewriteRequest
+) => Promise<PptxChartRewriteResult | null>
 
 const clampNumber = (value: unknown, fallback = 0): number => {
   const n = Number(value)
@@ -192,6 +224,133 @@ const normalizePptxTableStyleFlags = (buffer: Buffer): {
   return {
     arrayBuffer: arrayBufferFromUint8Array(zipSync(files)),
     normalizedTableCount
+  }
+}
+
+type ChartCachePoint = {
+  idx: string
+  value: string
+}
+
+const extractChartCachePoints = (
+  xml: string,
+  cacheTag: 'numCache' | 'strCache' | 'numLit' | 'strLit'
+): ChartCachePoint[] => {
+  const cacheMatch = xml.match(new RegExp(`<c:${cacheTag}\\b[\\s\\S]*?<\\/c:${cacheTag}>`))
+  const cacheXml = cacheMatch?.[0] || ''
+  const points: ChartCachePoint[] = []
+  const pointRe =
+    /<c:pt\b[^>]*\bidx=(["'])(.*?)\1[^>]*>\s*<c:v>([\s\S]*?)<\/c:v>\s*<\/c:pt>/g
+  let match: RegExpExecArray | null
+  while ((match = pointRe.exec(cacheXml)) !== null) {
+    points.push({ idx: match[2] || String(points.length), value: match[3] || '' })
+  }
+  return points
+}
+
+const chartFormulaFromXml = (xml: string): string => {
+  const match = xml.match(/<c:f>([\s\S]*?)<\/c:f>/)
+  return match?.[1] || ''
+}
+
+const numericChartValue = (point: ChartCachePoint, usePointIndex: boolean): string => {
+  if (usePointIndex) return String(clampNumber(point.idx, 0))
+  const value = Number.parseFloat(point.value)
+  return Number.isFinite(value) ? String(value) : String(clampNumber(point.idx, 0))
+}
+
+const buildChartNumCache = (points: ChartCachePoint[], usePointIndex: boolean): string => {
+  const pointXml = points
+    .map((point) => {
+      const value = numericChartValue(point, usePointIndex)
+      return `<c:pt idx="${point.idx}"><c:v>${value}</c:v></c:pt>`
+    })
+    .join('')
+  return `<c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="${points.length}"/>${pointXml}</c:numCache>`
+}
+
+const normalizeChartValueCacheXml = (xml: string): { xml: string; changed: boolean } => {
+  if (/<c:numRef\b[\s\S]*?<c:numCache\b/.test(xml)) return { xml, changed: false }
+
+  const numRefMatch = xml.match(/<c:numRef\b[\s\S]*?<\/c:numRef>/)
+  if (numRefMatch) {
+    const nextXml = xml.replace(/<\/c:numRef>/, `${buildChartNumCache([], false)}</c:numRef>`)
+    return { xml: nextXml, changed: nextXml !== xml }
+  }
+
+  const numPoints = extractChartCachePoints(xml, 'numLit')
+  if (numPoints.length > 0 || /<c:numLit\b/.test(xml)) {
+    return {
+      xml: `<c:numRef>${buildChartNumCache(numPoints, false)}</c:numRef>`,
+      changed: true
+    }
+  }
+
+  const strPoints = extractChartCachePoints(xml, 'strCache')
+  if (strPoints.length > 0 || /<c:strRef\b/.test(xml)) {
+    const formula = chartFormulaFromXml(xml)
+    const formulaXml = formula ? `<c:f>${formula}</c:f>` : ''
+    return {
+      xml: `<c:numRef>${formulaXml}${buildChartNumCache(strPoints, true)}</c:numRef>`,
+      changed: true
+    }
+  }
+
+  const strLitPoints = extractChartCachePoints(xml, 'strLit')
+  if (strLitPoints.length > 0 || /<c:strLit\b/.test(xml)) {
+    return {
+      xml: `<c:numRef>${buildChartNumCache(strLitPoints, true)}</c:numRef>`,
+      changed: true
+    }
+  }
+
+  return { xml, changed: false }
+}
+
+const normalizePptxChartValueCaches = (buffer: Buffer): {
+  arrayBuffer: ArrayBuffer
+  normalizedChartValueCount: number
+} => {
+  let files: Record<string, Uint8Array>
+  try {
+    files = unzipSync(new Uint8Array(buffer))
+  } catch {
+    return {
+      arrayBuffer: arrayBufferFromUint8Array(
+        new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+      ),
+      normalizedChartValueCount: 0
+    }
+  }
+
+  let normalizedChartValueCount = 0
+  for (const name of Object.keys(files)) {
+    if (!/^ppt\/charts\/chart\d+\.xml$/i.test(name)) continue
+    const xml = decodeUtf8(files[name])
+    if (!/<c:(?:xVal|yVal|bubbleSize)\b/.test(xml)) continue
+    const nextXml = xml.replace(
+      /<c:(xVal|yVal|bubbleSize)\b[^>]*>([\s\S]*?)<\/c:\1>/g,
+      (valueXml, tagName: string, innerXml: string) => {
+        const result = normalizeChartValueCacheXml(innerXml)
+        if (result.changed) normalizedChartValueCount += 1
+        return result.changed ? `<c:${tagName}>${result.xml}</c:${tagName}>` : valueXml
+      }
+    )
+    if (nextXml !== xml) files[name] = encodeUtf8(nextXml)
+  }
+
+  if (normalizedChartValueCount === 0) {
+    return {
+      arrayBuffer: arrayBufferFromUint8Array(
+        new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+      ),
+      normalizedChartValueCount
+    }
+  }
+
+  return {
+    arrayBuffer: arrayBufferFromUint8Array(zipSync(files)),
+    normalizedChartValueCount
   }
 }
 
@@ -1073,18 +1232,81 @@ const buildTableBlock = (args: {
   return `<section data-block-id="${escapeHtml(args.blockId)}" data-pptx-kind="table" data-pptx-import-mode="editable"${animationAttrText} style="${css}"><table style="width:100%;height:100%;border-collapse:collapse;border-spacing:0;table-layout:fixed;font-size:${Math.max(12, 12 * tableTextScale).toFixed(1)}px;">${colgroup}${tableRows}</table></section>`
 }
 
-const mapChartType = (chartType: string, barDir?: string): { type: string; indexAxis?: 'x' | 'y'; fill?: boolean } | null => {
-  if (/pie/i.test(chartType)) return { type: 'pie' }
-  if (/doughnut/i.test(chartType)) return { type: 'doughnut' }
-  if (/area/i.test(chartType)) return { type: 'line', fill: true }
-  if (/line/i.test(chartType)) return { type: 'line' }
-  if (/radar/i.test(chartType)) return { type: 'radar' }
-  if (/bar/i.test(chartType)) {
-    // pptxtojson uses barDir="bar" for horizontal bars and "col" for vertical columns.
-    return { type: 'bar', indexAxis: barDir === 'bar' ? 'y' : 'x' }
+const PPTX_CHART_TYPE_MAPPINGS: ChartTypeMapping[] = [
+  { pattern: /bubble/i, map: () => ({ type: 'bubble' }) },
+  { pattern: /scatter/i, map: () => ({ type: 'scatter', showLine: true }) },
+  { pattern: /doughnut/i, map: () => ({ type: 'doughnut' }) },
+  { pattern: /pie/i, map: () => ({ type: 'pie' }) },
+  { pattern: /area/i, map: () => ({ type: 'line', fill: true }) },
+  { pattern: /line/i, map: () => ({ type: 'line' }) },
+  { pattern: /radar/i, map: () => ({ type: 'radar' }) },
+  {
+    pattern: /bar/i,
+    map: (_chartType, barDir) => ({
+      type: 'bar',
+      // pptxtojson uses barDir="bar" for horizontal bars and "col" for vertical columns.
+      indexAxis: barDir === 'bar' ? 'y' : 'x'
+    })
   }
-  return null
+]
+
+const mapChartType = (chartType: string, barDir?: string): MappedChartType | null => {
+  const mapping = PPTX_CHART_TYPE_MAPPINGS.find((item) => item.pattern.test(chartType))
+  return mapping ? mapping.map(chartType, barDir) : null
 }
+
+const isNumericArray = (value: unknown): value is number[] =>
+  Array.isArray(value) && value.every((item) => Number.isFinite(Number(item)))
+
+const chartCanvasId = (pageId: string, chartIndex: number): string => `chart-${pageId}-${chartIndex}`
+
+const unsupportedChartWarning = (blockId: string, chartType: string): string =>
+  `图表 ${blockId}（${chartType || 'unknown'}）暂不支持结构化导入，已作为占位导入`
+
+const buildChartFrameStyle = (args: {
+  element: Chart
+  scaleX: number
+  scaleY: number
+  zIndex: number
+  offsetX: number
+  offsetY: number
+}): string =>
+  buildBlockStyle({
+    element: args.element as unknown as Record<string, unknown>,
+    scaleX: args.scaleX,
+    scaleY: args.scaleY,
+    zIndex: args.zIndex,
+    offsetX: args.offsetX,
+    offsetY: args.offsetY,
+    overflow: 'hidden',
+    extra: ['background:#fff']
+  })
+
+const buildChartHtmlFromConfig = (args: {
+  element: Chart
+  blockId: string
+  canvasId: string
+  frameStyle: string
+  animationAttrText: string
+  config: Record<string, unknown>
+}): string => `<section data-block-id="${escapeHtml(args.blockId)}" data-pptx-kind="chart" data-pptx-import-mode="editable" data-pptx-chart-type="${escapeHtml(args.element.chartType)}" class="ppt-chart-frame"${args.animationAttrText} style="${args.frameStyle}">
+  <canvas id="${args.canvasId}" class="h-full w-full"></canvas>
+</section>
+<script>
+window.addEventListener("DOMContentLoaded", function () {
+  var el = document.getElementById("${args.canvasId}");
+  if (!el || !window.PPT || !window.PPT.createChart) return;
+  window.PPT.createChart(el, ${JSON.stringify(args.config).replace(/</g, '\\u003c')});
+});
+</script>`
+
+const buildChartPlaceholderHtml = (args: {
+  element: Chart
+  blockId: string
+  frameStyle: string
+  animationAttrText: string
+}): string =>
+  `<section data-block-id="${escapeHtml(args.blockId)}" data-pptx-kind="chart" data-pptx-import-mode="placeholder" data-pptx-chart-type="${escapeHtml(args.element.chartType || 'unknown')}"${args.animationAttrText} style="${args.frameStyle};display:flex;align-items:center;justify-content:center;color:#6b7280;">图表已作为占位导入</section>`
 
 const buildChartBlock = (args: {
   element: Chart
@@ -1099,32 +1321,40 @@ const buildChartBlock = (args: {
   offsetY: number
   pageNumber?: number
   warnings?: ImportWarning[]
+  suppressUnsupportedWarning?: boolean
 }): string => {
   const chartType = mapChartType(args.element.chartType, 'barDir' in args.element ? args.element.barDir : undefined)
-  const canvasId = `chart-${args.pageId}-${args.chartIndex}`
+  const canvasId = chartCanvasId(args.pageId, args.chartIndex)
   const animationAttrs = buildAnimationAttrs(args.animation)
   const animationAttrText = animationAttrs ? ` ${animationAttrs}` : ''
-  const css = buildBlockStyle({
-    element: args.element as unknown as Record<string, unknown>,
+  const frameStyle = buildChartFrameStyle({
+    element: args.element,
     scaleX: args.scaleX,
     scaleY: args.scaleY,
     zIndex: args.zIndex,
     offsetX: args.offsetX,
-    offsetY: args.offsetY,
-    overflow: 'hidden',
-    extra: ['background:#fff']
+    offsetY: args.offsetY
   })
   const data = 'data' in args.element ? args.element.data : null
   const isCommonSeries = Array.isArray(data) && data.length > 0 && data.every((item) => {
     const record = item as Partial<ChartSeries> | undefined
     return Boolean(record && !Array.isArray(record) && Array.isArray(record.values))
   })
-  if (!chartType || !isCommonSeries) {
-    args.warnings?.push({
-      pageNumber: args.pageNumber,
-      message: `图表 ${args.blockId}（${args.element.chartType || 'unknown'}）暂不支持结构化导入，已作为占位导入`
+  const isPairedNumericSeries =
+    Array.isArray(data) && data.length >= 2 && isNumericArray(data[0]) && isNumericArray(data[1])
+  if (!chartType || (!isCommonSeries && !isPairedNumericSeries)) {
+    if (!args.suppressUnsupportedWarning) {
+      args.warnings?.push({
+        pageNumber: args.pageNumber,
+        message: unsupportedChartWarning(args.blockId, args.element.chartType)
+      })
+    }
+    return buildChartPlaceholderHtml({
+      element: args.element,
+      blockId: args.blockId,
+      frameStyle,
+      animationAttrText
     })
-    return `<section data-block-id="${escapeHtml(args.blockId)}" data-pptx-kind="chart" data-pptx-import-mode="placeholder" data-pptx-chart-type="${escapeHtml(args.element.chartType || 'unknown')}"${animationAttrText} style="${css};display:flex;align-items:center;justify-content:center;color:#6b7280;">图表已作为占位导入</section>`
   }
   if (/3DChart/i.test(args.element.chartType)) {
     args.warnings?.push({
@@ -1132,27 +1362,52 @@ const buildChartBlock = (args: {
       message: `图表 ${args.blockId} 的 3D 效果已简化为二维图表`
     })
   }
-  const series = data as ChartSeries[]
-  const labels = series[0]?.values?.map((item) => item.x ?? '') || []
-  const isSingleDatasetChart = chartType.type === 'pie' || chartType.type === 'doughnut'
-  const datasets = isSingleDatasetChart
-    ? [
-        {
-          label: series[0]?.key || 'Series 1',
-          data: (series[0]?.values || []).map((value) => value.y ?? 0),
-          backgroundColor: args.element.colors?.length ? args.element.colors : undefined,
-          borderColor: '#ffffff',
-          borderWidth: 1
-        }
-      ]
-    : series.map((item, index) => ({
-        label: item.key || `Series ${index + 1}`,
-        data: (item.values || []).map((value) => value.y ?? 0),
-        borderColor: args.element.colors?.[index] || undefined,
-        backgroundColor: args.element.colors?.[index] || undefined,
-        fill: chartType.fill || false,
-        tension: chartType.type === 'line' ? 0.25 : undefined
-      }))
+  let labels: string[] = []
+  let datasets: Array<Record<string, unknown>> = []
+  let legendDisplay = false
+  if (isPairedNumericSeries) {
+    const xValues = (data[0] as number[]).map((value) => clampNumber(value))
+    const yValues = (data[1] as number[]).map((value) => clampNumber(value))
+    const radiusValues = isNumericArray(data[2]) ? data[2].map((value) => clampNumber(value, 6)) : []
+    labels = xValues.map((value) => String(value))
+    datasets = [
+      {
+        label: 'Series 1',
+        data: xValues.map((x, index) => {
+          const y = yValues[index] ?? 0
+          if (chartType.type !== 'bubble') return { x, y }
+          return { x, y, r: Math.max(3, Math.min(40, Math.abs(radiusValues[index] ?? 6))) }
+        }),
+        borderColor: args.element.colors?.[0] || undefined,
+        backgroundColor: args.element.colors?.[0] || undefined,
+        showLine: chartType.showLine || undefined,
+        tension: chartType.showLine ? 0.25 : undefined
+      }
+    ]
+  } else {
+    const series = data as ChartSeries[]
+    labels = series[0]?.values?.map((item) => item.x ?? '') || []
+    const isSingleDatasetChart = chartType.type === 'pie' || chartType.type === 'doughnut'
+    legendDisplay = series.length > 1 || isSingleDatasetChart
+    datasets = isSingleDatasetChart
+      ? [
+          {
+            label: series[0]?.key || 'Series 1',
+            data: (series[0]?.values || []).map((value) => value.y ?? 0),
+            backgroundColor: args.element.colors?.length ? args.element.colors : undefined,
+            borderColor: '#ffffff',
+            borderWidth: 1
+          }
+        ]
+      : series.map((item, index) => ({
+          label: item.key || `Series ${index + 1}`,
+          data: (item.values || []).map((value) => value.y ?? 0),
+          borderColor: args.element.colors?.[index] || undefined,
+          backgroundColor: args.element.colors?.[index] || undefined,
+          fill: chartType.fill || false,
+          tension: chartType.type === 'line' ? 0.25 : undefined
+        }))
+  }
   const config = {
     type: chartType.type,
     data: { labels, datasets },
@@ -1160,25 +1415,26 @@ const buildChartBlock = (args: {
       responsive: true,
       maintainAspectRatio: false,
       indexAxis: chartType.indexAxis || 'x',
-      plugins: { legend: { display: series.length > 1 || isSingleDatasetChart } }
+      scales: isPairedNumericSeries ? { x: { type: 'linear' } } : undefined,
+      plugins: { legend: { display: legendDisplay } }
     }
   }
-  return `<section data-block-id="${escapeHtml(args.blockId)}" data-pptx-kind="chart" data-pptx-import-mode="editable" data-pptx-chart-type="${escapeHtml(args.element.chartType)}" class="ppt-chart-frame"${animationAttrText} style="${css}">
-  <canvas id="${canvasId}" class="h-full w-full"></canvas>
-</section>
-<script>
-window.addEventListener("DOMContentLoaded", function () {
-  var el = document.getElementById("${canvasId}");
-  if (!el || !window.PPT || !window.PPT.createChart) return;
-  window.PPT.createChart(el, ${JSON.stringify(config).replace(/</g, '\\u003c')});
-});
-</script>`
+  return buildChartHtmlFromConfig({
+    element: args.element,
+    blockId: args.blockId,
+    canvasId,
+    frameStyle,
+    animationAttrText,
+    config
+  })
 }
 
 export const __pptxImporterTestUtils = {
   buildTableBlock,
   buildChartBlock,
   collectPptxTableStyleIds,
+  normalizeChartValueCacheXml,
+  normalizePptxChartValueCaches,
   removeUnsupportedTableStyleFlags,
   resolveSlideFit
 }
@@ -1201,6 +1457,7 @@ const renderElement = async (args: {
   pageNumber?: number
   warnings?: ImportWarning[]
   textValidator?: PptxTextValidator
+  chartRewrite?: PptxChartRewriteHandler
 }): Promise<{ html: string; titleAssigned: boolean }> => {
   const nextBlockId = (prefix: string): string => {
     args.blockCounters[prefix] = (args.blockCounters[prefix] || 0) + 1
@@ -1272,21 +1529,68 @@ const renderElement = async (args: {
   if (args.element.type === 'chart') {
     const chartIndex = (args.blockCounters.chart || 0) + 1
     args.blockCounters.chart = chartIndex
-    return {
-      html: buildChartBlock({
+    const blockId = `chart-${chartIndex}`
+    const canvasId = chartCanvasId(args.pageId, chartIndex)
+    const animationAttrs = buildAnimationAttrs(elementAnimation)
+    const animationAttrText = animationAttrs ? ` ${animationAttrs}` : ''
+    const frameStyle = buildChartFrameStyle({
+      element: args.element,
+      scaleX: args.scaleX,
+      scaleY: args.scaleY,
+      zIndex: args.zIndex,
+      offsetX: args.offsetX,
+      offsetY: args.offsetY
+    })
+    let html = buildChartBlock({
+      element: args.element,
+      blockId,
+      animation: elementAnimation,
+      pageId: args.pageId,
+      chartIndex,
+      scaleX: args.scaleX,
+      scaleY: args.scaleY,
+      offsetX: args.offsetX,
+      offsetY: args.offsetY,
+      zIndex: args.zIndex,
+      pageNumber: args.pageNumber,
+      warnings: args.warnings,
+      suppressUnsupportedWarning: true
+    })
+    if (html.includes('data-pptx-import-mode="placeholder"') && args.chartRewrite) {
+      const rewritten = await args.chartRewrite({
         element: args.element,
-        blockId: `chart-${chartIndex}`,
-        animation: elementAnimation,
+        blockId,
         pageId: args.pageId,
         chartIndex,
-        scaleX: args.scaleX,
-        scaleY: args.scaleY,
-        offsetX: args.offsetX,
-        offsetY: args.offsetY,
-        zIndex: args.zIndex,
+        canvasId,
+        frameStyle,
+        animationAttrs,
+        pageNumber: args.pageNumber
+      })
+      if (rewritten?.config) {
+        html = buildChartHtmlFromConfig({
+          element: args.element,
+          blockId,
+          canvasId,
+          frameStyle,
+          animationAttrText,
+          config: rewritten.config
+        })
+        if (rewritten.warnings?.length) {
+          args.warnings?.push(
+            ...rewritten.warnings.map((message) => ({ pageNumber: args.pageNumber, message }))
+          )
+        }
+      }
+    }
+    if (html.includes('data-pptx-import-mode="placeholder"')) {
+      args.warnings?.push({
         pageNumber: args.pageNumber,
-        warnings: args.warnings
-      }),
+        message: unsupportedChartWarning(blockId, args.element.chartType)
+      })
+    }
+    return {
+      html,
       titleAssigned: args.titleAssigned
     }
   }
@@ -1403,6 +1707,7 @@ const buildSlideHtml = async (args: {
   projectDir: string
   registry: ImageRegistry
   textValidator?: PptxTextValidator
+  chartRewrite?: PptxChartRewriteHandler
 }): Promise<{ html: string; contentOutline: string; warnings: ImportWarning[] }> => {
   const imagesDir = path.join(args.projectDir, 'images')
   const slideFit = resolveSlideFit(args.size)
@@ -1439,7 +1744,8 @@ const buildSlideHtml = async (args: {
         titleAssigned,
         pageNumber: args.pageNumber,
         warnings,
-        textValidator: args.textValidator
+        textValidator: args.textValidator,
+        chartRewrite: args.chartRewrite
       })
       if (result.html) rendered.push(result.html)
       titleAssigned = result.titleAssigned
@@ -1523,6 +1829,7 @@ export async function importPptxToEditableHtml(args: {
   title?: string
   maxPages?: number
   onProgress?: ImportProgress
+  chartRewrite?: PptxChartRewriteHandler
 }): Promise<ImportedPptxDeck> {
   const fileName = path.basename(args.filePath)
   const title = (args.title || path.basename(fileName, path.extname(fileName)) || '导入的 PPTX').trim()
@@ -1531,9 +1838,10 @@ export async function importPptxToEditableHtml(args: {
   await fs.promises.mkdir(imagesDir, { recursive: true })
   args.onProgress?.({ stage: 'reading', progress: 5, label: '正在读取 PPTX 文件' })
   const buffer = await fs.promises.readFile(args.filePath)
-  const normalizedInput = normalizePptxTableStyleFlags(buffer)
+  const normalizedTables = normalizePptxTableStyleFlags(buffer)
+  const normalizedCharts = normalizePptxChartValueCaches(Buffer.from(normalizedTables.arrayBuffer))
   args.onProgress?.({ stage: 'parsing', progress: 14, label: '正在解析 PPTX 结构' })
-  const parsed = await parse(normalizedInput.arrayBuffer, {
+  const parsed = await parse(normalizedCharts.arrayBuffer, {
     imageMode: 'base64',
     videoMode: 'none',
     audioMode: 'none'
@@ -1561,9 +1869,14 @@ export async function importPptxToEditableHtml(args: {
   const registry: ImageRegistry = { index: 0, byKey: new Map() }
   const pages: ImportedPptxPage[] = []
   const allWarnings: ImportWarning[] = []
-  if (normalizedInput.normalizedTableCount > 0) {
+  if (normalizedTables.normalizedTableCount > 0) {
     allWarnings.push({
-      message: `已修正 ${normalizedInput.normalizedTableCount} 个缺失样式定义的 PPTX 表格`
+      message: `已修正 ${normalizedTables.normalizedTableCount} 个缺失样式定义的 PPTX 表格`
+    })
+  }
+  if (normalizedCharts.normalizedChartValueCount > 0) {
+    allWarnings.push({
+      message: `已修正 ${normalizedCharts.normalizedChartValueCount} 个不兼容的 PPTX 图表缓存`
     })
   }
   const textValidator = new PptxTextValidator()
@@ -1590,7 +1903,8 @@ export async function importPptxToEditableHtml(args: {
         animationPlan: animationPlans[i],
         projectDir: args.projectDir,
         registry,
-        textValidator
+        textValidator,
+        chartRewrite: args.chartRewrite
       })
       await fs.promises.writeFile(htmlPath, rendered.html, 'utf-8')
       pages.push({

@@ -30,6 +30,7 @@ import {
   formatReferenceDocumentSnippets
 } from '../../utils/reference-document-retrieval'
 import { logAgentToolEvents } from '../../utils/agent-tool-logger'
+import { normalizeKeyPoints, normalizeOutlineText } from './outline-normalizer'
 
 type AppLocale = 'zh' | 'en'
 
@@ -138,28 +139,6 @@ async function processAgentStream(
       }
     }
   }
-}
-
-const normalizeOutlineText = (raw: string): string => {
-  const text = raw.replace(/\s+/g, ' ').trim()
-  if (!text) return ''
-  // Prefer compact clause-style outline to reduce downstream prompt bloat.
-  const chunks = text
-    .split(/[；;。.!?\n、,，|/]/g)
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0)
-  const compact = (chunks.length > 0 ? chunks.slice(0, 4).join('；') : text).trim()
-  if (compact.length <= 96) return compact
-  return `${compact.slice(0, 96).trimEnd()}…`
-}
-
-const normalizeKeyPoints = (value: unknown): string[] => {
-  if (!Array.isArray(value)) return []
-  return value
-    .map((item) => String(item ?? '').trim())
-    .filter((item) => item.length > 0)
-    .slice(0, 6)
-    .map((item) => (item.length > 24 ? `${item.slice(0, 24).trimEnd()}…` : item))
 }
 
 const normalizeDesignContract = (value: unknown): DesignContract => {
@@ -296,7 +275,7 @@ const buildPlanningRetryUserPrompt = (
     `- Retry now and return exactly ${totalPages} items.`,
     '- Return only a raw JSON array. Do not wrap it in Markdown. Do not add explanations.',
     '- Each item must have exactly these fields: title, keyPoints, layoutIntent.',
-    '- keyPoints must be an array with 1-6 short strings.'
+    '- keyPoints must be an array with 1-10 short strings.'
   ].join('\n')
 
 const buildDesignContractRetryUserPrompt = (userPrompt: string, previousError: string): string =>
@@ -559,7 +538,7 @@ export const planNewPage = async (args: {
   )
   const systemPrompt = [
     'You are a PPT slide planner. The user wants to add ONE new slide to an existing deck.',
-    'Generate a title, concise key points (1-4 items), and a layout intent for this single slide.',
+    'Generate a title, concise key points (1-10 items), and a layout intent for this single slide.',
     '',
     CONTENT_LANGUAGE_RULES,
     '',
@@ -589,7 +568,7 @@ export const planNewPage = async (args: {
     '',
     'Return only a JSON object with exactly these fields: title, keyPoints, layoutIntent.',
     'Do not add explanations, Markdown, or extra text.',
-    'keyPoints must contain 1-4 short phrases.'
+    'keyPoints must contain 1-10 short phrases. If the user explicitly lists topics for this slide, preserve each listed topic as a separate key point when possible.'
   ]
     .filter(Boolean)
     .join('\n')

@@ -28,6 +28,7 @@ interface ThinkingStore {
   createWorkspace: () => Promise<string>
   loadWorkspace: (thinkingId: string) => Promise<void>
   loadLatestWorkspace: () => Promise<string | null>
+  refreshWorkspace: (thinkingId?: string) => Promise<boolean>
   updatePageOutline: (page: ThinkingPageOutlineUpdate) => Promise<void>
   addMessage: (message: ThinkingChatMessage) => void
   sendMessage: (content: string, attachments?: ThinkingSource[], modelConfigId?: string) => void
@@ -100,6 +101,7 @@ function ensureThinkingStreamListeners(
       contextMd: payload.contextMd,
       stage: payload.stage
     })
+    void get().refreshWorkspace(payload.thinkingId)
 
     const fullText = payload.reply.trim()
     if (!fullText || hasAssistantReply(get().messages, fullText)) {
@@ -150,6 +152,7 @@ export const useThinkingStore = create<ThinkingStore>((set, get) => {
     error: null,
 
     createWorkspace: async () => {
+    ensureThinkingStreamListeners(set, get)
     set({
       thinkingId: null,
       stage: 'collect',
@@ -186,6 +189,7 @@ export const useThinkingStore = create<ThinkingStore>((set, get) => {
     },
 
     loadWorkspace: async (thinkingId) => {
+    ensureThinkingStreamListeners(set, get)
     set({
       thinkingId,
       stage: 'collect',
@@ -220,6 +224,7 @@ export const useThinkingStore = create<ThinkingStore>((set, get) => {
     },
 
     loadLatestWorkspace: async () => {
+    ensureThinkingStreamListeners(set, get)
     try {
       const result = await ipc.thinkingGetLatestWorkspace()
       if (!result) return null
@@ -238,6 +243,37 @@ export const useThinkingStore = create<ThinkingStore>((set, get) => {
     } catch {
       return null
     }
+    },
+
+    refreshWorkspace: async (thinkingId) => {
+    const activeThinkingId = thinkingId || get().thinkingId
+    if (!activeThinkingId) return false
+
+    const workspace = await ipc.thinkingGetWorkspace(activeThinkingId)
+    const current = get()
+    if (current.thinkingId !== activeThinkingId || workspace.thinkingId !== activeThinkingId) {
+      return false
+    }
+
+    const sourcesChanged = JSON.stringify(current.sources) !== JSON.stringify(workspace.sources)
+    const messagesChanged =
+      !current.loading && JSON.stringify(current.messages) !== JSON.stringify(workspace.messages)
+    const changed =
+      current.thinkingMd !== workspace.thinkingMd ||
+      current.contextMd !== workspace.contextMd ||
+      current.stage !== workspace.stage ||
+      sourcesChanged ||
+      messagesChanged
+
+    set({
+      thinkingMd: workspace.thinkingMd,
+      contextMd: workspace.contextMd,
+      stage: workspace.stage,
+      sources: workspace.sources,
+      ...(current.loading ? {} : { messages: workspace.messages })
+    })
+
+    return changed
     },
 
     updatePageOutline: async (page) => {
