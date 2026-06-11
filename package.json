@@ -1,6 +1,6 @@
 {
   "name": "oh-my-ppt",
-  "version": "2.0.15",
+  "version": "2.0.16",
   "description": "Oh My PPT - Local-first AI presentation workbench",
   "main": "./out/main/index.js",
   "author": "arcsin1",
