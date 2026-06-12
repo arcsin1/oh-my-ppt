@@ -1,10 +1,10 @@
 (function initPptRuntime(global) {
   if (!global || typeof global !== "object") return;
-  // @ohmyppt-ppt-runtime:arcsin1:v2.0.16
+  // @ohmyppt-ppt-runtime:arcsin1:v2.0.17
 
   var ppt = global.PPT && typeof global.PPT === "object" ? global.PPT : (global.PPT = {});
-  if (ppt.__runtimeVersion === "2.0.16") return;
-  ppt.__runtimeVersion = "2.0.16";
+  if (ppt.__runtimeVersion === "2.0.17") return;
+  ppt.__runtimeVersion = "2.0.17";
 
   function resolveSearchParams() {
     try {
@@ -461,6 +461,208 @@
 
   var _activeAnimations = new Set();
 
+  function resolveGsap() {
+    return global.gsap;
+  }
+
+  function translateAnimKey(animeKey, value) {
+    var gsapKey = null;
+    var gsapValue = value;
+    switch (animeKey) {
+      case "translateX":
+        gsapKey = "x";
+        break;
+      case "translateY":
+        gsapKey = "y";
+        break;
+      case "translateZ":
+        gsapKey = "z";
+        break;
+      case "scaleX":
+      case "scaleY":
+      case "scale":
+        gsapKey = animeKey;
+        break;
+      case "rotate":
+      case "rotateX":
+      case "rotateY":
+      case "rotateZ":
+        gsapKey = animeKey === "rotate" ? "rotation" : animeKey;
+        if (typeof gsapValue === "number") gsapValue = gsapValue;
+        else gsapValue = parseFloat(gsapValue) || 0;
+        break;
+      case "opacity":
+        gsapKey = animeKey;
+        break;
+      case "clipPath":
+        gsapKey = "clipPath";
+        break;
+      default:
+        return null;
+    }
+    return { key: gsapKey, value: gsapValue };
+  }
+
+  function mapEasingToGsap(easingName) {
+    var name = String(easingName || "easeOutCubic").trim();
+    switch (name) {
+      case "none":
+      case "linear": return "none";
+      case "easeInQuad": return "power1.in";
+      case "easeOutQuad": return "power1.out";
+      case "easeInOutQuad": return "power1.inOut";
+      case "easeInCubic": return "power2.in";
+      case "easeOutCubic": return "power2.out";
+      case "easeInOutCubic": return "power2.inOut";
+      case "easeInQuart": return "power3.in";
+      case "easeOutQuart": return "power3.out";
+      case "easeInOutQuart": return "power3.inOut";
+      case "easeInQuint": return "power4.in";
+      case "easeOutQuint": return "power4.out";
+      case "easeInOutQuint": return "power4.inOut";
+      case "easeInSine": return "sine.in";
+      case "easeOutSine": return "sine.out";
+      case "easeInOutSine": return "sine.inOut";
+      case "easeInExpo": return "expo.in";
+      case "easeOutExpo": return "expo.out";
+      case "easeInOutExpo": return "expo.inOut";
+      case "easeInCirc": return "circ.in";
+      case "easeOutCirc": return "circ.out";
+      case "easeInOutCirc": return "circ.inOut";
+      case "easeInBack": return "back.in";
+      case "easeOutBack": return "back.out";
+      case "easeInOutBack": return "back.inOut";
+      case "easeInElastic": return "elastic.in";
+      case "easeOutElastic": return "elastic.out";
+      case "easeInOutElastic": return "elastic.inOut";
+      case "easeInBounce": return "bounce.in";
+      case "easeOutBounce": return "bounce.out";
+      case "easeInOutBounce": return "bounce.inOut";
+      default:
+        if (/^(?:power[1-4]|back|elastic|bounce|sine|expo|circ)\.(?:in|out|inOut)$/.test(name)) return name;
+        return "power2.out";
+    }
+  }
+
+  function buildGsapVarsFromPptParams(params) {
+    var fromVars = {};
+    var toVars = {};
+
+    // duration/delay in the PPT API are milliseconds; GSAP uses seconds.
+    if (params.duration) {
+      var duration = Number(params.duration);
+      if (Number.isFinite(duration)) toVars.duration = duration / 1000;
+    }
+    if (params.delay) {
+      if (typeof params.delay === "function") {
+        toVars.delay = params.delay;
+      } else {
+        var delay = Number(params.delay);
+        if (Number.isFinite(delay)) toVars.delay = delay / 1000;
+      }
+    }
+
+    if (params.easing || params.ease) {
+      toVars.ease = mapEasingToGsap(params.easing || params.ease);
+    }
+
+    if (params.loop === true) {
+      toVars.repeat = -1;
+    } else if (typeof params.loop === "number" && params.loop > 0) {
+      toVars.repeat = params.loop;
+    }
+
+    if (params.alternate) toVars.yoyo = true;
+
+    Object.keys(params).forEach(function (key) {
+      var value = params[key];
+      if (key === "targets" || key === "duration" || key === "easing" || key === "ease" ||
+          key === "delay" || key === "begin" || key === "complete" ||
+          key === "loop" || key === "alternate" || key === "reversed" ||
+          key === "keyframes" || key === "direction") return;
+
+      if (Array.isArray(value) && value.length >= 3 && value[0] === value[value.length - 1]) {
+        var looped = translateAnimKey(key);
+        if (looped) {
+          fromVars[looped.key] = value[0];
+          toVars[looped.key] = value[1];
+          if (toVars.repeat === undefined) toVars.repeat = 1;
+          if (toVars.yoyo === undefined) toVars.yoyo = true;
+        }
+      } else if (Array.isArray(value) && value.length >= 2) {
+        var translated = translateAnimKey(key);
+        if (translated) {
+          fromVars[translated.key] = value[0];
+          toVars[translated.key] = value[1];
+        }
+      } else if (typeof value === "number" || typeof value === "string") {
+        var single = translateAnimKey(key);
+        if (single) {
+          toVars[single.key] = value;
+        }
+      }
+    });
+
+    return { fromVars: fromVars, toVars: toVars };
+  }
+
+  function trackActiveGsapTween(tween) {
+    if (!tween) return tween;
+    trackPrintTask(tween);
+    _activeAnimations.add(tween);
+    if (typeof tween.then === "function") {
+      tween.then(function () { _activeAnimations.delete(tween); }, function () { _activeAnimations.delete(tween); });
+    }
+    return tween;
+  }
+
+  function isGsapExitOpacityTween(vars) {
+    return vars && vars.fromVars && vars.toVars &&
+      vars.fromVars.opacity === 1 && vars.toVars.opacity === 0;
+  }
+
+  function addGsapTweenToTimeline(timeline, gsapInst, targets, vars, position) {
+    if (isGsapExitOpacityTween(vars)) {
+      if (timeline && typeof timeline.to === "function") {
+        timeline.to(targets, vars.toVars, position);
+        return;
+      }
+      var exitTween = gsapInst.to(targets, vars.toVars);
+      trackActiveGsapTween(exitTween);
+      if (timeline && typeof timeline.add === "function") timeline.add(exitTween, position);
+      return;
+    }
+
+    if (timeline && typeof timeline.fromTo === "function") {
+      timeline.fromTo(targets, vars.fromVars, vars.toVars, position);
+      return;
+    }
+
+    var tween = gsapInst.fromTo(targets, vars.fromVars, vars.toVars);
+    trackActiveGsapTween(tween);
+    if (timeline && typeof timeline.add === "function") timeline.add(tween, position);
+  }
+
+  function animateWithGsap(gsapInst, args) {
+    var targets = args[0];
+    var params = args[1];
+    if (!targets || !params || typeof params !== "object") return createCompletedAnimationStub();
+
+    var vars = buildGsapVarsFromPptParams(params);
+    var fromVars = vars.fromVars;
+    var toVars = vars.toVars;
+
+    var tween;
+    // For exit animations where opacity goes 1→0, use gsap.to
+    if (isGsapExitOpacityTween(vars)) {
+      tween = gsapInst.to(targets, toVars);
+    } else {
+      tween = gsapInst.fromTo(targets, fromVars, toVars);
+    }
+
+    return trackActiveGsapTween(tween);
+  }
+
   ppt.animate = function () {
     var args = Array.prototype.slice.call(arguments);
     if (isPrintMode) {
@@ -474,6 +676,13 @@
       return createCompletedAnimationStub();
     }
 
+    // Prefer GSAP as primary animation engine
+    var gsapInst = resolveGsap();
+    if (gsapInst && typeof gsapInst.fromTo === "function") {
+      return animateWithGsap(gsapInst, args);
+    }
+
+    // Fallback to anime.js
     var runtimeAnime = resolveAnime();
     var animation = null;
     if (runtimeAnime && typeof runtimeAnime.animate === "function") {
@@ -481,7 +690,7 @@
     } else if (typeof runtimeAnime === "function") {
       animation = runtimeAnime.apply(null, args);
     } else {
-      throw new Error("anime.js v4 未就绪，无法执行 PPT.animate");
+      throw new Error("GSAP 或 anime.js v4 未就绪，无法执行 PPT.animate");
     }
     if (animation && animation.finished && typeof animation.finished.then === "function") {
       trackPrintTask(animation.finished);
@@ -500,8 +709,23 @@
   };
 
   ppt.stagger = function () {
-    var runtimeAnime = resolveAnime();
+    var gsapInst = resolveGsap();
     var args = Array.prototype.slice.call(arguments);
+    // GSAP timeline stagger is natively handled via gsap.utils.stagger
+    if (gsapInst && typeof gsapInst.utils === "object" && typeof gsapInst.utils.stagger === "function") {
+      var gapMs = Number(args[0] || 0);
+      var normalizedArgs = [Number.isFinite(gapMs) ? gapMs / 1000 : 0];
+      if (args[1] && typeof args[1] === "object") {
+        var options = Object.assign({}, args[1]);
+        if (options.start !== undefined) {
+          var startMs = Number(options.start);
+          if (Number.isFinite(startMs)) options.start = startMs / 1000;
+        }
+        normalizedArgs.push(options);
+      }
+      return gsapInst.utils.stagger.apply(gsapInst.utils, normalizedArgs);
+    }
+    var runtimeAnime = resolveAnime();
     if (runtimeAnime && typeof runtimeAnime.stagger === "function") {
       return runtimeAnime.stagger.apply(runtimeAnime, args);
     }
@@ -509,8 +733,41 @@
   };
 
   ppt.createTimeline = function () {
-    var runtimeAnime = resolveAnime();
+    var gsapInst = resolveGsap();
     var args = Array.prototype.slice.call(arguments);
+    if (gsapInst && typeof gsapInst.timeline === "function") {
+      var timeline = gsapInst.timeline.apply(gsapInst, args);
+      trackActiveGsapTween(timeline);
+      return {
+        add: function (params, position) {
+          if (!params || typeof params !== "object") {
+            if (timeline && typeof timeline.add === "function") timeline.add(params, position);
+            return this;
+          }
+          var targets = params.targets;
+          if (!targets) return this;
+          var tweenParams = Object.assign({}, params);
+          delete tweenParams.targets;
+          var vars = buildGsapVarsFromPptParams(tweenParams);
+          addGsapTweenToTimeline(timeline, gsapInst, targets, vars, position);
+          return this;
+        },
+        play: function () {
+          if (timeline && typeof timeline.play === "function") timeline.play.apply(timeline, arguments);
+          return this;
+        },
+        pause: function () {
+          if (timeline && typeof timeline.pause === "function") timeline.pause.apply(timeline, arguments);
+          return this;
+        },
+        restart: function () {
+          if (timeline && typeof timeline.restart === "function") timeline.restart.apply(timeline, arguments);
+          return this;
+        },
+        raw: timeline
+      };
+    }
+    var runtimeAnime = resolveAnime();
     if (runtimeAnime && typeof runtimeAnime.createTimeline === "function") {
       return runtimeAnime.createTimeline.apply(runtimeAnime, args);
     }
@@ -521,20 +778,39 @@
   };
 
   ppt.stopAnimations = function () {
+    var gsapInst = resolveGsap();
+    if (gsapInst && typeof gsapInst.globalTimeline === "object") {
+      try { gsapInst.globalTimeline.pause(); } catch (_err) {}
+    }
     _activeAnimations.forEach(function (anim) {
       try { if (typeof anim.pause === "function") anim.pause(); } catch (_err) {}
     });
   };
 
   ppt.finishAnimations = function () {
+    var gsapInst = resolveGsap();
+    if (gsapInst && typeof gsapInst.globalTimeline === "object") {
+      try { gsapInst.globalTimeline.progress(1); } catch (_err) {}
+    }
     _activeAnimations.forEach(function (anim) {
       try {
         if (typeof anim.complete === "function") {
           anim.complete();
           return;
         }
-        if (typeof anim.seek === "function" && Number.isFinite(Number(anim.duration))) {
-          anim.seek(Number(anim.duration));
+        if (typeof anim.totalProgress === "function") {
+          anim.totalProgress(1);
+          if (typeof anim.pause === "function") anim.pause();
+          return;
+        }
+        if (typeof anim.progress === "function") {
+          anim.progress(1);
+          if (typeof anim.pause === "function") anim.pause();
+          return;
+        }
+        var duration = typeof anim.duration === "function" ? Number(anim.duration()) : Number(anim.duration);
+        if (typeof anim.seek === "function" && Number.isFinite(duration)) {
+          anim.seek(duration);
         }
         if (typeof anim.pause === "function") anim.pause();
       } catch (_err) {}
@@ -542,6 +818,10 @@
   };
 
   ppt.resumeAnimations = function () {
+    var gsapInst = resolveGsap();
+    if (gsapInst && typeof gsapInst.globalTimeline === "object") {
+      try { gsapInst.globalTimeline.play(); } catch (_err) {}
+    }
     _activeAnimations.forEach(function (anim) {
       try { if (typeof anim.play === "function") anim.play(); } catch (_err) {}
     });
@@ -796,7 +1076,9 @@
     "fade-right": true,
     "scale-in": true,
     "slide-up": true,
+    "slide-down": true,
     "slide-left": true,
+    "slide-right": true,
     "fly-in": true,
     "wipe": true,
     "zoom-in": true,
@@ -804,6 +1086,7 @@
     "grow-shrink": true,
     "pulse": true,
     "exit-fade": true,
+    "exit-wipe": true,
     "exit-fly": true,
     "path": true,
     "lottie": true
@@ -817,7 +1100,9 @@
     "fade-right": true,
     "scale-in": true,
     "slide-up": true,
+    "slide-down": true,
     "slide-left": true,
+    "slide-right": true,
     "fly-in": true,
     "wipe": true,
     "zoom-in": true,
@@ -832,7 +1117,9 @@
     "fade-right": { opacity: "0", transform: "translateX(-20px)" },
     "scale-in":   { opacity: "0", transform: "scale(0.85)" },
     "slide-up":   { opacity: "0", transform: "translateY(40px)" },
+    "slide-down": { opacity: "0", transform: "translateY(-40px)" },
     "slide-left": { opacity: "0", transform: "translateX(40px)" },
+    "slide-right": { opacity: "0", transform: "translateX(-40px)" },
     "zoom-in":    { opacity: "0", transform: "scale(0.75)" },
     "spin-in":    { opacity: "0", transform: "rotate(-12deg) scale(0.92)" }
   };
@@ -860,6 +1147,14 @@
     return "load";
   }
 
+  function normalizeAnimSequence(sequence) {
+    var normalized = String(sequence || "").trim().toLowerCase();
+    if (normalized === "after-previous") return "after";
+    if (normalized === "with-previous") return "with";
+    if (normalized === "with" || normalized === "after") return normalized;
+    return "";
+  }
+
   function normalizeAnimSide(side, fallback) {
     var normalized = String(side || fallback || "bottom").trim().toLowerCase();
     if (normalized === "up" || normalized === "top") return "top";
@@ -876,11 +1171,16 @@
       case "slide-up":
         return "bottom";
       case "fade-down":
+      case "slide-down":
         return "top";
       case "fade-left":
       case "slide-left":
         return "right";
       case "fade-right":
+      case "slide-right":
+        return "left";
+      case "wipe":
+      case "exit-wipe":
         return "left";
       default:
         return "bottom";
@@ -1005,14 +1305,22 @@
 
       var trigger = normalizeAnimTrigger(el.getAttribute("data-anim-trigger") || "load");
       var effectiveTrigger = trigger === "click" ? "click" : "load";
+      var sequence = normalizeAnimSequence(el.getAttribute("data-anim-sequence") || "");
       var from = normalizeAnimSide(el.getAttribute("data-anim-from"), defaultAnimSideForType(type));
       var duration = Number(el.getAttribute("data-anim-duration")) || 500;
       var easing = (el.getAttribute("data-anim-easing") || "easeOutCubic").trim();
       var delayRaw = (el.getAttribute("data-anim-delay") || "0").trim();
+      var staggerAttr = (el.getAttribute("data-anim-stagger") || "").trim();
       var delay = 0;
       var boundedDuration = Math.max(100, Math.min(5000, duration));
 
-      if (delayRaw.indexOf("stagger") === 0) {
+      if (staggerAttr) {
+        var gap = Number(staggerAttr) || 50;
+        var groupKey = effectiveTrigger;
+        if (staggerCounters[groupKey] === undefined) staggerCounters[groupKey] = 0;
+        delay = staggerCounters[groupKey] * gap;
+        staggerCounters[groupKey] += 1;
+      } else if (delayRaw.indexOf("stagger") === 0) {
         var match = delayRaw.match(/stagger\s*\(\s*(\d+)\s*\)/);
         var gap = match ? Number(match[1]) : 50;
         var groupKey = effectiveTrigger;
@@ -1023,12 +1331,14 @@
         delay = Number(delayRaw) || 0;
       }
 
+      var sequencingMode = effectiveTrigger === "load" ? (sequence || trigger) : trigger;
+
       if (effectiveTrigger === "load") {
-        if (trigger === "after") {
+        if (sequencingMode === "after") {
           delay += lastSequenceEnd;
           lastSequenceStart = delay;
           lastSequenceEnd = Math.max(lastSequenceEnd, delay + boundedDuration);
-        } else if (trigger === "with") {
+        } else if (sequencingMode === "with") {
           delay += lastSequenceStart;
           lastSequenceEnd = Math.max(lastSequenceEnd, delay + boundedDuration);
         } else {
@@ -1052,6 +1362,8 @@
         duration: boundedDuration,
         easing: easing,
         delay: delay,
+        sequence: effectiveTrigger === "load" && sequence ? sequence : undefined,
+        stagger: staggerAttr ? Math.max(1, Number(staggerAttr) || 50) : undefined,
         repeat: normalizeAnimRepeat(el.getAttribute("data-anim-repeat")),
         direction: (el.getAttribute("data-anim-direction") || "normal").trim().toLowerCase(),
         path: (el.getAttribute("data-anim-path") || "").trim(),
@@ -1126,9 +1438,17 @@
           params.opacity = [0, 1];
           params.translateY = [40, 0];
           break;
+        case "slide-down":
+          params.opacity = [0, 1];
+          params.translateY = [-40, 0];
+          break;
         case "slide-left":
           params.opacity = [0, 1];
           params.translateX = [40, 0];
+          break;
+        case "slide-right":
+          params.opacity = [0, 1];
+          params.translateX = [-40, 0];
           break;
         case "fly-in": {
           var fly = getSideOffset(animDef.from, 40);
@@ -1163,6 +1483,10 @@
           break;
         case "exit-fade":
           params.opacity = [1, 0];
+          break;
+        case "exit-wipe":
+          params.opacity = [1, 0];
+          params.clipPath = [getWipeClipPath(animDef.from, true), getWipeClipPath(animDef.from, false)];
           break;
         case "exit-fly": {
           var exitFly = getSideOffset(animDef.from, 40);

@@ -2,28 +2,31 @@
 
 Deep-dive into how data-anim works, timing internals, trigger mechanics, scripted animation patterns, and composition examples.
 
-## How data-anim maps to anime.js
+## How data-anim maps to runtime motion
 
-Each `data-anim` type generates specific anime.js parameters:
+Each `data-anim` type generates a normalized motion description. The runtime executes it through the internal `PPT.*` bridge:
 
-| data-anim | Effect | anime.js params |
+| data-anim | Effect | Runtime from → to values |
 |---|---|---|
-| `fade` | Simple opacity transition | `opacity: [0, 1]` |
-| `fade-up` | Fade + slide up 20px | `opacity: [0, 1]`, `translateY: [20, 0]` |
-| `fade-down` | Fade + slide down 20px | `opacity: [0, 1]`, `translateY: [-20, 0]` |
-| `fade-left` | Fade + slide from right 20px | `opacity: [0, 1]`, `translateX: [20, 0]` |
-| `fade-right` | Fade + slide from left 20px | `opacity: [0, 1]`, `translateX: [-20, 0]` |
-| `scale-in` | Fade + scale from 85% | `opacity: [0, 1]`, `scale: [0.85, 1]` |
-| `slide-up` | Larger slide up 40px | `opacity: [0, 1]`, `translateY: [40, 0]` |
-| `slide-left` | Larger slide from right 40px | `opacity: [0, 1]`, `translateX: [40, 0]` |
-| `fly-in` | Directional entrance, 40px | `opacity: [0, 1]` + translateX/Y based on `from` |
-| `wipe` | Clip-path reveal | `opacity: [0, 1]`, `clipPath: [hidden, 'inset(0%)']` |
-| `zoom-in` | Dramatic scale from 75% | `opacity: [0, 1]`, `scale: [0.75, 1]` |
-| `spin-in` | Rotate + scale | `opacity: [0, 1]`, `rotate: [-12, 0]`, `scale: [0.92, 1]` |
-| `grow-shrink` | Emphasis pulse (no fade) | `scale: [0.9, 1.08, 1]` |
-| `pulse` | Subtle emphasis (no fade) | `scale: [1, 1.06, 1]` |
-| `exit-fade` | Fade out | `opacity: [1, 0]` |
-| `exit-fly` | Fly out in direction | `opacity: [1, 0]` + translate out based on `from` |
+| `fade` | Simple opacity transition | `opacity: 0 → 1` |
+| `fade-up` | Fade + slide up 20px | `opacity: 0 → 1`, `y: 20 → 0` |
+| `fade-down` | Fade + slide down 20px | `opacity: 0 → 1`, `y: -20 → 0` |
+| `fade-left` | Fade + slide from right 20px | `opacity: 0 → 1`, `x: 20 → 0` |
+| `fade-right` | Fade + slide from left 20px | `opacity: 0 → 1`, `x: -20 → 0` |
+| `scale-in` | Fade + scale from 85% | `opacity: 0 → 1`, `scale: 0.85 → 1` |
+| `slide-up` | Larger slide up 40px | `opacity: 0 → 1`, `y: 40 → 0` |
+| `slide-down` | Larger slide down 40px | `opacity: 0 → 1`, `y: -40 → 0` |
+| `slide-left` | Larger slide from right 40px | `opacity: 0 → 1`, `x: 40 → 0` |
+| `slide-right` | Larger slide from left 40px | `opacity: 0 → 1`, `x: -40 → 0` |
+| `fly-in` | Directional entrance, 40px | `opacity: 0 → 1` + x/y based on `from` |
+| `wipe` | Clip-path reveal | `opacity: 0 → 1`, clip-path animated |
+| `zoom-in` | Dramatic scale from 75% | `opacity: 0 → 1`, `scale: 0.75 → 1` |
+| `spin-in` | Rotate + scale | `opacity: 0 → 1`, `rotation: -12 → 0`, `scale: 0.92 → 1` |
+| `grow-shrink` | Emphasis pulse (no fade) | `scale: 0.9 → 1.08`, yoyo, repeat:1 |
+| `pulse` | Subtle emphasis (no fade) | `scale: 1 → 1.06`, yoyo, repeat:1 |
+| `exit-fade` | Fade out | `opacity: 1 → 0` |
+| `exit-wipe` | Directional wipe out | `opacity: 1 → 0`, clip-path concealed by `from` |
+| `exit-fly` | Fly out in direction | `opacity: 1 → 0` + x/y out based on `from` |
 | `path` | Motion along SVG path | translateX/Y derived from path delta |
 
 ## Attribute defaults and ranges
@@ -31,16 +34,26 @@ Each `data-anim` type generates specific anime.js parameters:
 | Attribute | Default | Range / Notes |
 |---|---|---|
 | `data-anim-trigger` | `load` | `load`, `with`, `after`, `click` |
+| `data-anim-sequence` | unset | `with`, `after`. Preferred load-order control for new content. |
 | `data-anim-duration` | 500ms | Clamped to 100–5000ms. Prefer 300–1200ms |
 | `data-anim-delay` | 0 | Milliseconds, or `stagger(N)` |
-| `data-anim-easing` | `easeOutCubic` | Any anime.js easing string |
+| `data-anim-stagger` | unset | Millisecond gap. Preferred over `stagger(N)` for new content. |
+| `data-anim-easing` | `easeOutCubic` | Prefer GSAP-compatible names: `power2.out`, `power3.out`, `back.out`, etc. Legacy anime.js names are translated. |
 | `data-anim-from` | Type-dependent | `left`, `right`, `top`, `bottom`, `center` |
 | `data-anim-repeat` | None | Number (max 20) or `infinite` |
 | `data-anim-direction` | `normal` | `normal`, `reverse`, `alternate` |
 
+## Fidelity-aware defaults
+
+- **Best editable/export fidelity**: `fade`, `fade-up`, `fade-down`, `fade-left`, `fade-right`, `scale-in`, `wipe`, `exit-fade`
+- **Stable but approximate**: `slide-up`, `slide-down`, `slide-left`, `slide-right`, `fly-in`, `exit-wipe`
+- **Supported but weaker roundtrip fidelity**: `zoom-in`, `spin-in`, `grow-shrink`, `pulse`, `path`
+
+When the user does not ask for a specific effect, prefer the first group. Use the second group when direction itself is part of the message. Use the third group only when the semantic trade-off is acceptable.
+
 ## How stagger() works
 
-`stagger(N)` uses per-trigger-group counters. Within the same trigger group (all `load` elements share one counter, all `click` elements share another):
+`stagger(N)` and `data-anim-stagger="N"` both use per-trigger-group counters. Within the same trigger group (all `load` elements share one counter, all `click` elements share another):
 
 - 1st element with `stagger(100)` → delay = 0
 - 2nd element with `stagger(100)` → delay = 100
@@ -56,6 +69,14 @@ This creates a cascade without needing to manually specify each delay.
 <!-- delay: 120 -->
 <div data-anim="fade-up" data-anim-delay="stagger(120)">Card C</div>
 <!-- delay: 240 -->
+```
+
+Preferred new syntax:
+
+```html
+<div data-anim="fade-up" data-anim-stagger="120">Card A</div>
+<div data-anim="fade-up" data-anim-stagger="120">Card B</div>
+<div data-anim="fade-up" data-anim-stagger="120">Card C</div>
 ```
 
 Good stagger values:
@@ -103,6 +124,14 @@ Starts after the previous animation finishes (previous delay + duration). Use fo
 
 The runtime tracks `lastSequenceEnd` internally. Each `after` element's effective delay = previous element's delay + duration.
 
+For new content, prefer `data-anim-sequence="with|after"` and keep `data-anim-trigger` focused on actual trigger semantics:
+
+```html
+<div data-anim="fade-up">Step 1: Identify</div>
+<div data-anim="fade" data-anim-sequence="with" data-anim-delay="80">Supporting note</div>
+<div data-anim="fade-up" data-anim-sequence="after">Step 2: Analyze</div>
+```
+
 ### click
 
 Waits for the user to click/press. The runtime maintains a click state machine — each click advances to the next animation.
@@ -119,8 +148,8 @@ Click is for explicit presentation control. Do not use click for timelines, proc
 The runtime handles hidden states automatically. Here's how:
 
 - **load/with/after triggers**: no hidden state applied. The element animates from the `[from, to]` values directly.
-- **click-triggered entrance animations** (fade, fade-up, slide-up, zoom-in, etc.): the runtime sets `opacity: 0` and an appropriate `transform` inline, then marks the element with `data-ppt-anim-initialized="1"`.
-- **click-triggered emphasis/exit animations** (pulse, grow-shrink, exit-fade): no hidden state — the element is already visible.
+- **click-triggered entrance animations** (fade, fade-up, slide-up, slide-down, slide-left, slide-right, zoom-in, etc.): the runtime sets `opacity: 0` and an appropriate `transform` inline, then marks the element with `data-ppt-anim-initialized="1"`.
+- **click-triggered emphasis/exit animations** (pulse, grow-shrink, exit-fade, exit-wipe, exit-fly): no hidden state — the element is already visible.
 
 Do not manually set `opacity: 0`, `visibility: hidden`, `display: none`, or inline `opacity:0` on animated elements. The runtime handles this, and manual hidden states conflict with the animation system.
 
@@ -133,6 +162,7 @@ Do not manually set `opacity: 0`, `visibility: hidden`, `display: none`, or inli
 | Subtle fade-in | `fade` | For text blocks, annotations |
 | Standard card entrance | `fade-up` | Default choice for most elements |
 | Directional emphasis | `fly-in` + `from` | Metrics flying in from the side |
+| Strong directional entrance | `slide-down` / `slide-right` | When fade-up/left is too subtle but wipe is too hard-edged |
 | Dramatic hero reveal | `zoom-in` | Key numbers, hero images |
 | Slide-in bar | `wipe` + `from` | Progress bars, timeline segments |
 | Playful entrance | `spin-in` | Use sparingly for emphasis |
@@ -149,6 +179,7 @@ Do not manually set `opacity: 0`, `visibility: hidden`, `display: none`, or inli
 | Goal | Type | Notes |
 |---|---|---|
 | Simple fade-out | `exit-fade` | Replacing content |
+| Directional wipe-out | `exit-wipe` + `from` | Remove banners, process bars, transient callouts |
 | Fly off screen | `exit-fly` + `from` | Dramatic exits |
 
 ## Composition patterns
@@ -226,7 +257,7 @@ Do not manually set `opacity: 0`, `visibility: hidden`, `display: none`, or inli
 
 ## Scripted animation escape hatch
 
-Use `PPT.animate(targets, params)` only when `data-anim` cannot express the motion — complex timelines, synchronized choreography, or custom easing curves.
+Use `PPT.animate(targets, params)` only when `data-anim` cannot express the motion — complex timelines, synchronized choreography, or custom easing curves. PPT.animate delegates to the internal GSAP bridge for high-performance tweening.
 
 ```js
 // Staggered card entrance with custom curve
@@ -235,7 +266,7 @@ PPT.animate(".metric-card", {
   translateY: [30, 0],
   duration: 500,
   delay: PPT.stagger(100),
-  easing: 'easeOutCubic'
+  easing: 'power2.out'
 })
 ```
 
@@ -243,22 +274,24 @@ PPT.animate(".metric-card", {
 
 | | data-anim | PPT.animate |
 |---|---|---|
-| Export to PPTX | Yes, deterministic | Partial |
+| Export to PPTX | Yes, deterministic and editable | Partial, preview-first |
 | Syntax | HTML attributes | JavaScript |
+| Runtime engine | Internal PPT bridge | Internal PPT bridge |
 | Best for | Standard entrance/emphasis/exit | Complex timelines, synchronized groups |
 | Initial state | Managed automatically | Managed automatically |
+
+If editable PPTX roundtrip matters, treat `PPT.animate(...)` and `PPT.createTimeline(...)` as fallback-only authoring paths. The native PPTX pipeline only guarantees stable semantic roundtrip for `data-anim`.
 
 ### Timeline for multi-step choreography
 
 ```js
-var tl = PPT.createTimeline(".step-card", {
-  opacity: [0, 1],
-  duration: 400
-})
-tl.add({ targets: ".step-1", translateY: [20, 0] }, 0)
-tl.add({ targets: ".step-2", translateY: [20, 0] }, 200)
-tl.add({ targets: ".step-3", translateY: [20, 0] }, 400)
+var tl = PPT.createTimeline()
+tl.add({ targets: ".step-1", opacity: [0, 1], translateY: [20, 0], duration: 400 })
+tl.add({ targets: ".step-2", opacity: [0, 1], translateY: [20, 0] }, "+=0.2")
+tl.add({ targets: ".step-3", opacity: [0, 1], translateY: [20, 0] }, "+=0.2")
 ```
+
+Do not call `gsap.timeline()` directly. `PPT.createTimeline().add(...)` accepts the Oh My PPT `{ targets, ...params }` shape and delegates to the internal runtime bridge.
 
 ### Scripted stagger
 
@@ -270,20 +303,24 @@ PPT.animate(".card", {
 })
 ```
 
-`PPT.stagger(ms)` is a passthrough to `anime.stagger()` when available, with a built-in fallback.
+`PPT.stagger(ms)` delegates through the internal runtime bridge and keeps millisecond-based PPT API semantics.
 
 ## Easing selection guide
 
-| Easing | Feel | Best for |
-|---|---|---|
-| `easeOutCubic` (default) | Smooth deceleration | Most entrance animations |
-| `easeOutQuad` | Gentle deceleration | Subtle fades, text |
-| `easeInOutQuad` | Smooth start and end | Movement across distance |
-| `easeOutExpo` | Snappy stop | Dramatic entrances, hero numbers |
-| `spring` | Natural bounce | Playful, emphasis |
+GSAP easing names use the format `{curve}.{type}` (e.g., `power2.out`, `back.inOut`). Legacy anime.js names (`easeOutCubic`, `easeInOutQuad`) are translated automatically.
+
+| Easing | GSAP Name | Feel | Best for |
+|---|---|---|---|
+| easeOutCubic | `power2.out` (default) | Smooth deceleration | Most entrance animations |
+| easeOutQuad | `power1.out` | Gentle deceleration | Subtle fades, text |
+| easeInOutQuad | `power1.inOut` | Smooth start and end | Movement across distance |
+| easeOutExpo | `power4.out` | Snappy stop | Dramatic entrances, hero numbers |
+| easeOutBack | `back.out` | Overshoot and settle | Playful, emphasis |
+| easeOutElastic | `elastic.out` | Bouncy arrival | Attention-grabbing, hero sections |
+| easeOutBounce | `bounce.out` | Gravity bounce | Fun, casual transitions |
 
 ## Print and export behavior
 
-In print mode (`?print=1`), `PPT.animate` does not run anime.js. Instead, it computes the final animated CSS values and applies them as inline styles. This ensures charts and animated elements are fully visible in screenshots and PDF exports.
+In print mode (`?print=1`), `PPT.animate` does not run the animation engine. Instead, it computes the final animated CSS values and applies them as inline styles. This ensures charts and animated elements are fully visible in screenshots and PDF exports. Any active internal runtime animations are force-completed before capture.
 
 Elements with `data-ppt-anim-initialized="1"` have their animation styles cleared when entering edit mode, so they remain visible and editable.

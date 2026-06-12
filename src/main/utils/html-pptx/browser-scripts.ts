@@ -27,6 +27,15 @@ export const FREEZE_PAGE_FOR_EXPORT_SCRIPT = `
     });
   } catch (_err) {}
 
+  // Kill GSAP animations before freezing — progress to end state so
+  // screenshots capture the final visual, not an animation midpoint.
+  try {
+    if (window.gsap) {
+      window.gsap.globalTimeline.progress(1);
+      window.gsap.killTweensOf('*');
+    }
+  } catch (_err) {}
+
   const waitFrames = (frames) =>
     new Promise((resolve) => {
       let remaining = Math.max(1, Number(frames) || 1);
@@ -503,7 +512,9 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
     'fade-right',
     'scale-in',
     'slide-up',
+    'slide-down',
     'slide-left',
+    'slide-right',
     'fly-in',
     'wipe',
     'zoom-in',
@@ -511,6 +522,7 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
     'grow-shrink',
     'pulse',
     'exit-fade',
+    'exit-wipe',
     'exit-fly',
     'path'
   ]);
@@ -536,10 +548,19 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
     if (trigger === 'with-previous') return 'with';
     return supportedTriggers.has(trigger) ? trigger : 'load';
   };
+  const normalizeSequence = (value) => {
+    const sequence = String(value || '').trim().toLowerCase();
+    if (sequence === 'after-previous') return 'after';
+    if (sequence === 'with-previous') return 'with';
+    return sequence === 'with' || sequence === 'after' ? sequence : '';
+  };
   const defaultFrom = (type) => {
     if (type === 'fade-down') return 'top';
+    if (type === 'slide-down') return 'top';
     if (type === 'fade-left' || type === 'slide-left') return 'right';
+    if (type === 'slide-right') return 'left';
     if (type === 'fade-right') return 'left';
+    if (type === 'wipe' || type === 'exit-wipe') return 'left';
     return 'bottom';
   };
   const normalizeFrom = (value, fallback) => {
@@ -555,7 +576,7 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
     const rect = el.getBoundingClientRect();
     if (rect.width < 2 || rect.height < 2) return;
     el.setAttribute('data-pptx-native-anim', '1');
-    traces.push({
+    const trace = {
       type,
       trigger,
       from,
@@ -566,7 +587,14 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
       y: Math.round(rect.top - pageRect.top),
       w: Math.round(rect.width),
       h: Math.round(rect.height)
-    });
+    };
+    // Attach blockId for precise binding in the OOXML writer.
+    var blockId = (el.getAttribute('data-block-id') || '').trim();
+    if (blockId) trace.blockId = blockId;
+    // Attach ease for roundtrip fidelity (PPTX ignores, GSAP re-import uses).
+    var ease = (el.getAttribute('data-anim-easing') || el.getAttribute('data-anim-ease') || '').trim();
+    if (ease) trace.ease = ease;
+    traces.push(trace);
   };
 
   const elements = Array.from(root.querySelectorAll('[data-anim]'));
@@ -577,11 +605,19 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
 
     const trigger = normalizeTrigger(el.getAttribute('data-anim-trigger'));
     const effectiveTrigger = trigger === 'click' ? 'click' : 'load';
+    const sequence = normalizeSequence(el.getAttribute('data-anim-sequence'));
     const from = normalizeFrom(el.getAttribute('data-anim-from'), defaultFrom(type));
     const duration = Math.max(100, Math.min(5000, Number(el.getAttribute('data-anim-duration')) || 500));
     const delayRaw = (el.getAttribute('data-anim-delay') || '0').trim();
+    const staggerAttr = (el.getAttribute('data-anim-stagger') || '').trim();
     let delay = 0;
-    if (delayRaw.indexOf('stagger') === 0) {
+    if (staggerAttr) {
+      const gap = Number(staggerAttr) || 50;
+      const key = effectiveTrigger;
+      if (staggerCounters[key] === undefined) staggerCounters[key] = 0;
+      delay = staggerCounters[key] * gap;
+      staggerCounters[key] += 1;
+    } else if (delayRaw.indexOf('stagger') === 0) {
       const match = delayRaw.match(/stagger\\s*\\(\\s*(\\d+)\\s*\\)/);
       const gap = match ? Number(match[1]) : 50;
       const key = effectiveTrigger;
@@ -592,12 +628,14 @@ export const COLLECT_PPTX_ANIMATION_TRACES_SCRIPT = `
       delay = Number(delayRaw) || 0;
     }
 
+    const sequencingMode = effectiveTrigger === 'load' ? (sequence || trigger) : trigger;
+
     if (effectiveTrigger === 'load') {
-      if (trigger === 'after') {
+      if (sequencingMode === 'after') {
         delay += lastSequenceEnd;
         lastSequenceStart = delay;
         lastSequenceEnd = Math.max(lastSequenceEnd, delay + duration);
-      } else if (trigger === 'with') {
+      } else if (sequencingMode === 'with') {
         delay += lastSequenceStart;
         lastSequenceEnd = Math.max(lastSequenceEnd, delay + duration);
       } else {

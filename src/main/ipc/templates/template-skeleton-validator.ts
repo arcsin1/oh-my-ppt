@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio'
 
 const NON_TEMPLATE_SKELETON_RESOURCE_RE =
-  /(?:^|\/)(?:(?:tailwindcss\.v3|anime\.v4|ppt-runtime|chart\.v4|katex(?:\.min)?|katex-auto-render\.min)\.(?:js|css)|assets\/fonts\/.+)(?:[?#].*)?$/i
+  /(?:^|\/)(?:(?:tailwindcss\.v3|anime\.v4|gsap\.min|ppt-runtime|chart\.v4|katex(?:\.min)?|katex-auto-render\.min)\.(?:js|css)|assets\/fonts\/.+)(?:[?#].*)?$/i
 const SKELETON_HINT_RE =
   /\b(?:bg-|background|decor|decoration|texture|mask|overlay|ornament|pattern|backdrop)\b/i
 

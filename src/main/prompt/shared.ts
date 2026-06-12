@@ -1,5 +1,10 @@
 import { loadStyleSkill } from '../utils/style-skills'
 import { formatLayoutIntentPrompt } from '@shared/layout-intent'
+import {
+  DATA_ANIM_DIRECTIONAL_EMPHASIS_TYPES,
+  DATA_ANIM_EXPORT_STABLE_TYPES,
+  DATA_ANIM_WEAKER_ROUNDTRIP_TYPES
+} from '../animation/data-anim-schema'
 import type { DesignContract, SessionDeckGenerationContext } from '../tools/types'
 import {
   CHART_SKILL_NAME,
@@ -88,7 +93,7 @@ export const LAYOUT_COLLISION_RULES = [
 export const FRONTEND_CAPABILITIES = [
   '## Runtime capability contract',
   'Available in every /<pageId>.html:',
-  '- Tailwind CSS, anime.js, Chart.js, ppt-runtime.js, and KaTeX are already loaded from local assets.',
+  '- Tailwind CSS, Chart.js, ppt-runtime.js, and KaTeX are already loaded from local assets. GSAP is loaded only as the internal animation engine behind PPT.*.',
   '- Do not add CDN links, remote scripts, duplicate runtime tags, or iframe content.',
   '',
   'Fonts:',
@@ -101,6 +106,11 @@ export const FRONTEND_CAPABILITIES = [
   '',
   'Animations:',
   `- Animation rules are in the skill ${DATA_ANIM_SKILL_NAME}. ${formatSkillUsageRequirement(DATA_ANIM_SKILL_NAME)}`,
+  '- Use data-anim by default. For scripted motion, use PPT.animate(...) or PPT.createTimeline(...) only when preview choreography matters more than editable PPTX roundtrip. Do not call gsap.* or access window.gsap/globalThis.gsap directly.',
+  '- Treat PPT.animate(...) and PPT.createTimeline(...) as preview-first escape hatches. Stable editable PPTX roundtrip is guaranteed only for data-anim-authored motion.',
+  `- Prefer export-stable animation types by default: ${DATA_ANIM_EXPORT_STABLE_TYPES.join(', ')}.`,
+  `- Use ${DATA_ANIM_DIRECTIONAL_EMPHASIS_TYPES.join(', ')} only when directional emphasis matters.`,
+  `- Use weaker-roundtrip types (${DATA_ANIM_WEAKER_ROUNDTRIP_TYPES.join(', ')}) only when the user explicitly wants that trade-off or when exact PPTX roundtrip labels are not important.`,
   '',
   'Validation:',
   '- Use \\( \\) or $$ $$ for math; do not use single-dollar inline math.'

@@ -1031,7 +1031,9 @@ export function createPageWriteTools(args: {
       agentName: agentName || 'unknown',
       allowedPageIds: context.allowedPageIds || null
     })
-    return result
+    const warningLines = preparedContent.validation.warnings || []
+    if (warningLines.length === 0) return result
+    return `${result}\nWarnings:\n- ${warningLines.join('\n- ')}`
   }
 
   if (isContainerScopeEdit || (isEditMode && context.selectedSelector?.trim())) {

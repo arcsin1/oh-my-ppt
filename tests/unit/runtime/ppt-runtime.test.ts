@@ -1,7 +1,7 @@
 /**
  * @vitest-environment happy-dom
  *
- * Unit tests for ppt-runtime.js v2.0.16:
+ * Unit tests for ppt-runtime.js v2.0.17:
  *   - PPT.stopAnimations() / PPT.resumeAnimations()
  *   - PPT.clicks state machine (advance returns boolean, _dispatch exact match)
  *   - PPT.scanDataAnim() / PPT.executeDataAnim() (routed through PPT.animate)
@@ -68,6 +68,7 @@ function setupRuntime(options?: { search?: string; parent?: { postMessage: Retur
   if (existingPPT) existingPPT.__runtimeVersion = null
   ;(globalThis as Record<string, unknown>).__ohmypptPlaybackBridgeInstalled = false
   ;(globalThis as Record<string, unknown>).anime = anime
+  delete (globalThis as Record<string, unknown>).gsap
   window.history.replaceState(null, '', `/page.html${options?.search || ''}`)
   try {
     Object.defineProperty(window, 'parent', {
@@ -82,6 +83,67 @@ function setupRuntime(options?: { search?: string; parent?: { postMessage: Retur
 
   const PPT = (globalThis as Record<string, unknown>).PPT as Record<string, unknown>
   return { PPT, anime, animations }
+}
+
+function setupRuntimeWithGsap() {
+  const fromTo = vi.fn((_targets: unknown, _fromVars: unknown, _toVars: unknown) => {
+    const tween = {
+      then: vi.fn((resolve?: () => void) => {
+        if (typeof resolve === 'function') resolve()
+        return Promise.resolve()
+      }),
+      pause: vi.fn(),
+      play: vi.fn(),
+      progress: vi.fn(),
+      totalProgress: vi.fn(),
+      complete: vi.fn()
+    }
+    return tween
+  })
+  const to = vi.fn((_targets: unknown, _toVars: unknown) => {
+    const tween = {
+      then: vi.fn((resolve?: () => void) => {
+        if (typeof resolve === 'function') resolve()
+        return Promise.resolve()
+      }),
+      pause: vi.fn(),
+      play: vi.fn(),
+      progress: vi.fn(),
+      totalProgress: vi.fn(),
+      complete: vi.fn()
+    }
+    return tween
+  })
+  const timelineInstance = {
+    fromTo: vi.fn(),
+    to: vi.fn(),
+    add: vi.fn(),
+    pause: vi.fn(),
+    play: vi.fn(),
+    progress: vi.fn(),
+    totalProgress: vi.fn(),
+    restart: vi.fn()
+  }
+  const gsap = {
+    fromTo,
+    to,
+    timeline: vi.fn(() => timelineInstance),
+    utils: {
+      stagger: vi.fn((_gap: number, _options?: Record<string, unknown>) => vi.fn())
+    },
+    globalTimeline: {
+      pause: vi.fn(),
+      play: vi.fn(),
+      progress: vi.fn()
+    },
+    killTweensOf: vi.fn()
+  }
+  const runtime = setupRuntime()
+  ;(globalThis as Record<string, unknown>).gsap = gsap
+  ;(runtime.PPT as { __runtimeVersion?: string | null }).__runtimeVersion = null
+  new Function(runtimeSrc)()
+  const PPT = (globalThis as Record<string, unknown>).PPT as Record<string, unknown>
+  return { PPT, gsap, timelineInstance }
 }
 
 // ── Helper: typed clicks access ──
@@ -625,6 +687,40 @@ describe('PPT.scanDataAnim', () => {
     expect(Number(result.all[1].delay)).toBeGreaterThan(0)
   })
 
+  it('supports data-anim-stagger as a declarative stagger shortcut', () => {
+    document.body.innerHTML = `
+      <div class="ppt-page-root">
+        <div data-anim="fade-up" data-anim-stagger="80" id="a">A</div>
+        <div data-anim="fade-up" data-anim-stagger="80" id="b">B</div>
+        <div data-anim="fade-up" data-anim-stagger="80" id="c">C</div>
+      </div>
+    `
+
+    const result = (PPT.scanDataAnim as Function)(document.querySelector('.ppt-page-root')) as {
+      all: Array<Record<string, unknown>>
+    }
+
+    expect(result.all.map((item) => item.delay)).toEqual([0, 80, 160])
+    expect(result.all.map((item) => item.stagger)).toEqual([80, 80, 80])
+  })
+
+  it('supports data-anim-sequence to control load ordering without overloading trigger', () => {
+    document.body.innerHTML = `
+      <div class="ppt-page-root">
+        <div data-anim="fade-up" data-anim-duration="400" id="lead">Lead</div>
+        <div data-anim="fade-up" data-anim-sequence="with" data-anim-delay="50" data-anim-duration="300" id="with">With</div>
+        <div data-anim="fade-up" data-anim-sequence="after" data-anim-delay="20" data-anim-duration="200" id="after">After</div>
+      </div>
+    `
+
+    const result = (PPT.scanDataAnim as Function)(document.querySelector('.ppt-page-root')) as {
+      all: Array<Record<string, unknown>>
+    }
+
+    expect(result.all[1]).toMatchObject({ trigger: 'load', effectiveTrigger: 'load', sequence: 'with', delay: 50 })
+    expect(result.all[2]).toMatchObject({ trigger: 'load', effectiveTrigger: 'load', sequence: 'after', delay: 420 })
+  })
+
   it('does not hide click-triggered emphasis or exit animations before playback', () => {
     document.body.innerHTML = `
       <div class="ppt-page-root">
@@ -688,6 +784,28 @@ describe('PPT.executeDataAnim (routed through PPT.animate)', () => {
     animateSpy.mockRestore()
   })
 
+  it('slide-down params include negative y offset for downward reveal', () => {
+    const animateSpy = vi.spyOn(PPT, 'animate' as never)
+    const el = document.getElementById('el1')!
+    const config = [{ targets: el, type: 'slide-down', duration: 500, easing: 'easeOutCubic', delay: 0 }]
+    ;(PPT.executeDataAnim as Function)(config)
+    const params = animateSpy.mock.calls[0][1] as Record<string, unknown>
+    expect(params.opacity).toEqual([0, 1])
+    expect(params.translateY).toEqual([-40, 0])
+    animateSpy.mockRestore()
+  })
+
+  it('slide-right params include negative x offset for rightward reveal', () => {
+    const animateSpy = vi.spyOn(PPT, 'animate' as never)
+    const el = document.getElementById('el1')!
+    const config = [{ targets: el, type: 'slide-right', duration: 500, easing: 'easeOutCubic', delay: 0 }]
+    ;(PPT.executeDataAnim as Function)(config)
+    const params = animateSpy.mock.calls[0][1] as Record<string, unknown>
+    expect(params.opacity).toEqual([0, 1])
+    expect(params.translateX).toEqual([-40, 0])
+    animateSpy.mockRestore()
+  })
+
   it('maps fly-in direction to real translate params', () => {
     const animateSpy = vi.spyOn(PPT, 'animate' as never)
     const el = document.getElementById('el1')!
@@ -730,6 +848,17 @@ describe('PPT.executeDataAnim (routed through PPT.animate)', () => {
     const params = animateSpy.mock.calls[0][1] as Record<string, unknown>
     expect(params.opacity).toEqual([1, 0])
     expect(params.translateY).toEqual([0, 40])
+    animateSpy.mockRestore()
+  })
+
+  it('maps exit-wipe to visible-to-hidden clipPath concealment', () => {
+    const animateSpy = vi.spyOn(PPT, 'animate' as never)
+    const el = document.getElementById('el1')!
+    const config = [{ targets: el, type: 'exit-wipe', from: 'right', duration: 500, easing: 'easeOutCubic', delay: 0 }]
+    ;(PPT.executeDataAnim as Function)(config)
+    const params = animateSpy.mock.calls[0][1] as Record<string, unknown>
+    expect(params.opacity).toEqual([1, 0])
+    expect(params.clipPath).toEqual(['inset(0% 0% 0% 0%)', 'inset(0% 0% 0% 100%)'])
     animateSpy.mockRestore()
   })
 
@@ -779,6 +908,189 @@ describe('PPT.animate tracks animations for stop/resume', () => {
     ;(PPT.stopAnimations as Function)()
     const pauseCalls = animations.filter(a => a.pause.mock.calls.length > 0)
     expect(pauseCalls.length).toBeGreaterThan(0)
+  })
+})
+
+describe('PPT GSAP bridge', () => {
+  it('routes PPT.animate through real GSAP adapter with valid easing names', () => {
+    const { PPT, gsap } = setupRuntimeWithGsap()
+
+    ;(PPT.animate as Function)('#el1', {
+      opacity: [0, 1],
+      translateY: [20, 0],
+      duration: 500,
+      delay: 200,
+      easing: 'easeOutCubic'
+    })
+
+    expect(gsap.fromTo).toHaveBeenCalledWith(
+      '#el1',
+      { opacity: 0, y: 20 },
+      {
+        duration: 0.5,
+        delay: 0.2,
+        ease: 'power2.out',
+        opacity: 1,
+        y: 0
+      }
+    )
+  })
+
+  it('maps supported legacy and GSAP easing values explicitly', () => {
+    const { PPT, gsap } = setupRuntimeWithGsap()
+
+    ;(PPT.animate as Function)('#el1', { opacity: [0, 1], easing: 'easeInOutQuad' })
+    ;(PPT.animate as Function)('#el1', { opacity: [0, 1], easing: 'back.out' })
+    ;(PPT.animate as Function)('#el1', { opacity: [0, 1], easing: 'linear' })
+
+    expect(gsap.fromTo.mock.calls[0][2]).toMatchObject({ ease: 'power1.inOut' })
+    expect(gsap.fromTo.mock.calls[1][2]).toMatchObject({ ease: 'back.out' })
+    expect(gsap.fromTo.mock.calls[2][2]).toMatchObject({ ease: 'none' })
+  })
+
+  it('maps symmetric three-step emphasis arrays to GSAP yoyo repeat semantics', () => {
+    const { PPT, gsap } = setupRuntimeWithGsap()
+
+    ;(PPT.animate as Function)('#el1', {
+      scale: [0.9, 1.08, 0.9],
+      duration: 600
+    })
+
+    expect(gsap.fromTo).toHaveBeenCalledWith(
+      '#el1',
+      { scale: 0.9 },
+      expect.objectContaining({
+        duration: 0.6,
+        scale: 1.08,
+        repeat: 1,
+        yoyo: true
+      })
+    )
+  })
+
+  it('passes PPT.stagger options to GSAP in seconds', () => {
+    const { PPT, gsap } = setupRuntimeWithGsap()
+
+    ;(PPT.stagger as Function)(80, { start: 200, from: 'center' })
+
+    expect(gsap.utils.stagger).toHaveBeenCalledWith(0.08, {
+      start: 0.2,
+      from: 'center'
+    })
+  })
+
+  it('keeps PPT.createTimeline add syntax while adapting to GSAP timeline.fromTo', () => {
+    const { PPT, gsap, timelineInstance } = setupRuntimeWithGsap()
+
+    const timeline = (PPT.createTimeline as Function)({ paused: true })
+    timeline.add(
+      {
+        targets: '.step-1',
+        opacity: [0, 1],
+        translateY: [20, 0],
+        duration: 400,
+        easing: 'power2.out'
+      },
+      '+=0.2'
+    )
+
+    expect(gsap.timeline).toHaveBeenCalledWith({ paused: true })
+    expect(timelineInstance.fromTo).toHaveBeenCalledWith(
+      '.step-1',
+      { opacity: 0, y: 20 },
+      {
+        duration: 0.4,
+        ease: 'power2.out',
+        opacity: 1,
+        y: 0
+      },
+      '+=0.2'
+    )
+  })
+
+  it('tracks GSAP timelines for runtime stop, resume, and finish controls', () => {
+    const { PPT, gsap, timelineInstance } = setupRuntimeWithGsap()
+
+    ;(PPT.createTimeline as Function)({ paused: true })
+    ;(PPT.stopAnimations as Function)()
+    ;(PPT.resumeAnimations as Function)()
+    ;(PPT.finishAnimations as Function)()
+
+    expect(gsap.globalTimeline.pause).toHaveBeenCalled()
+    expect(gsap.globalTimeline.play).toHaveBeenCalled()
+    expect(gsap.globalTimeline.progress).toHaveBeenCalledWith(1)
+    expect(timelineInstance.pause).toHaveBeenCalled()
+    expect(timelineInstance.play).toHaveBeenCalled()
+    expect(timelineInstance.totalProgress).toHaveBeenCalledWith(1)
+  })
+
+  it('removes completed GSAP timelines from the active runtime set', () => {
+    const timelineThen = vi.fn((resolve?: () => void) => {
+      if (typeof resolve === 'function') resolve()
+      return Promise.resolve()
+    })
+    const timelineInstance = {
+      fromTo: vi.fn(),
+      add: vi.fn(),
+      pause: vi.fn(),
+      play: vi.fn(),
+      restart: vi.fn(),
+      then: timelineThen
+    }
+    const gsap = {
+      fromTo: vi.fn(),
+      to: vi.fn(),
+      timeline: vi.fn(() => timelineInstance),
+      utils: { stagger: vi.fn() },
+      globalTimeline: { pause: vi.fn(), play: vi.fn(), progress: vi.fn() },
+      killTweensOf: vi.fn()
+    }
+    const runtime = setupRuntime()
+    ;(globalThis as Record<string, unknown>).gsap = gsap
+    ;(runtime.PPT as { __runtimeVersion?: string | null }).__runtimeVersion = null
+    new Function(runtimeSrc)()
+    const PPT = (globalThis as Record<string, unknown>).PPT as Record<string, unknown>
+
+    ;(PPT.createTimeline as Function)({ paused: true })
+    ;(PPT.stopAnimations as Function)()
+    expect(timelineInstance.pause).not.toHaveBeenCalled()
+  })
+
+  it('uses gsap.to for visible-to-hidden exit opacity', () => {
+    const { PPT, gsap } = setupRuntimeWithGsap()
+
+    ;(PPT.animate as Function)('#el1', { opacity: [1, 0], duration: 300 })
+
+    expect(gsap.to).toHaveBeenCalledWith('#el1', {
+      duration: 0.3,
+      opacity: 0
+    })
+  })
+
+  it('uses timeline.to for exit opacity steps added through PPT.createTimeline', () => {
+    const { PPT, timelineInstance } = setupRuntimeWithGsap()
+
+    const timeline = (PPT.createTimeline as Function)({ paused: true })
+    timeline.add(
+      {
+        targets: '.outro',
+        opacity: [1, 0],
+        duration: 300,
+        easing: 'power2.out'
+      },
+      '+=0.1'
+    )
+
+    expect(timelineInstance.to).toHaveBeenCalledWith(
+      '.outro',
+      {
+        duration: 0.3,
+        ease: 'power2.out',
+        opacity: 0
+      },
+      '+=0.1'
+    )
+    expect(timelineInstance.fromTo).not.toHaveBeenCalled()
   })
 })
 
@@ -913,8 +1225,8 @@ describe('PPT.createChart tick formatters', () => {
 })
 
 describe('Version guard', () => {
-  it('runtime version is 2.0.16', () => {
+  it('runtime version is 2.0.17', () => {
     const PPT = setupRuntime().PPT
-    expect(PPT.__runtimeVersion).toBe('2.0.16')
+    expect(PPT.__runtimeVersion).toBe('2.0.17')
   })
 })

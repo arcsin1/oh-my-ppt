@@ -85,9 +85,9 @@ Output is pure HTML slides: instant browser preview, no extra software, easy to 
 - 🗑️ **Element deletion** — Delete any element with a click or keyboard shortcut
 - 🖥️ **Presentation mode** — Enter fullscreen presentation with one click, navigate slides with arrow keys or clicks
 - 📝 **Speaker script generation** — Generate scripts for the full deck or the current slide, with formal, casual conversational, storytelling, and custom styles
-- 🎬 **Animation support** — 16+ slide transition effects plus Anime.js v4-powered whole-element motion
+- 🎬 **Animation support** — Page transitions plus GSAP-backed whole-element motion with editable PPTX-friendly `data-anim` semantics
 - 🧮 **Math formula rendering** — Display common LaTeX formulas for classes, teaching decks, and technical talks
-- 📄 **Multi-format export** — Export to PDF, batch PNG, MP4 video, or editable PPTX with embedded fonts (still being improved)
+- 📄 **Multi-format export** — Export to PDF, batch PNG, or editable PPTX with embedded fonts (still being improved)
 - 🏷️ **Session management** — Session list distinguishes AI-created decks from imported PPTX decks, and deck names can be renamed
 - 🧩 **More reliable slide layout** — Generation follows a fixed 16:9 canvas and content-height budget to reduce overflow
 - 🔄 **Version history rollback** — Every edit is automatically saved, roll back to any previous version with one click, never worry about mistakes
@@ -104,7 +104,7 @@ Output is pure HTML slides: instant browser preview, no extra software, easy to 
 <a id="workflow"></a>
 ## 🔄 Workflow
 
-> 💡 Choose a creation mode → confirm topic / materials / page count / style / fonts → AI generates the HTML deck → preview, present, and edit → generate speaker scripts → export PDF / PNG / PPTX / MP4 / packaged HTML
+> 💡 Choose a creation mode → confirm topic / materials / page count / style / fonts → AI generates the HTML deck → preview, present, and edit → generate speaker scripts → export PDF / PNG / PPTX / packaged HTML
 
 The home page supports several common entry points:
 
@@ -139,7 +139,7 @@ When creating a deck, you can choose **title fonts** and **body fonts** separate
 <a id="animations"></a>
 ## 🎬 Animation Support
 
-Oh My PPT generates HTML slides with 16+ slide transition effects and a local **Anime.js v4** runtime. During generation or chat-based editing, the AI can add presentation motion to whole slide elements such as titles, metric cards, images, chart containers, and step blocks.
+Oh My PPT generates HTML slides and includes a local **GSAP-backed animation runtime** behind the `data-anim` / `PPT.*` contract. During generation or chat-based editing, the AI can add presentation motion to whole slide elements such as titles, metric cards, images, chart containers, and step blocks.
 
 Animations are designed for real presentation flow: content can appear step by step with the speaker's rhythm instead of showing everything on the slide at once. This works well for reports, pitches, classes, and product walkthroughs.
 
@@ -149,9 +149,13 @@ Common animation expressions include:
 - **Slide-in motion**: short movement from top, bottom, left, or right for titles, cards, and lists.
 - **Scale emphasis**: gently enlarge key numbers or conclusion cards, then settle back.
 - **Staggered reveal**: reveal cards or bullets one after another.
+- **Declarative stagger control**: use `data-anim-stagger="N"` on repeated items instead of embedding `stagger(N)` strings in delays for new content.
+- **Declarative load sequencing**: use `data-anim-sequence="with|after"` to keep trigger semantics separate from load ordering.
 - **Click-to-reveal**: reveal content step by step during presentation, so the deck follows your speaking pace.
 
 Whole-element animation is preferred over splitting text into many tiny moving fragments. It keeps slides readable, stable, and easier to export or edit later. Animations are meant to guide attention and show hierarchy, so complex timelines, high-frequency flashing, infinite loops, and large shaking motion are not recommended.
+
+Direct `gsap.*` authoring is intentionally not part of the public slide contract. The editable-export path is centered on `data-anim` and controlled `PPT.*` wrappers so preview behavior and PPTX export stay aligned.
 
 <p></>
 <img src="https://arcsin1.github.io/anime.gif" alt="Oh My PPT animation demo" width="40%" />
@@ -207,12 +211,11 @@ Supports keyboard navigation (Left/Right), presentation mode, fullscreen present
 <a id="export"></a>
 ### About export
 
-Oh My PPT currently supports four export modes:
+Oh My PPT currently supports three export modes:
 
 - **PDF**: best for sharing, archiving, and printing.
 - **PNG**: batch-export every slide as an image for docs, Notion, articles, or social posts.
 - **PPTX**: export an editable file for PowerPoint / Keynote. Text, images, colors, formulas, and basic layout are preserved where possible, while text overlap, mixed-language layout, and complex chart rendering are still being improved.
-- **MP4**: export the presentation as a video for social posts, client sharing, or playback when a PPT file is not the best fit.
 
 <a id="unsigned-app"></a>
 ## 📦 Opening Unsigned Apps

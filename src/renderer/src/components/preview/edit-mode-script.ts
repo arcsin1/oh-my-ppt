@@ -801,8 +801,16 @@ export function buildEditModeInjectScript(previewScale = 1): string {
   }
   ensureStyle();
 
-  // Kill residual animations from ppt-default-motion (anime.js).
+  // Kill residual animations from ppt-default-motion (GSAP + anime.js).
   (() => {
+    // Kill GSAP animations
+    if (window.gsap) {
+      try {
+        window.gsap.globalTimeline.progress(1);
+        window.gsap.killTweensOf('*');
+      } catch (_e) {}
+    }
+    // Kill anime.js animations (legacy fallback)
     if (window.PPT && typeof window.PPT.finishAnimations === "function") {
       try { window.PPT.finishAnimations(); } catch (_e) {}
     } else if (window.PPT && typeof window.PPT.stopAnimations === "function") {

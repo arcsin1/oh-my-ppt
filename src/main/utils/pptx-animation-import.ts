@@ -131,7 +131,7 @@ export const parsePptxSlideAnimationPlan = (
       hasScale: ctn.find('p\\:animScale').length > 0,
       effectFilter
     })
-    const from = mapPptxPresetToDataAnimFrom({ presetSubtype, effectFilter })
+    const from = mapPptxPresetToDataAnimFrom({ presetSubtype, presetClass, presetId, effectFilter })
     const trigger: ImportedAnimationTrigger = nodeType === 'clickEffect' ? 'click' : 'load'
     const delay = parseNumericDelay(
       ctn.children('p\\:stCondLst').find('p\\:cond').first().attr('delay')

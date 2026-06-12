@@ -2,7 +2,6 @@ import type { IpcContext } from '../context'
 import * as fs from 'fs'
 import path from 'path'
 import * as cheerio from 'cheerio'
-import type { AnyNode } from 'domhandler'
 import { customAlphabet, nanoid } from 'nanoid'
 import { buildProjectIndexHtml } from '../engine/template'
 import { ensureSessionRuntimeCompatible } from './runtime-assets'
@@ -12,6 +11,8 @@ import type { SessionPageStatus } from '../../db/schema'
 import { resolveOutlinesForPages } from './page-outline-utils'
 
 const pageSlugId = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 10)
+
+type CheerioSelection = ReturnType<cheerio.CheerioAPI>
 
 const resolvePageHtmlPath = (
   projectDir: string,
@@ -156,7 +157,7 @@ const replacePageIdentity = (html: string, oldPageId: string, nextPageId: string
   return html.replace(boundaryPattern, `$1${nextPageId}`)
 }
 
-const clearVisibleText = ($: cheerio.CheerioAPI, root: cheerio.Cheerio<AnyNode>): void => {
+const clearVisibleText = ($: cheerio.CheerioAPI, root: CheerioSelection): void => {
   root.find('input, textarea').each((_, node) => {
     const el = $(node)
     el.removeAttr('value')

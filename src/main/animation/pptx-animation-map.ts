@@ -1,7 +1,16 @@
-import type { DataAnimFrom, DataAnimType } from './data-anim-schema'
+import {
+  DATA_ANIM_APPROXIMATE_TYPES,
+  DATA_ANIM_DEGRADED_TYPES,
+  type DataAnimFrom,
+  type DataAnimType
+} from './data-anim-schema'
 
 export type PptxPresetClass = 'entr' | 'emph' | 'exit'
 export type PptxMotion = 'fromTop' | 'fromBottom' | 'fromLeft' | 'fromRight' | 'fromTrace'
+export type PptxFidelityTier = 'exact' | 'approximate' | 'degraded'
+
+const APPROXIMATE_TYPE_SET = new Set<DataAnimType>(DATA_ANIM_APPROXIMATE_TYPES)
+const DEGRADED_TYPE_SET = new Set<DataAnimType>(DATA_ANIM_DEGRADED_TYPES)
 
 export interface PptxAnimationPreset {
   presetId: number
@@ -12,7 +21,6 @@ export interface PptxAnimationPreset {
   scaleFrom?: number
   scaleTo?: number
   fade?: boolean
-  effectFilter?: 'wipe'
   transition?: 'in' | 'out'
 }
 
@@ -53,6 +61,19 @@ export const PPTX_ANIMATION_PRESETS: Record<DataAnimType, PptxAnimationPreset> =
     presetSubtype: 8,
     motion: 'fromBottom',
     fade: true
+    // Maps to same PPTX preset as fade-up (presetId=2, subtype=8).
+    // This is correct: GSAP preview also applies opacity fade.
+    // The semantic distinction between "slide" (40px translate) and
+    // "fade-up" (20px translate) is encoded as distance, not preset.
+    // Roundtrip type label may collapse to 'fade-up' — documented limitation.
+  },
+  'slide-down': {
+    presetId: 2,
+    presetClass: 'entr',
+    presetSubtype: 1,
+    motion: 'fromTop',
+    fade: true
+    // Same preset family as fade-down; semantic distinction is distance, not preset.
   },
   'slide-left': {
     presetId: 2,
@@ -60,6 +81,15 @@ export const PPTX_ANIMATION_PRESETS: Record<DataAnimType, PptxAnimationPreset> =
     presetSubtype: 3,
     motion: 'fromRight',
     fade: true
+    // Same rationale: GSAP preview applies opacity fade for slide-left too.
+  },
+  'slide-right': {
+    presetId: 2,
+    presetClass: 'entr',
+    presetSubtype: 2,
+    motion: 'fromLeft',
+    fade: true
+    // Same preset family as fade-right; semantic distinction is distance, not preset.
   },
   'fly-in': {
     presetId: 2,
@@ -70,7 +100,10 @@ export const PPTX_ANIMATION_PRESETS: Record<DataAnimType, PptxAnimationPreset> =
   wipe: {
     presetId: 5,
     presetClass: 'entr',
-    effectFilter: 'wipe'
+    presetSubtype: 1
+    // Subtypes: 1=wipeRight(fromLeft), 2=wipeLeft(fromRight), 3=wipeUp(fromBottom), 4=wipeDown(fromTop)
+    // The subtype is set by animation-writer.ts based on data-anim-from,
+    // exactly like directional fades use presetSubtype with presetId=2.
   },
   'zoom-in': {
     presetId: 31,
@@ -108,6 +141,12 @@ export const PPTX_ANIMATION_PRESETS: Record<DataAnimType, PptxAnimationPreset> =
     fade: true,
     transition: 'out'
   },
+  'exit-wipe': {
+    presetId: 5,
+    presetClass: 'exit',
+    presetSubtype: 1,
+    transition: 'out'
+  },
   'exit-fly': {
     presetId: 2,
     presetClass: 'exit',
@@ -121,6 +160,84 @@ export const PPTX_ANIMATION_PRESETS: Record<DataAnimType, PptxAnimationPreset> =
 export const getPptxAnimationPreset = (
   type: DataAnimType
 ): PptxAnimationPreset | undefined => PPTX_ANIMATION_PRESETS[type]
+
+/** Returns true if the animation type is expected to degrade on PPTX roundtrip. */
+export const hasExactPptxPreset = (type: DataAnimType): boolean => {
+  return !APPROXIMATE_TYPE_SET.has(type) && !DEGRADED_TYPE_SET.has(type)
+}
+
+export const getPptxFidelityTier = (type: DataAnimType): PptxFidelityTier => {
+  if (APPROXIMATE_TYPE_SET.has(type)) return 'approximate'
+  if (DEGRADED_TYPE_SET.has(type)) return 'degraded'
+  return 'exact'
+}
+
+export const getPptxFidelityNote = (type: DataAnimType): string | null => {
+  switch (type) {
+    case 'slide-up':
+    case 'slide-down':
+    case 'slide-left':
+    case 'slide-right':
+      return `${type} 会映射到 PowerPoint 的 fade + directional motion 预设，方向保留但纯位移语义会折叠`
+    case 'fly-in':
+      return 'fly-in 会保留方向性位移，但回导时可能折叠为 fade-* 语义'
+    case 'wipe':
+      return 'wipe 在预览中使用 clip-path，在 PPTX 中使用 native wipe preset，视觉接近但不逐像素一致'
+    case 'exit-wipe':
+      return 'exit-wipe 在预览中使用 clip-path conceal，在 PPTX 中使用 native wipe exit preset，视觉接近但不逐像素一致'
+    case 'zoom-in':
+      return 'zoom-in 会折叠到 scale-in 预设，缩放意图保留但类型标签无法精确保真'
+    case 'spin-in':
+      return 'spin-in 的旋转分量在 PPTX 中会丢失，只保留缩放/淡入语义'
+    case 'grow-shrink':
+    case 'pulse':
+      return `${type} 会映射到同一 emphasis preset，回导时两者会折叠为同类强调动画`
+    case 'path':
+      return 'path 缺少可编辑 PPTX 等价物，当前会退化为基础 entrance 语义'
+    default:
+      return null
+  }
+}
+
+export const collectPptxFidelityWarnings = (types: Iterable<DataAnimType>): string[] => {
+  const warnings: string[] = []
+  const seen = new Set<DataAnimType>()
+
+  for (const type of types) {
+    if (seen.has(type)) continue
+    seen.add(type)
+
+    const tier = getPptxFidelityTier(type)
+    if (tier === 'exact') continue
+
+    const note = getPptxFidelityNote(type)
+    if (!note) continue
+
+    warnings.push(`动画 ${type} 为 ${tier} 保真度：${note}`)
+  }
+
+  return warnings
+}
+
+export interface PptxFidelityWarningScope {
+  label?: string
+  types: Iterable<DataAnimType>
+}
+
+export const collectPptxFidelityWarningsByScope = (
+  scopes: Iterable<PptxFidelityWarningScope>
+): string[] => {
+  const warnings: string[] = []
+
+  for (const scope of scopes) {
+    const prefix = scope.label ? `${scope.label}：` : ''
+    warnings.push(
+      ...collectPptxFidelityWarnings(scope.types).map((warning) => `${prefix}${warning}`)
+    )
+  }
+
+  return warnings
+}
 
 export const resolveTraceMotion = (from: DataAnimFrom | undefined): Exclude<PptxMotion, 'fromTrace'> => {
   switch (from) {
@@ -137,21 +254,6 @@ export const resolveTraceMotion = (from: DataAnimFrom | undefined): Exclude<Pptx
   }
 }
 
-export const wipeFilterForFrom = (from: DataAnimFrom | undefined): string => {
-  switch (from) {
-    case 'right':
-      return 'wipe(l)'
-    case 'top':
-      return 'wipe(d)'
-    case 'bottom':
-      return 'wipe(u)'
-    case 'left':
-    case 'center':
-    default:
-      return 'wipe(r)'
-  }
-}
-
 export const mapPptxPresetToDataAnimType = (args: {
   presetId?: string
   presetSubtype?: string
@@ -160,6 +262,7 @@ export const mapPptxPresetToDataAnimType = (args: {
   effectFilter?: string
 }): DataAnimType => {
   if (args.presetClass === 'exit') {
+    if (args.presetId === '5' || args.effectFilter?.startsWith('wipe')) return 'exit-wipe'
     if (args.presetId === '2') return 'exit-fly'
     return 'exit-fade'
   }
@@ -187,14 +290,52 @@ export const mapPptxPresetToDataAnimType = (args: {
 
 export const mapPptxPresetToDataAnimFrom = (args: {
   presetSubtype?: string
+  presetClass?: string
+  presetId?: string
   effectFilter?: string
 }): DataAnimFrom | undefined => {
-  if (args.effectFilter?.startsWith('wipe')) {
-    if (args.effectFilter.includes('(l)')) return 'right'
-    if (args.effectFilter.includes('(r)')) return 'left'
-    if (args.effectFilter.includes('(u)')) return 'bottom'
-    if (args.effectFilter.includes('(d)')) return 'top'
+  const fromWipeFilter = (filter: string | undefined): DataAnimFrom | undefined => {
+    if (!filter?.startsWith('wipe')) return undefined
+    if (filter.includes('(l)') || filter.includes('(left)')) return 'right'
+    if (filter.includes('(r)') || filter.includes('(right)')) return 'left'
+    if (filter.includes('(u)') || filter.includes('(up)')) return 'bottom'
+    if (filter.includes('(d)') || filter.includes('(down)')) return 'top'
+    return undefined
   }
+
+  // Wipe direction (presetId=5):
+  //   subtype 1=wipeRight(fromLeft), 2=wipeLeft(fromRight), 3=wipeUp(fromBottom), 4=wipeDown(fromTop)
+  //   If no subtype, try parsing legacy 'wipe(X)' filter strings.
+  if (args.presetId === '5' && args.presetClass === 'entr') {
+    if (args.presetSubtype) {
+      switch (args.presetSubtype) {
+        case '1': return 'left'
+        case '2': return 'right'
+        case '3': return 'bottom'
+        case '4': return 'top'
+        default:  return 'left'
+      }
+    }
+    const fromFilter = fromWipeFilter(args.effectFilter)
+    if (fromFilter) return fromFilter
+    return 'left'
+  }
+  if (args.presetId === '5' && args.presetClass === 'exit') {
+    const fromFilter = fromWipeFilter(args.effectFilter)
+    if (fromFilter) return fromFilter
+    if (args.presetSubtype) {
+      switch (args.presetSubtype) {
+        case '1': return 'left'
+        case '2': return 'right'
+        case '3': return 'bottom'
+        case '4': return 'top'
+        default: return 'left'
+      }
+    }
+    return 'left'
+  }
+  const legacyWipeFrom = fromWipeFilter(args.effectFilter)
+  if (legacyWipeFrom) return legacyWipeFrom
   switch (args.presetSubtype) {
     case '1':
       return 'top'

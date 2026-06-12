@@ -28,7 +28,6 @@ describe('buildSlideTimingXml', () => {
     expect(xml).toContain('nodeType="tmRoot"')
     expect(xml).toContain('nodeType="mainSeq"')
     expect(xml).toContain('nodeType="withEffect"')
-    expect(xml).toContain('<p:cTn id="4" fill="hold">')
     expect(xml).toContain('presetID="10"')
     expect(xml).toContain('<p:attrName>style.visibility</p:attrName>')
     expect(xml).toContain('<p:bldP spid="7" grpId="0"/>')
@@ -58,6 +57,24 @@ describe('buildSlideTimingXml', () => {
   it('preserves click-triggered animations as click effects', () => {
     const xml = buildSlideTimingXml([makeAnim({ trigger: 'click' })])
 
+    expect(xml).toContain('nodeType="clickEffect"')
+    expect(xml).toContain('<p:cond delay="indefinite"/>')
+  })
+
+  it('emits wipe effects with an Office-recognized wipe filter', () => {
+    const xml = buildSlideTimingXml([makeAnim({ type: 'wipe', from: 'right' })])
+
+    expect(xml).toContain('presetID="5"')
+    expect(xml).toContain('presetSubtype="2"')
+    expect(xml).toContain('filter="wipe(left)"')
+  })
+
+  it('emits exit wipe effects with transition out and directional subtype', () => {
+    const xml = buildSlideTimingXml([makeAnim({ type: 'exit-wipe', from: 'top', trigger: 'click' })])
+
+    expect(xml).toContain('presetID="5"')
+    expect(xml).toContain('presetSubtype="4"')
+    expect(xml).toContain('transition="out" filter="wipe(down)"')
     expect(xml).toContain('nodeType="clickEffect"')
   })
 

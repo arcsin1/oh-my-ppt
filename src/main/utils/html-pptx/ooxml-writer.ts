@@ -571,6 +571,8 @@ interface SlideShapePosition {
   y: number
   w: number
   h: number
+  /** blockId from the source HTML element, for precise trace→shape binding. */
+  blockId?: string
 }
 
 const contentOrder = (value: number | undefined, fallback: number): number =>
@@ -611,7 +613,40 @@ function matchAnimationTracesToTargets(
   const claimed = new Set<number>()
   const orderedTraces = [...traces].sort((a, b) => a.order - b.order || a.delay - b.delay)
 
+  // Build blockId → shape lookup for precise binding
+  const shapesByBlockId = new Map<string, SlideShapePosition[]>()
+  for (const shape of shapePositions) {
+    if (!shape.blockId) continue
+    const matched = shapesByBlockId.get(shape.blockId)
+    if (matched) matched.push(shape)
+    else shapesByBlockId.set(shape.blockId, [shape])
+  }
+
   for (const trace of orderedTraces) {
+    // ── Precise: blockId matching ──
+    if (trace.blockId && shapesByBlockId.has(trace.blockId)) {
+      const shapes = shapesByBlockId
+        .get(trace.blockId)!
+        .filter((shape) => !claimed.has(shape.pptxId))
+        .sort((a, b) => a.pptxId - b.pptxId)
+      if (shapes.length > 0) {
+        for (const shape of shapes) {
+          claimed.add(shape.pptxId)
+          animations.push({
+            spid: shape.pptxId,
+            type: trace.type,
+            trigger: trace.trigger,
+            from: trace.from,
+            duration: trace.duration,
+            delay: trace.delay,
+            order: trace.order
+          })
+        }
+        continue
+      }
+    }
+
+    // ── Fallback: spatial overlap ──
     const traceBox = pxTraceToInches(trace)
     const traceArea = Math.max(0.0001, traceBox.w * traceBox.h)
     const candidates = shapePositions
@@ -667,8 +702,8 @@ export function buildSlideXml(
   const shapes: string[] = []
   const shapePositions: SlideShapePosition[] = []
 
-  const recordPosition = (pptxId: number, item: { x: number; y: number; w: number; h: number }) => {
-    shapePositions.push({ pptxId, x: item.x, y: item.y, w: item.w, h: item.h })
+  const recordPosition = (pptxId: number, item: { x: number; y: number; w: number; h: number }, blockId?: string) => {
+    shapePositions.push({ pptxId, x: item.x, y: item.y, w: item.w, h: item.h, blockId })
   }
 
   // Background color
@@ -740,21 +775,21 @@ export function buildSlideXml(
     nextId++
     if (entry.kind === 'shape') {
       shapes.push(buildShapeXml(nextId, entry.item))
-      recordPosition(nextId, entry.item)
+      recordPosition(nextId, entry.item, entry.item.blockId)
     } else if (entry.kind === 'table') {
       shapes.push(buildTableXml(nextId, entry.item))
-      recordPosition(nextId, entry.item)
+      recordPosition(nextId, entry.item, entry.item.blockId)
     } else if (entry.kind === 'image') {
       const rel = imageRels.get(entry.item.dataUri)
       if (rel) {
         shapes.push(buildImagePic(nextId, rel.rId, entry.item))
-        recordPosition(nextId, entry.item)
+        recordPosition(nextId, entry.item, entry.item.blockId)
       }
     } else {
       const xml = buildTextShape(nextId, entry.item)
       if (xml) {
         shapes.push(xml)
-        recordPosition(nextId, entry.item)
+        recordPosition(nextId, entry.item, entry.item.blockId)
       }
     }
   }
@@ -765,7 +800,7 @@ export function buildSlideXml(
     const rel = imageRels.get(img.dataUri)
     if (rel) {
       shapes.push(buildImagePic(nextId, rel.rId, img))
-      recordPosition(nextId, img)
+      recordPosition(nextId, img, img.blockId)
     }
   }
 
