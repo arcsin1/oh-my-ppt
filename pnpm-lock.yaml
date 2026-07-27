@@ -15,6 +15,9 @@ importers:
       '@arcsin1/pptx2json':
         specifier: ^0.1.5
         version: 0.1.5
+      '@cfworker/json-schema':
+        specifier: 4.1.1
+        version: 4.1.1
       '@chenglou/pretext':
         specifier: ^0.0.6
         version: 0.0.6
