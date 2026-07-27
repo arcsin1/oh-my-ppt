@@ -12,8 +12,15 @@ export default defineConfig({
       }
     },
     build: {
+      externalizeDeps: false,
       rollupOptions: {
-        external: ['electron', 'better-sqlite3']
+        external: [
+          'electron',
+          'better-sqlite3',
+          '@napi-rs/canvas',
+          '@node-rs/jieba',
+          '@libsql/client'
+        ]
       }
     }
   },

@@ -63,6 +63,9 @@ importers:
       '@napi-rs/canvas':
         specifier: 0.1.100
         version: 0.1.100
+      '@napi-rs/canvas-win32-x64-msvc':
+        specifier: 0.1.100
+        version: 0.1.100
       '@node-rs/jieba':
         specifier: ^2.0.1
         version: 2.0.1
@@ -6567,8 +6570,7 @@ snapshots:
   '@napi-rs/canvas-win32-arm64-msvc@0.1.100':
     optional: true
 
-  '@napi-rs/canvas-win32-x64-msvc@0.1.100':
-    optional: true
+  '@napi-rs/canvas-win32-x64-msvc@0.1.100': {}
 
   '@napi-rs/canvas@0.1.100':
     optionalDependencies:

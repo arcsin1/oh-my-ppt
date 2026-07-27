@@ -14,4 +14,12 @@ describe('Windows 安装包运行时依赖', () => {
 
     expect(packageJson.dependencies?.['@cfworker/json-schema']).toBe('4.1.1')
   })
+
+  it('显式包含 Canvas 的 Windows x64 原生绑定', () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf-8')
+    ) as PackageManifest
+
+    expect(packageJson.dependencies?.['@napi-rs/canvas-win32-x64-msvc']).toBe('0.1.100')
+  })
 })
