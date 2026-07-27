@@ -95,14 +95,21 @@ export const normalizeCreativePageFragment = (html: string): string => {
   if (!scaffold.length) {
     const originalNodes = $.root().contents().toArray()
     const section = $('<section></section>')
-    const main = $('<main></main>')
     section.attr('data-page-scaffold', '1')
     section.attr('class', CREATIVE_FRAGMENT_SECTION_CLASS)
-    main.attr('data-block-id', 'content')
-    main.attr('data-role', 'content')
-    main.attr('class', CREATIVE_FRAGMENT_MAIN_CLASS)
-    main.append(originalNodes)
-    section.append(main)
+    const existingContentMain = $(
+      'main[data-role="content"], main[data-block-id="content"], main'
+    ).first()
+    if (existingContentMain.length) {
+      section.append(originalNodes)
+    } else {
+      const main = $('<main></main>')
+      main.attr('data-block-id', 'content')
+      main.attr('data-role', 'content')
+      main.attr('class', CREATIVE_FRAGMENT_MAIN_CLASS)
+      main.append(originalNodes)
+      section.append(main)
+    }
     $.root().empty().append(section)
     scaffold = section
   } else {

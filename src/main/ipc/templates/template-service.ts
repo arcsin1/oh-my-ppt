@@ -42,6 +42,12 @@ import {
   requireSlideSize,
   requireSlideSizePreset
 } from '@shared/slide-size'
+import { CORPORATE_TEMPLATE_ID, MAX_CORPORATE_PAGE_COUNT } from '@shared/brand'
+import {
+  resolveCorporateTemplatePageRoles,
+  type CorporateTemplatePageRole
+} from '@shared/corporate-template'
+import { applyTemplateDefaultFonts } from './template-default-fonts'
 
 type CacheValue = { manifest: TemplateManifest; templateDir: string }
 type PreparedTemplatePage = {
@@ -51,6 +57,7 @@ type PreparedTemplatePage = {
   title: string
   htmlPath: string
   sourceTemplatePageNumber: number
+  templateRole?: CorporateTemplatePageRole
 }
 
 const templateManifestCache = new LRUCache<string, CacheValue>({
@@ -211,8 +218,16 @@ async function copyReferenceDocumentToSession(args: {
 function pickTemplateSourcePage(
   pages: TemplateManifest['pages'],
   outputIndex: number,
-  totalPages: number
+  totalPages: number,
+  includeAgenda: boolean
 ): TemplateManifest['pages'][number] {
+  const rolePlan = resolveCorporateTemplatePageRoles(totalPages, includeAgenda)
+  const desiredRole = rolePlan[outputIndex]
+  const roleMatchedPage = desiredRole
+    ? pages.find((page) => page.role === desiredRole)
+    : undefined
+  if (roleMatchedPage) return roleMatchedPage
+
   if (pages.length === 1 || totalPages === 1) return pages[0]
   if (outputIndex === 0) return pages[0]
   if (outputIndex === totalPages - 1) return pages[pages.length - 1]
@@ -253,15 +268,25 @@ async function prepareTemplatePagesForSession(args: {
   manifest: TemplateManifest
   projectDir: string
   totalPages: number
+  includeAgenda?: boolean
 }): Promise<PreparedTemplatePage[]> {
   const templatePages = args.manifest.pages.slice().sort((a, b) => a.pageNumber - b.pageNumber)
   if (templatePages.length === 0) throw new Error('模板没有可用页面')
+  const corporateFonts =
+    args.manifest.id === CORPORATE_TEMPLATE_ID
+      ? resolveTemplateDesignContract(args.manifest.designContract)
+      : null
 
   const usedTargetPaths = new Set<string>()
   const sourceHtmlPaths = new Set(templatePages.map((page) => page.htmlPath.replace(/\\/g, '/')))
   const pagePlan = Array.from({ length: args.totalPages }, (_unused, outputIndex) => {
     const pageNumber = outputIndex + 1
-    const sourcePage = pickTemplateSourcePage(templatePages, outputIndex, args.totalPages)
+    const sourcePage = pickTemplateSourcePage(
+      templatePages,
+      outputIndex,
+      args.totalPages,
+      args.includeAgenda === true
+    )
     return {
       pageNumber,
       sourcePage,
@@ -291,9 +316,20 @@ async function prepareTemplatePagesForSession(args: {
     const relativeHtmlPath = `${pageId}.html`
     const targetPath = path.resolve(args.projectDir, relativeHtmlPath)
     const html = await fs.promises.readFile(sourcePath, 'utf-8')
+    const rewrittenHtml = rewriteTemplatePageIdentities(
+      html,
+      sourceIdToFirstTargetId,
+      sourcePage.pageId,
+      pageId
+    )
     await fs.promises.writeFile(
       targetPath,
-      rewriteTemplatePageIdentities(html, sourceIdToFirstTargetId, sourcePage.pageId, pageId),
+      corporateFonts
+        ? applyTemplateDefaultFonts(rewrittenHtml, {
+            titleFont: corporateFonts.titleFont,
+            bodyFont: corporateFonts.bodyFont
+          })
+        : rewrittenHtml,
       'utf-8'
     )
     usedTargetPaths.add(path.relative(args.projectDir, targetPath).replace(/\\/g, '/'))
@@ -303,7 +339,8 @@ async function prepareTemplatePagesForSession(args: {
       pageId,
       title: `第 ${pageNumber} 页`,
       htmlPath: targetPath,
-      sourceTemplatePageNumber: sourcePage.pageNumber
+      sourceTemplatePageNumber: sourcePage.pageNumber,
+      templateRole: sourcePage.role
     })
   }
 
@@ -339,9 +376,10 @@ export async function listTemplates(): Promise<{ items: TemplateListItem[] }> {
     }
   }
 
-  items.sort((a, b) => b.updatedAt - a.updatedAt || b.createdAt - a.createdAt)
-  templateListCache.set(cacheKey, items)
-  return { items: await attachTemplateCoverThumbnails(items) }
+  const corporateItems = items.filter((item) => item.id === CORPORATE_TEMPLATE_ID)
+  corporateItems.sort((a, b) => b.updatedAt - a.updatedAt || b.createdAt - a.createdAt)
+  templateListCache.set(cacheKey, corporateItems)
+  return { items: await attachTemplateCoverThumbnails(corporateItems) }
 }
 
 export async function getTemplate(templateId: string): Promise<{
@@ -362,6 +400,12 @@ export async function updateTemplateMetadata(payload: unknown): Promise<{
 }> {
   const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
   const templateId = typeof record.templateId === 'string' ? record.templateId.trim() : ''
+  if (templateId !== CORPORATE_TEMPLATE_ID) {
+    throw new Error('内部版仅允许使用公司标准模板。')
+  }
+  if (templateId === CORPORATE_TEMPLATE_ID) {
+    throw new Error('公司标准模板由安装包统一维护，不能重命名或修改。')
+  }
   const name = typeof record.name === 'string' ? record.name.trim() : ''
   if (!name) throw new Error('模板名称不能为空')
 
@@ -637,6 +681,9 @@ export async function importPptxAsTemplate(
 }
 
 export async function deleteTemplate(templateId: string): Promise<{ success: true; deleted: boolean }> {
+  if (templateId.trim() === CORPORATE_TEMPLATE_ID) {
+    throw new Error('公司标准模板不能删除。')
+  }
   const templatesRoot = await ensureTemplatesRoot()
   const templateDir = resolveTemplateDir(templatesRoot, templateId)
   if (!fs.existsSync(templateDir)) return { success: true, deleted: false }
@@ -651,14 +698,18 @@ export async function createSessionFromTemplate(
 ): Promise<{ success: true; sessionId: string }> {
   const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
   const templateId = typeof record.templateId === 'string' ? record.templateId.trim() : ''
+  if (templateId !== CORPORATE_TEMPLATE_ID) {
+    throw new Error('内部版仅允许使用公司标准模板。')
+  }
   const title = typeof record.title === 'string' && record.title.trim() ? record.title.trim() : ''
   const requestedPageCount = Number(record.pageCount)
   const pageCount = Number.isFinite(requestedPageCount)
-    ? Math.max(1, Math.min(500, Math.floor(requestedPageCount)))
+    ? Math.max(1, Math.min(MAX_CORPORATE_PAGE_COUNT, Math.floor(requestedPageCount)))
     : undefined
   const referenceDocumentPath =
     typeof record.referenceDocumentPath === 'string' ? record.referenceDocumentPath.trim() : ''
   const sourcePlan = normalizeSourcePlan(record.sourcePlan)
+  const includeAgenda = record.includeAgenda === true
 
   const templatesRoot = await ensureTemplatesRoot()
   const { manifest, templateDir } = await readManifest(templatesRoot, templateId)
@@ -690,7 +741,8 @@ export async function createSessionFromTemplate(
   const preparedPages = await prepareTemplatePagesForSession({
     manifest,
     projectDir,
-    totalPages: resolvedPageCount
+    totalPages: resolvedPageCount,
+    includeAgenda
   })
   const indexPages: DeckPageFile[] = preparedPages.map((page) => ({
     id: page.id,
@@ -756,6 +808,10 @@ export async function createSessionFromTemplate(
   const metadata = {
     source: 'template',
     templateId,
+    includeAgenda,
+    templatePageRoles: Object.fromEntries(
+      preparedPages.map((page) => [page.pageId, page.templateRole || 'body'])
+    ),
     createdFromTemplateAt: Date.now(),
     indexPath,
     projectId
@@ -795,7 +851,8 @@ export async function createEditableSessionFromTemplate(
   const preparedPages = await prepareTemplatePagesForSession({
     manifest,
     projectDir,
-    totalPages: manifest.pageCount || manifest.pages.length
+    totalPages: manifest.pageCount || manifest.pages.length,
+    includeAgenda: true
   })
   const indexPages: DeckPageFile[] = preparedPages.map((page) => ({
     id: page.id,
@@ -868,6 +925,10 @@ export async function createEditableSessionFromTemplate(
   const metadata = {
     source: 'template-direct-edit',
     templateId,
+    includeAgenda: true,
+    templatePageRoles: Object.fromEntries(
+      preparedPages.map((page) => [page.pageId, page.templateRole || 'body'])
+    ),
     createdFromTemplateAt: Date.now(),
     indexPath,
     projectId,

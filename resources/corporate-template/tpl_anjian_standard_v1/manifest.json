@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "tpl_anjian_standard_v1",
+  "name": "安居建业标准模板",
+  "description": "公司内部统一 16:9 演示模板，按封面、可选目录、正文和固定结束页四类页面使用。",
+  "createdAt": 1784505600000,
+  "updatedAt": 1784851200000,
+  "pageCount": 4,
+  "tags": ["安居建业", "内部模板", "16:9"],
+  "styleId": "anjian-corporate",
+  "slideSizeId": "wide-16-9",
+  "slideWidth": 1600,
+  "slideHeight": 900,
+  "designContract": {
+    "theme": "安居建业内部标准汇报，稳健、清晰、专业，严格延续公司 2024 年 6 月模板。",
+    "background": "白色或暖白色底，保留原模板红橙黄波浪、公司标识、页码与内部文件页脚，不新增无关装饰。",
+    "palette": ["#FFFFFF", "#595959", "#E31921", "#BA1218", "#F5831F", "#FFD104"],
+    "titleStyle": "中文标题与正文默认使用楷体，标题加粗、左对齐或按继承版式居中；重点文字可用公司红或橙色。",
+    "layoutMotif": "仅使用封面、可选目录、正文和固定结束页四类结构；所有中间业务内容统一使用正文页，结束页保持原样，正文保持大留白，页脚保留内部文件 请勿外传。",
+    "chartStyle": "扁平二维图表，优先公司红、橙、黄和中性灰；不使用霓虹色、立体效果或外部品牌色。",
+    "shapeLanguage": "细边框、直角或轻微圆角，使用原模板矩形框和波浪图形语言，禁止玻璃拟态与复杂渐变卡片。",
+    "titleFont": "KaiTi",
+    "bodyFont": "KaiTi"
+  },
+  "pages": [
+    { "pageNumber": 1, "pageId": "page-1", "title": "封面", "htmlPath": "page-1.html", "role": "cover" },
+    { "pageNumber": 2, "pageId": "page-2", "title": "目录", "htmlPath": "page-2.html", "role": "agenda" },
+    { "pageNumber": 3, "pageId": "page-4", "title": "正文页", "htmlPath": "page-4.html", "role": "body" },
+    { "pageNumber": 4, "pageId": "page-5", "title": "结束页", "htmlPath": "page-5.html", "role": "closing" }
+  ]
+}

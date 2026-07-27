@@ -1,14 +1,16 @@
-appId: com.ohmyppt.app
-productName: OhMyPPT
+appId: com.szajjy.pptassistant
+productName: 安居建业PPT助手
 directories:
   buildResources: build
 files:
   - '!**/.DS_Store'
   - '!**/._*'
-  # ffmpeg is copied by build/after-pack.cjs per platform so unused binaries are not bundled.
-  # Linux currently has no bundled ffmpeg binary in resources/ffmpeg; MP4 export needs a Linux
-  # ffmpeg asset before Linux video export can be enabled in packaged apps.
+  # MP4 export is outside the internal product scope; ffmpeg is excluded and
+  # build/after-pack.cjs defensively removes any unpacked copy.
   - '!resources/ffmpeg/**'
+  # Only the corporate style package is shipped. Keep the style manifest and
+  # anjian-corporate, but omit every other style directory from app.asar too.
+  - '!resources/styles/!(anjian-corporate)/**'
   - '!**/.vscode/*'
   - '!**/.idea/**'
   - '!**/.git/**'
@@ -33,13 +35,14 @@ files:
   - '!**/*.tsbuildinfo'
   - '!*.db'
   - '!*.db-*'
-  - '!{ohmyppt.dev.db,ohmyppt.db}'
+  - '!{ajjy-ppt.dev.db,ajjy-ppt.db}'
   - '!thumb.png'
   - '!tests/**'
   - '!test/**'
 asarUnpack:
   - resources/**
   - node_modules/@node-rs/**/*.node
+  - node_modules/@napi-rs/**/*.node
 afterPack: build/after-pack.cjs
 extraResources:
   - from: build/icons/icon.ico
@@ -54,10 +57,10 @@ win:
     - target: nsis
       arch:
         - x64
-  executableName: ohmyppt
+  executableName: AnjuJianyePPT
   icon: build/icons/icon.ico
 nsis:
-  artifactName: ${name}-${version}-setup.${ext}
+  artifactName: AnjuJianye-PPT-Assistant-${version}-x64-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
@@ -73,54 +76,6 @@ nsis:
   allowElevation: true
   createStartMenuShortcut: true
   include: installer.nsh
-mac:
-  target:
-    - target: dmg
-      arch:
-        - x64
-        - arm64
-  icon: build/icons/icon.icns
-  identity: null
-  extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
-  notarize: false
-dmg:
-  artifactName: ${name}-${version}-${arch}.${ext}
-linux:
-  # Packaging metadata is ready for Linux, but resources/ffmpeg currently only contains
-  # macOS and Windows binaries. build/after-pack.cjs already looks for ffmpeg-linux-x64;
-  # add that binary before advertising MP4 export support for Linux packages.
-  executableName: ohmyppt
-  target:
-    - target: AppImage
-      arch:
-        - x64
-    - target: deb
-      arch:
-        - x64
-  icon: build/icons
-  maintainer: arcsin1
-  vendor: arcsin1
-  category: Office
-  synopsis: Local-first AI presentation workbench
-  description: Oh My PPT is a local-first AI presentation generator and editor.
-appImage:
-  artifactName: ${name}-${version}-${arch}.${ext}
-deb:
-  artifactName: ${name}-${version}-${arch}.${ext}
-  depends:
-    - libgtk-3-0
-    - libnotify4
-    - libnss3
-    - libxss1
-    - libxtst6
-    - xdg-utils
 npmRebuild: false
-publish:
-  provider: generic
-  url: https://example.com/auto-updates
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/

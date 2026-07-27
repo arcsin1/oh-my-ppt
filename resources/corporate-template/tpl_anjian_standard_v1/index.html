@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>安居建业标准模板 · Preview</title>
+    <style>
+      :root {
+        --ppt-slide-width: 1600px;
+        --ppt-slide-height: 900px;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        width: 100%;
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        font-family: "SF Pro Text", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+        background: linear-gradient(160deg, #eef6ff 0%, #f8fbff 55%, #eef2ff 100%);
+        color: #1e293b;
+        overflow: hidden;
+      }
+      .ppt-layout {
+        height: 100vh;
+        height: 100dvh;
+        padding: 0;
+      }
+      .ppt-stage {
+        background: #ffffff;
+        height: 100%;
+        min-height: 0;
+        border-radius: 0;
+        overflow: hidden;
+        padding: 0;
+      }
+      .ppt-preview-viewport {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        border-radius: 0;
+        overflow: hidden;
+        background: #ffffff;
+      }
+      .ppt-preview-frame {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: var(--ppt-slide-width);
+        height: var(--ppt-slide-height);
+        transform-origin: top left;
+        border: none;
+        background: white;
+        display: none;
+      }
+      .ppt-preview-frame.active { display: block; }
+      .ppt-deck-switcher {
+        position: fixed;
+        right: 18px;
+        bottom: 82px;
+        width: min(320px, calc(100vw - 32px));
+        max-height: min(54vh, 520px);
+        overflow: auto;
+        display: none;
+        padding: 14px;
+        border-radius: 20px;
+        border: 1px solid rgba(148,163,184,0.24);
+        background: rgba(255,255,255,0.92);
+        box-shadow: 0 18px 48px rgba(15,23,42,0.16);
+        backdrop-filter: blur(14px);
+      }
+      .ppt-deck-switcher.open { display: block; }
+      .ppt-thumb-item {
+        width: 100%;
+        text-align: left;
+        border: 1px solid transparent;
+        border-radius: 14px;
+        background: rgba(248,250,252,0.9);
+        padding: 10px;
+        cursor: pointer;
+      }
+      .ppt-thumb-item + .ppt-thumb-item { margin-top: 8px; }
+      .ppt-thumb-item.active {
+        border-color: rgba(59,130,246,0.45);
+        background: rgba(219,234,254,0.7);
+      }
+      .ppt-thumb-index {
+        font-size: 11px;
+        color: #64748b;
+      }
+      .ppt-thumb-title {
+        margin-top: 4px;
+        font-size: 13px;
+        color: #0f172a;
+        font-weight: 600;
+      }
+      .ppt-controls {
+        position: fixed;
+        left: 50%;
+        bottom: 18px;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        border-radius: 14px;
+        border: 1px solid rgba(148,163,184,0.24);
+        background: rgba(255,255,255,0.92);
+        box-shadow: 0 10px 26px rgba(15,23,42,0.13);
+        backdrop-filter: blur(8px);
+      }
+      .ppt-control-btn {
+        border: 1px solid rgba(148,163,184,0.24);
+        background: rgba(248,250,252,0.9);
+        color: #334155;
+        border-radius: 10px;
+        padding: 8px 12px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .ppt-indicator {
+        min-width: 88px;
+        text-align: center;
+        color: #475569;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      body.present { background: #000000; }
+      body.present .ppt-layout { padding: 0; background: #000000; }
+      body.present .ppt-stage { border-radius: 0; border: none; box-shadow: none; padding: 0; background: #000000; }
+      body.present .ppt-preview-viewport { border-radius: 0; background: #000000; }
+      body.present .ppt-controls, body.present .ppt-deck-switcher { display: none !important; }
+      body.embed .ppt-layout { padding: 0; }
+      body.embed .ppt-stage { border-radius: 0; border: none; box-shadow: none; padding: 0; }
+      body.embed .ppt-preview-viewport { border-radius: 0; }
+      body.embed .ppt-controls, body.embed .ppt-deck-switcher { display: none !important; }
+      .ppt-empty {
+        position: absolute;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        color: #64748b;
+        background: linear-gradient(180deg, rgba(241,245,249,0.7) 0%, rgba(248,250,252,0.8) 100%);
+      }
+      body.empty .ppt-empty { display: flex; }
+      body.empty iframe { display: none; }
+    </style>
+  </head>
+  <body>
+    <div class="ppt-layout">
+      <section class="ppt-stage">
+        <div id="frameViewport" class="ppt-preview-viewport">
+          <iframe class="ppt-preview-frame" data-page-id="page-1" data-legacy-page-id="page-1" title="添加主标题"></iframe>
+<iframe class="ppt-preview-frame" data-page-id="page-2" data-legacy-page-id="page-2" title="01 / 添加标题1_1 添加小标题1_2 添加小标题 02 / 添加标题2_1 添加小标题2_2 添加小标题 03 / 添加标题 3_1 添加小标题3_2 添"></iframe>
+<iframe class="ppt-preview-frame" data-page-id="page-3" data-legacy-page-id="page-3" title="添加标题1_1 添加小标题1_2 添加小标题1_3 添加小标题"></iframe>
+<iframe class="ppt-preview-frame" data-page-id="page-4" data-legacy-page-id="page-4" title="本页PPT核心结论简要描述，重要观点可标红。本页PPT核心结论简要描述，重要观点可标红。"></iframe>
+<iframe class="ppt-preview-frame" data-page-id="page-5" data-legacy-page-id="page-5" title="深圳市安居建业投资运营有限公司 Shenzhen Finance&amp;Real Estate Stability CO.,Ltd深圳市福田区福田街道金田路2026号"></iframe>
+          <div class="ppt-empty">暂无页面，请先生成 /&lt;pageId&gt;.html 内容</div>
+        </div>
+      </section>
+    </div>
+    <aside class="ppt-deck-switcher" id="deckSwitcher">
+      <div id="thumbs"><button class="ppt-thumb-item" data-page-id="page-1" data-legacy-page-id="page-1">
+  <div class="ppt-thumb-index">P1</div>
+  <div class="ppt-thumb-title">添加主标题</div>
+</button>
+<button class="ppt-thumb-item" data-page-id="page-2" data-legacy-page-id="page-2">
+  <div class="ppt-thumb-index">P2</div>
+  <div class="ppt-thumb-title">01 / 添加标题1_1 添加小标题1_2 添加小标题 02 / 添加标题2_1 添加小标题2_2 添加小标题 03 / 添加标题 3_1 添加小标题3_2 添</div>
+</button>
+<button class="ppt-thumb-item" data-page-id="page-3" data-legacy-page-id="page-3">
+  <div class="ppt-thumb-index">P3</div>
+  <div class="ppt-thumb-title">添加标题1_1 添加小标题1_2 添加小标题1_3 添加小标题</div>
+</button>
+<button class="ppt-thumb-item" data-page-id="page-4" data-legacy-page-id="page-4">
+  <div class="ppt-thumb-index">P4</div>
+  <div class="ppt-thumb-title">本页PPT核心结论简要描述，重要观点可标红。本页PPT核心结论简要描述，重要观点可标红。</div>
+</button>
+<button class="ppt-thumb-item" data-page-id="page-5" data-legacy-page-id="page-5">
+  <div class="ppt-thumb-index">P5</div>
+  <div class="ppt-thumb-title">深圳市安居建业投资运营有限公司 Shenzhen Finance&amp;Real Estate Stability CO.,Ltd深圳市福田区福田街道金田路2026号</div>
+</button></div>
+    </aside>
+    <div class="ppt-controls">
+      <button class="ppt-control-btn" id="prevBtn">上一页</button>
+      <div class="ppt-indicator" id="indicator"></div>
+      <button class="ppt-control-btn" id="nextBtn">下一页</button>
+      <button class="ppt-control-btn" id="tabsBtn">页面目录</button>
+      <button class="ppt-control-btn" id="presentBtn">演示模式（ESC退出）</button>
+      <button class="ppt-control-btn" id="fullscreenBtn">全屏</button>
+    </div>
+    <script type="application/json" id="pages-data">[{"pageNumber":1,"pageId":"page-1","title":"添加主标题","htmlPath":"page-1.html"},{"pageNumber":2,"pageId":"page-2","title":"01 / 添加标题1_1 添加小标题1_2 添加小标题 02 / 添加标题2_1 添加小标题2_2 添加小标题 03 / 添加标题 3_1 添加小标题3_2 添","htmlPath":"page-2.html"},{"pageNumber":3,"pageId":"page-3","title":"添加标题1_1 添加小标题1_2 添加小标题1_3 添加小标题","htmlPath":"page-3.html"},{"pageNumber":4,"pageId":"page-4","title":"本页PPT核心结论简要描述，重要观点可标红。本页PPT核心结论简要描述，重要观点可标红。","htmlPath":"page-4.html"},{"pageNumber":5,"pageId":"page-5","title":"深圳市安居建业投资运营有限公司 Shenzhen Finance&Real Estate Stability CO.,Ltd深圳市福田区福田街道金田路2026号","htmlPath":"page-5.html"}]</script>
+    <script type="application/json" id="deck-metadata">{"slideSizeId":"wide-16-9","width":1600,"height":900}</script>
+    <script id="ppt-index-transition-config" type="application/json">{"type":"fade","durationMs":600}</script>
+    <script src="./assets/anime.v4.js"></script>
+    <script src="./assets/index-runtime.js"></script>
+  </body>
+</html>

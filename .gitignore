@@ -1,6 +1,7 @@
 node_modules
 dist
 out
+acceptance-output/
 resources/ffmpeg/
 .DS_Store
 .eslintcache

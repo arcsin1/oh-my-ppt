@@ -24,10 +24,10 @@ import {
 } from './styles'
 import { applyProxy } from './utils/proxy'
 import { createTray, destroyTray, showTrayHideBalloon } from './tray'
-import type { UpdateAvailablePayload } from '@shared/app-update'
 import { isRepeatedRendererCrash, shouldRecoverRenderer } from './renderer-recovery'
 import { configureHtmlThumbnailService } from './utils/html-thumbnail-service'
-import { configureModelUsageRecorder } from './model-usage'
+import { initializeCorporateTemplate } from './templates/corporate-template-initializer'
+import { CORPORATE_STYLE_KEY, PRODUCT_NAME } from '@shared/brand'
 
 let mainWindow: BrowserWindow | null = null
 let db: PPTDatabase | null = null
@@ -35,15 +35,14 @@ let agentManager: AgentManager | null = null
 let isShuttingDown = false
 let isTrayEnabled = false
 
-const APP_NAME = 'OhMyPPT'
+const APP_NAME = PRODUCT_NAME
 const DEFAULT_WINDOW_WIDTH = 1280
 const DEFAULT_WINDOW_HEIGHT = 820
 const BASE_MIN_WIDTH = 880
 const BASE_MIN_HEIGHT = 680
 const TITLEBAR_HEIGHT = 48
-const TITLEBAR_BACKGROUND = '#f4eddf'
-const TITLEBAR_SYMBOL_COLOR = '#5d6b4d'
-const UPDATE_MANIFEST_URL = 'https://www.ohmyppt.cc/version.json'
+const TITLEBAR_BACKGROUND = '#faf8f3'
+const TITLEBAR_SYMBOL_COLOR = '#4c4c4c'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock()
@@ -91,7 +90,7 @@ function configureLogging(): void {
       const yearMonthDay = now.format('YYYY-MM-DD')
       return join(
         app.getPath('userData'),
-        'ohmyppt_logs',
+        'ajjy_ppt_logs',
         yearMonth,
         `${yearMonthDay}-v${app.getVersion()}.log`
       )
@@ -103,92 +102,6 @@ function configureLogging(): void {
     env: is.dev ? 'dev' : 'prod',
     version: app.getVersion(),
     file: log.transports.file.getFile().path,
-  })
-}
-
-function parseVersion(version: string): number[] {
-  return version
-    .trim()
-    .replace(/^v/i, '')
-    .split(/[.-]/)
-    .slice(0, 3)
-    .map((part) => {
-      const value = Number.parseInt(part, 10)
-      return Number.isFinite(value) ? value : 0
-    })
-}
-
-function isNewerVersion(latestVersion: string, currentVersion: string): boolean {
-  const latest = parseVersion(latestVersion)
-  const current = parseVersion(currentVersion)
-  for (let index = 0; index < Math.max(latest.length, current.length, 3); index += 1) {
-    const latestPart = latest[index] ?? 0
-    const currentPart = current[index] ?? 0
-    if (latestPart > currentPart) return true
-    if (latestPart < currentPart) return false
-  }
-  return false
-}
-
-async function fetchLatestRelease(): Promise<UpdateAvailablePayload | null> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 8000)
-  try {
-    const response = await fetch(UPDATE_MANIFEST_URL, {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': `${APP_NAME}/${app.getVersion()}`
-      },
-      signal: controller.signal
-    })
-    if (!response.ok) {
-      log.warn('[update] latest release request failed', {
-        status: response.status,
-        statusText: response.statusText
-      })
-      return null
-    }
-    const manifest = (await response.json()) as {
-      version?: unknown
-      downloadhome?: unknown
-      changeLog?: unknown
-    }
-    const latestVersion = String(manifest.version || '').trim()
-    const currentVersion = app.getVersion()
-    const rawDownloadhome = typeof manifest.downloadhome === 'string' ? manifest.downloadhome.trim() : ''
-    const downloadhome = rawDownloadhome && !/^https?:\/\//i.test(rawDownloadhome)
-      ? `http://${rawDownloadhome}`
-      : rawDownloadhome
-    const changeLog = typeof manifest.changeLog === 'string' ? manifest.changeLog.trim() : ''
-
-    if (!latestVersion) return null
-    if (!isNewerVersion(latestVersion, currentVersion)) return null
-
-    return {
-      currentVersion,
-      latestVersion,
-      downloadUrl: downloadhome || undefined,
-      changeLog: changeLog || undefined
-    }
-  } catch (error) {
-    log.warn('[update] latest release check failed', {
-      message: error instanceof Error ? error.message : String(error)
-    })
-    return null
-  } finally {
-    clearTimeout(timeout)
-  }
-}
-
-function scheduleUpdateNotification(window: BrowserWindow): void {
-  window.webContents.once('did-finish-load', () => {
-    setTimeout(() => {
-      void fetchLatestRelease().then((update) => {
-        if (!update || window.isDestroyed() || window.webContents.isDestroyed()) return
-        log.info('[update] new release available', update)
-        window.webContents.send('app:update-available', update)
-      })
-    }, 2500)
   })
 }
 
@@ -323,24 +236,24 @@ if (gotSingleInstanceLock) {
 
   app.whenReady().then(async () => {
     configureLogging()
-    electronApp.setAppUserModelId('com.ohmyppt.app')
+    electronApp.setAppUserModelId('com.szajjy.pptassistant')
 
-    const dbPath = is.dev ? join(process.cwd(), 'ohmyppt.dev.db') : undefined
+    const dbPath = is.dev ? join(process.cwd(), 'ajjy-ppt.dev.db') : undefined
     db = new PPTDatabase(dbPath)
     await db.init()
-    configureModelUsageRecorder(db)
     configureHtmlThumbnailService(db)
     await db.failInterruptedThumbnailTasks()
     setStyleDb(db)
     log.info('[app] database initialized', {
       env: is.dev ? 'dev' : 'prod',
-      dbPath: dbPath || 'userData/ohmyppt.db',
+      dbPath: dbPath || 'userData/ajjy-ppt.db',
     })
 
     const installedStylesPath = resolveInstalledStylesPath()
     const stylesReadyPromise = initializeStyles({
       bundledSourcePath: resolveBundledStylesSourcePath(),
       installedRootPath: installedStylesPath,
+      allowedStyleKeys: new Set([CORPORATE_STYLE_KEY]),
       logger: log
     })
       .then(async (result) => {
@@ -368,6 +281,8 @@ if (gotSingleInstanceLock) {
       ready: stylesReadyPromise
     })
     await stylesReadyPromise
+
+    await initializeCorporateTemplate({ logger: log })
 
     const installedSkillsPath = resolveInstalledSkillsPath()
     const skillsReadyPromise = initializeSkills({
@@ -419,8 +334,6 @@ if (gotSingleInstanceLock) {
 
     if (window && db && agentManager) {
       setupIPC(window, db, agentManager)
-      scheduleUpdateNotification(window)
-
       // Apply proxy from saved settings
       try {
         const savedSettings = await db.getAllSettings()

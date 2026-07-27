@@ -240,18 +240,16 @@ export const PreviewStage = forwardRef<
   ])
 
   if (!slideSize) {
-    return <div className="min-h-0 flex-1 bg-[#f5f1e8]" />
+    return <div className="min-h-0 flex-1 bg-[#f3f1ed]" />
   }
 
   return (
     <main className="flex min-h-0 flex-1 flex-col px-3 pb-3 pt-1">
-      <div className="relative min-h-0 flex-1 overflow-hidden rounded-[2rem] bg-[#e8e0d0]/54 p-3 shadow-[0_18px_38px_rgba(93,107,77,0.11)]">
-        <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-[30%_70%_70%_30%/30%_30%_70%_70%] bg-[#d4e4c1]/42" />
-        <div className="pointer-events-none absolute -bottom-24 left-8 h-48 w-64 rounded-[5%_95%_10%_90%/85%_15%_85%_15%] bg-[#c8b89e]/20" />
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-[#e1d9ce] bg-[#e9e7e3] p-3 shadow-[0_14px_30px_rgba(76,76,76,0.08)]">
         {selectedPage ? (
           <div
             ref={frameRef}
-            className="relative h-full overflow-hidden rounded-[1.55rem] bg-[#f5f1e8] shadow-[0_10px_24px_rgba(93,107,77,0.11)]"
+            className="relative h-full overflow-hidden rounded-md bg-[#f3f1ed] shadow-[0_8px_22px_rgba(76,76,76,0.12)]"
           >
             <div
               ref={canvasHostRef}
@@ -308,10 +306,10 @@ export const PreviewStage = forwardRef<
             )}
           </div>
         ) : (
-          <div className="relative flex h-full min-h-[420px] flex-col items-center justify-center gap-4 rounded-[1.55rem] bg-[#f5f1e8]/84 text-center text-[#5d6b4d] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.32)]">
-            <Sparkles className="h-7 w-7 text-[#8fbc8f]" />
+          <div className="relative flex h-full min-h-[420px] flex-col items-center justify-center gap-4 rounded-md bg-[#faf8f3] text-center text-[#817b73]">
+            <Sparkles className="h-7 w-7 text-[#f5831f]" />
             <div className="space-y-1">
-              <p className="text-base font-medium text-[#3e4a32]">
+              <p className="text-base font-medium text-[#333333]">
                 {t('sessionDetail.emptyPreviewTitle')}
               </p>
               <p className="text-sm">{t('sessionDetail.briefHint')}</p>

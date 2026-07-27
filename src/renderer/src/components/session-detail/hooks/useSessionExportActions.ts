@@ -37,6 +37,11 @@ function getPptxExportNotice(
   const hasNoEditableText = items.some((item) => item.includes('未提取到可编辑文本'))
   if (hasNoEditableText) return t('sessionDetail.noEditableTextNotice')
 
+  const hasAnimationCompatibilityNote = items.some((item) => item.includes('原生动画'))
+  if (hasAnimationCompatibilityNote) {
+    return t('sessionDetail.pptxAnimationCompatibilityNotice')
+  }
+
   const hasOnlyCapabilityNote = items.every(
     (item) =>
       item.includes('自研') ||

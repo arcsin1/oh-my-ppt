@@ -116,7 +116,6 @@ export function usePageSidebarController(sessionId: string) {
     onUpdatePageOutline: handleUpdatePageOutline,
     onExportPagePptx: pageActions.exportPagePptx,
     canExportPptx: slideSize ? isDefaultSlideSize(slideSize) : false,
-    onDownloadAllOutlines: pageActions.exportOutlinesMarkdown,
     onToggleCollapsed: toggleSidebarCollapsed
   }
 }

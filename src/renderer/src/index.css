@@ -29,23 +29,23 @@
 
 /* Custom theme */
 @theme {
-  --color-background: #f5f1e8;
-  --color-foreground: #3e4a32;
-  --color-card: rgba(255, 251, 244, 0.88);
-  --color-card-foreground: #3e4a32;
-  --color-primary: #5d6b4d;
+  --color-background: #faf8f3;
+  --color-foreground: #4c4c4c;
+  --color-card: #ffffff;
+  --color-card-foreground: #333333;
+  --color-primary: #e21b22;
   --color-primary-foreground: #ffffff;
-  --color-secondary: #e8e0d0;
-  --color-secondary-foreground: #4f5f42;
-  --color-muted: #efe7d7;
-  --color-muted-foreground: #7a8369;
-  --color-accent: #d4e4c1;
-  --color-accent-foreground: #3e4a32;
-  --color-destructive: #b15a58;
+  --color-secondary: #f5f1e9;
+  --color-secondary-foreground: #4c4c4c;
+  --color-muted: #f3efe9;
+  --color-muted-foreground: #817b73;
+  --color-accent: #fff1ec;
+  --color-accent-foreground: #ba1218;
+  --color-destructive: #ba1218;
   --color-destructive-foreground: #ffffff;
-  --color-border: rgba(161, 142, 112, 0.26);
-  --color-input: rgba(78, 96, 64, 0.12);
-  --color-ring: #8fbc8f;
+  --color-border: #e6ded2;
+  --color-input: #ded6cb;
+  --color-ring: #e21b22;
 }
 
 * {
@@ -61,19 +61,16 @@ body,
 body {
   background-color: var(--color-background);
   color: var(--color-foreground);
-  font-family: "Elms Sans", "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", "Elms Sans", system-ui, sans-serif;
   text-rendering: optimizeLegibility;
-  background-image:
-    radial-gradient(circle at 12% 8%, rgba(212, 228, 193, 0.55), transparent 32%),
-    radial-gradient(circle at 88% 0%, rgba(200, 184, 158, 0.38), transparent 30%),
-    linear-gradient(145deg, #f5f1e8 0%, #f1eadb 48%, #ece3cf 100%);
+  background-image: none;
 }
 
 /* Global scrollbar theme (Windows + macOS + Firefox) */
 :root {
-  --scrollbar-thumb: rgba(116, 136, 90, 0.72);
-  --scrollbar-thumb-hover: rgba(99, 120, 73, 0.86);
-  --scrollbar-track: rgba(232, 223, 205, 0.62);
+  --scrollbar-thumb: rgba(151, 141, 130, 0.62);
+  --scrollbar-thumb-hover: rgba(120, 111, 102, 0.78);
+  --scrollbar-track: rgba(242, 238, 232, 0.72);
 }
 
 * {
@@ -92,8 +89,8 @@ body {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(128, 149, 101, 0.9), rgba(106, 127, 80, 0.9));
-  border: 2px solid rgba(242, 233, 217, 0.78);
+  background: var(--scrollbar-thumb);
+  border: 2px solid rgba(250, 248, 243, 0.9);
   border-radius: 999px;
 }
 
@@ -144,9 +141,9 @@ body {
 }
 
 .soft-card {
-  background: linear-gradient(165deg, rgba(255, 252, 247, 0.93), rgba(244, 238, 225, 0.88));
-  box-shadow: 0 14px 34px rgba(88, 75, 56, 0.12), 0 2px 8px rgba(79, 66, 49, 0.08);
-  border: 1px solid rgba(173, 154, 123, 0.35);
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(76, 76, 76, 0.07);
+  border: 1px solid #e6ded2;
   border-radius: 10px;
 }
 
@@ -183,8 +180,8 @@ body {
 
 .soft-input:focus {
   background: rgba(255, 252, 248, 0.97);
-  border-color: #8fbc8f;
-  box-shadow: 0 0 0 3px rgba(143, 188, 143, 0.24);
+  border-color: #e21b22;
+  box-shadow: 0 0 0 3px rgba(226, 27, 34, 0.12);
 }
 
 .soft-surface,
@@ -212,7 +209,7 @@ body {
 }
 
 .organic-serif {
-  font-family: "Elms Sans", "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", "Elms Sans", system-ui, sans-serif;
   letter-spacing: 0.01em;
 }
 

@@ -17,6 +17,20 @@ import {
 } from '../../openai-responses-compat'
 import type { ModelUsagePeriod } from '@shared/model-usage'
 import { normalizeThinkingParameterMode } from '@shared/model-config'
+import {
+  isCompanyTextProvider,
+  REDACTED_LOCAL_SECRET,
+  type CompanyTextProvider
+} from '@shared/company-config'
+import {
+  inferByokServiceId,
+  normalizeByokApiKey,
+  normalizeByokBaseUrl,
+  type ByokServiceId
+} from '@shared/byok'
+import { isSessionCredentialReference } from '../../security/credential-storage'
+
+const ENABLE_TOKEN_USAGE_DASHBOARD = false
 
 const readGlobalTimeouts = (
   settings: Record<string, unknown>
@@ -28,10 +42,14 @@ const readGlobalTimeouts = (
     ])
   ) as Record<ConfigurableModelTimeoutProfile, number>
 
-const VALID_PROVIDERS = ['anthropic', 'openai', 'openai-responses', 'google'] as const
-type Provider = (typeof VALID_PROVIDERS)[number]
-const normalizeProvider = (provider: unknown): Provider =>
-  VALID_PROVIDERS.includes(provider as Provider) ? (provider as Provider) : 'openai'
+const normalizeProvider = (provider: unknown): CompanyTextProvider => {
+  if (isCompanyTextProvider(provider)) return provider
+  throw new Error('安居建业内部版 BYOK 仅支持 OpenAI 兼容协议。')
+}
+const normalizeByokServiceId = (value: unknown, baseUrl: string): ByokServiceId =>
+  value === 'aliyun' || value === 'tencent' || value === 'deepseek' || value === 'custom'
+    ? value
+    : inferByokServiceId(baseUrl)
 const normalizeMaxTokens = (value: unknown): number => {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return 4096
   return Math.max(256, Math.min(16384, Math.floor(value)))
@@ -97,32 +115,38 @@ export function registerSettingsHandlers(ctx: IpcContext): void {
   })
 
   ipcMain.handle('settings:listModelConfigs', async () => {
-    return (await db.listModelConfigs()).map((config) => ({
-      id: config.id,
-      name: config.name,
-      provider: config.provider,
-      model: config.model,
-      apiKey: decryptApiKey(config.apiKey),
-      baseUrl: config.baseUrl,
-      maxTokens: config.maxTokens || 4096,
-      disableTemperature: config.disableTemperature === 1,
-      thinkingParameterMode: normalizeThinkingParameterMode(config.thinkingParameterMode),
-      active: config.active === 1,
-      createdAt: config.createdAt,
-      updatedAt: config.updatedAt
-    }))
+    return (await db.listModelConfigs())
+      .filter((config) => isCompanyTextProvider(config.provider))
+      .map((config) => ({
+        id: config.id,
+        name: config.name,
+        provider: config.provider,
+        model: config.model,
+        apiKey: decryptApiKey(config.apiKey).trim() ? REDACTED_LOCAL_SECRET : '',
+        credentialPersistence: isSessionCredentialReference(config.apiKey)
+          ? 'session-only'
+          : 'encrypted',
+        baseUrl: config.baseUrl,
+        maxTokens: config.maxTokens || 4096,
+        disableTemperature: config.disableTemperature === 1,
+        thinkingParameterMode: normalizeThinkingParameterMode(config.thinkingParameterMode),
+        active: config.active === 1,
+        createdAt: config.createdAt,
+        updatedAt: config.updatedAt
+      }))
   })
 
-  ipcMain.handle('settings:getModelUsage', async (_event, requestedPeriod) => {
-    const period: ModelUsagePeriod =
-      requestedPeriod === 'today' ||
-      requestedPeriod === '7d' ||
-      requestedPeriod === '30d' ||
-      requestedPeriod === 'all'
-        ? requestedPeriod
-        : '30d'
-    return db.getModelUsageStats(period)
-  })
+  ENABLE_TOKEN_USAGE_DASHBOARD &&
+    ipcMain.handle('settings:getModelUsage', async (_event, requestedPeriod) => {
+      const period: ModelUsagePeriod =
+        requestedPeriod === 'today' ||
+        requestedPeriod === '7d' ||
+        requestedPeriod === '30d' ||
+        requestedPeriod === 'all'
+          ? requestedPeriod
+          : '30d'
+      return db.getModelUsageStats(period)
+    })
 
   ipcMain.handle('settings:validateUploadPrerequisites', async () => {
     const locale = await readAppLocale(ctx)
@@ -135,12 +159,15 @@ export function registerSettingsHandlers(ctx: IpcContext): void {
     const hasModel = !!activeModel
     const hasApiKey = typeof activeModel?.apiKey === 'string' && decryptApiKey(activeModel.apiKey).trim().length > 0
     const hasModelName = typeof activeModel?.model === 'string' && activeModel.model.trim().length > 0
+    const hasBaseUrl =
+      typeof activeModel?.baseUrl === 'string' && activeModel.baseUrl.trim().length > 0
 
-    const missing: Array<'storagePath' | 'activeModel' | 'apiKey' | 'model'> = []
+    const missing: Array<'storagePath' | 'activeModel' | 'apiKey' | 'model' | 'baseUrl'> = []
     if (!storagePath) missing.push('storagePath')
     if (!hasModel) missing.push('activeModel')
     if (hasModel && !hasApiKey) missing.push('apiKey')
     if (hasModel && !hasModelName) missing.push('model')
+    if (hasModel && !hasBaseUrl) missing.push('baseUrl')
 
     return {
       ready: missing.length === 0,
@@ -150,8 +177,8 @@ export function registerSettingsHandlers(ctx: IpcContext): void {
           ? ''
           : uiText(
               locale,
-              '请先前往系统设置完成模型与存储目录配置。',
-              'Please complete model and storage configuration in Settings first.'
+              '请先前往设置连接自己的模型 API，并选择本地文件目录。',
+              'Connect your own model API and choose local storage in Settings first.'
             )
     }
   })
@@ -208,28 +235,38 @@ export function registerSettingsHandlers(ctx: IpcContext): void {
     const name = typeof record.name === 'string' ? record.name.trim() : ''
     const provider = normalizeProvider(record.provider)
     const model = typeof record.model === 'string' ? record.model.trim() : ''
-    const apiKey = typeof record.apiKey === 'string' ? record.apiKey.trim() : ''
+    const rawApiKey = typeof record.apiKey === 'string' ? record.apiKey : ''
     const baseUrl = typeof record.baseUrl === 'string' ? record.baseUrl.trim() : ''
+    const serviceId = normalizeByokServiceId(record.serviceId, baseUrl)
     const id =
       typeof record.id === 'string' && record.id.trim().length > 0 ? record.id.trim() : undefined
     if (!name) throw new Error(uiText(locale, '请填写模型名称。', 'Enter model name.'))
     if (!model) throw new Error(uiText(locale, '请填写 model。', 'Enter model.'))
-    if (!apiKey) throw new Error(uiText(locale, '请填写 api_key。', 'Enter api_key.'))
+    if (!rawApiKey.trim()) throw new Error(uiText(locale, '请填写 api_key。', 'Enter api_key.'))
+    const apiKey = normalizeByokApiKey(rawApiKey)
+    const normalizedBaseUrl = normalizeByokBaseUrl(serviceId, baseUrl)
     const maxTokens = normalizeMaxTokens(record.maxTokens)
     const thinkingParameterMode = normalizeThinkingParameterMode(record.thinkingParameterMode)
+    const storedApiKey = encryptApiKey(apiKey)
     const savedId = await db.upsertModelConfig({
       id,
       name,
       provider,
       model,
-      apiKey: encryptApiKey(apiKey),
-      baseUrl,
+      apiKey: storedApiKey,
+      baseUrl: normalizedBaseUrl,
       maxTokens,
       disableTemperature: record.disableTemperature === true,
       thinkingParameterMode,
       active: record.active === true
     })
-    return { success: true, id: savedId }
+    return {
+      success: true,
+      id: savedId,
+      credentialPersistence: isSessionCredentialReference(storedApiKey)
+        ? 'session-only'
+        : 'encrypted'
+    }
   })
 
   ipcMain.handle('settings:setActiveModelConfig', async (_event, id) => {
@@ -277,18 +314,23 @@ export function registerSettingsHandlers(ctx: IpcContext): void {
         maxTokens,
         disableTemperature,
         thinkingParameterMode,
+        serviceId,
         timeoutMs
       }
     ) => {
       const locale = await readAppLocale(ctx)
+      const companyProvider = normalizeProvider(provider)
+      const rawBaseUrl = typeof baseUrl === 'string' ? baseUrl.trim() : ''
+      const normalizedServiceId = normalizeByokServiceId(serviceId, rawBaseUrl)
       const resolvedTimeoutMs = resolveModelTimeoutMs(timeoutMs, 'verify')
       const resolvedMaxTokens = normalizeMaxTokens(maxTokens)
       const resolvedThinkingParameterMode = normalizeThinkingParameterMode(thinkingParameterMode)
       log.info('[settings:verifyApiKey] received', {
-        provider,
+        provider: companyProvider,
+        serviceId: normalizedServiceId,
         model,
         hasApiKey: typeof apiKey === 'string' && apiKey.trim().length > 0,
-        baseUrl: typeof baseUrl === 'string' ? baseUrl : '',
+        hasBaseUrl: rawBaseUrl.length > 0,
         maxTokens: resolvedMaxTokens,
         thinkingParameterMode: resolvedThinkingParameterMode,
         timeoutMs: resolvedTimeoutMs
@@ -303,8 +345,27 @@ export function registerSettingsHandlers(ctx: IpcContext): void {
       if (typeof model !== 'string' || model.trim().length === 0) {
         return { valid: false, message: uiText(locale, '请先填写 model。', 'Enter model first.') }
       }
+      let normalizedApiKey: string
+      try {
+        normalizedApiKey = normalizeByokApiKey(apiKey)
+      } catch (error) {
+        return {
+          valid: false,
+          message: error instanceof Error ? error.message : 'API Key 格式不正确。'
+        }
+      }
+      let normalizedBaseUrl: string
+      try {
+        normalizedBaseUrl = normalizeByokBaseUrl(normalizedServiceId, rawBaseUrl)
+      } catch (error) {
+        return {
+          valid: false,
+          message: error instanceof Error ? error.message : 'API Base URL 不符合安全要求。'
+        }
+      }
 
       try {
+        const destination = new URL(normalizedBaseUrl).hostname
         const client = runWithModelTemperatureControl(
           {
             disableTemperature: disableTemperature === true,
@@ -312,10 +373,10 @@ export function registerSettingsHandlers(ctx: IpcContext): void {
           },
           () =>
             resolveModel(
-              provider,
-              apiKey.trim(),
+              companyProvider,
+              normalizedApiKey,
               model.trim(),
-              typeof baseUrl === 'string' ? baseUrl.trim() : '',
+              normalizedBaseUrl,
               undefined,
               resolvedMaxTokens
             )
@@ -323,11 +384,16 @@ export function registerSettingsHandlers(ctx: IpcContext): void {
         await client.invoke('Reply with OK.', {
           signal: AbortSignal.timeout(resolvedTimeoutMs)
         })
-        log.info('[settings:verifyApiKey] success', { provider, model })
+        log.info('[settings:verifyApiKey] success', {
+          provider: companyProvider,
+          serviceId: normalizedServiceId,
+          model,
+          destination
+        })
         return { valid: true, message: uiText(locale, '连接验证成功。', 'Connection verified.') }
       } catch (error) {
         const message =
-          normalizeVerifyErrorMessage(error, { locale, provider }) ||
+          normalizeVerifyErrorMessage(error, { locale, provider: companyProvider }) ||
           uiText(
                 locale,
                 '连接验证失败，请检查 api_key、model 或 base_url。',
@@ -335,8 +401,9 @@ export function registerSettingsHandlers(ctx: IpcContext): void {
               )
         log.error('[settings:verifyApiKey] failed', {
           provider,
+          serviceId: normalizedServiceId,
           model,
-          baseUrl: typeof baseUrl === 'string' ? baseUrl : '',
+          destination: new URL(normalizedBaseUrl).hostname,
           message
         })
         return { valid: false, message }

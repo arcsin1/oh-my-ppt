@@ -18,6 +18,7 @@ interface TemplateStore {
     title?: string
     modelConfigId?: string
     pageCount?: number
+    includeAgenda?: boolean
     referenceDocumentPath?: string
     sourcePlan?: SourceDocumentPlan
   }) => Promise<string>

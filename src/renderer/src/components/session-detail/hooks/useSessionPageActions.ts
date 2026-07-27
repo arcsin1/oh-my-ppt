@@ -13,7 +13,6 @@ import { useSessionExportActions } from './useSessionExportActions'
 export function useSessionPageActions(sessionId: string): {
   isExportingPptx: boolean
   exportPagePptx: (page: SessionPreviewPage, options?: { imageOnly?: boolean }) => void
-  exportOutlinesMarkdown: () => void
   renamePage: (page: SessionPreviewPage) => void
   deletePage: (page: SessionPreviewPage) => void
   duplicatePage: (page: SessionPreviewPage) => void
@@ -32,10 +31,6 @@ export function useSessionPageActions(sessionId: string): {
     },
     [exportActions]
   )
-
-  const exportOutlinesMarkdown = useCallback(() => {
-    void exportActions.exportOutlinesMarkdown()
-  }, [exportActions])
 
   const renamePage = useCallback(
     (page: SessionPreviewPage) => {
@@ -87,7 +82,6 @@ export function useSessionPageActions(sessionId: string): {
   return {
     isExportingPptx,
     exportPagePptx,
-    exportOutlinesMarkdown,
     renamePage,
     deletePage,
     duplicatePage

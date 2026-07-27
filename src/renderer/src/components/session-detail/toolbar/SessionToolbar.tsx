@@ -1,5 +1,4 @@
 import {
-  Archive,
   ChevronDown,
   CopyPlus,
   FileDown,
@@ -7,15 +6,10 @@ import {
   Globe,
   History,
   Home,
-  Image as ImageIcon,
-  LayoutTemplate,
   Loader2,
   Monitor,
   MoreHorizontal,
-  Package,
-  Presentation,
-  Rows3,
-  Video
+  Presentation
 } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { useSessionDetailRuntimeStore, useSessionDetailUiStore } from '@renderer/store'
@@ -24,17 +18,16 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '../../ui/DropdownMenu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/Tooltip'
 import { useT } from '@renderer/i18n'
-import { SaveTemplateDialog } from '../../templates/SaveTemplateDialog'
 import { SaveAsNewSessionDialog } from './SaveAsNewSessionDialog'
 import { useSessionToolbarController } from './useSessionToolbarController'
+import logoUrl from '@renderer/assets/images/anjian-logo.png'
 
 const btnClass =
-  'app-no-drag h-7 rounded-[8px] border-transparent bg-[#e8e0d0]/72 px-2.5 text-[11px] text-[#3e4a32] shadow-[0_4px_10px_rgba(86,72,53,0.08)] hover:bg-[#d4e4c1]/78'
+  'app-no-drag h-7 rounded-[7px] border-[#e2d9cd] bg-white px-2.5 text-[11px] text-[#4c4c4c] shadow-none hover:bg-[#faf8f3]'
 const iconClass = 'mr-1.5 h-3.5 w-3.5'
 const dropIconClass = 'mr-2 h-3.5 w-3.5 text-[#6b7280]'
 
@@ -56,16 +49,11 @@ export function SessionToolbar({
     canPreview,
     canRevealFile,
     sessionTitle,
-    saveTemplateOpen,
-    savingTemplate,
     saveAsNewSessionOpen,
     savingAsNewSession,
     saveAsNewSessionDisabled,
-    defaultTemplateName,
     defaultSaveAsNewSessionName,
-    setSaveTemplateOpen,
     setSaveAsNewSessionOpen,
-    handleSaveTemplate,
     handleSaveAsNewSession,
     exportActions,
     openHistory
@@ -75,19 +63,8 @@ export function SessionToolbar({
 
   const isExportingPdf = useSessionDetailUiStore((state) => state.isExportingPdf)
   const isExportingPng = useSessionDetailUiStore((state) => state.isExportingPng)
-  const isExportingLongImage = useSessionDetailUiStore((state) => state.isExportingLongImage)
   const isExportingPptx = useSessionDetailUiStore((state) => state.isExportingPptx)
-  const isExportingVideo = useSessionDetailUiStore((state) => state.isExportingVideo)
-  const isExportingSlidePack = useSessionDetailUiStore((state) => state.isExportingSlidePack)
-  const isExportingSessionZip = useSessionDetailUiStore((state) => state.isExportingSessionZip)
-  const isExporting =
-    isExportingPdf ||
-    isExportingPng ||
-    isExportingLongImage ||
-    isExportingPptx ||
-    isExportingVideo ||
-    isExportingSlidePack ||
-    isExportingSessionZip
+  const isExporting = isExportingPdf || isExportingPng || isExportingPptx
 
   const exportingAny = isExporting
   const editLocked = selectedPageHasPendingEdits || !!isSavingEdits
@@ -98,12 +75,16 @@ export function SessionToolbar({
     <>
       {/* Mac left padding for traffic lights */}
       <div className={cn('flex h-full items-center gap-2', isMac ? 'pl-[85px]' : 'pl-4')}>
+        <div className="app-no-drag flex shrink-0 items-center gap-2 border-r border-[#e6ded2] pr-3">
+          <img src={logoUrl} alt="安居建业" className="h-6 w-auto" draggable={false} />
+          <span className="text-[12px] font-semibold text-[#333333]">PPT助手</span>
+        </div>
         {/* Home / Back */}
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               type="button"
-              className="app-no-drag inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] bg-[#e8e0d0]/72 text-[#3e4a32] shadow-[0_4px_10px_rgba(86,72,53,0.08)] transition-colors hover:bg-[#d4e4c1]/78 disabled:pointer-events-none disabled:opacity-45"
+              className="app-no-drag inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] border border-[#e2d9cd] bg-white text-[#4c4c4c] transition-colors hover:bg-[#faf8f3] disabled:pointer-events-none disabled:opacity-45"
               onClick={() => ribbonActions?.onBackToSessions()}
               disabled={homeDisabled}
             >
@@ -116,8 +97,8 @@ export function SessionToolbar({
         {/* Title */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex w-[150px] shrink-0 items-center gap-2 rounded-[10px] bg-[#e8e0d0]/60 px-3 py-1">
-              <div className="min-w-0 flex-1 truncate text-[12px] font-medium text-[#3e4a32]">
+            <div className="flex w-[172px] shrink-0 items-center gap-2 px-2 py-1">
+              <div className="min-w-0 flex-1 truncate text-[12px] font-medium text-[#333333]">
                 {sessionTitle}
               </div>
             </div>
@@ -135,7 +116,7 @@ export function SessionToolbar({
                 type="button"
                 variant="outline"
                 size="sm"
-                className={cn(btnClass, 'gap-1')}
+                className="app-no-drag h-8 gap-1 rounded-[7px] border-0 bg-[#e21b22] px-3 text-[11px] font-semibold text-white shadow-none hover:bg-[#ba1218]"
                 disabled={toolbarActionsDisabled}
               >
                 {exportingAny ? (
@@ -147,7 +128,7 @@ export function SessionToolbar({
                 {!exportingAny && <ChevronDown className="h-3 w-3" />}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-80">
+            <DropdownMenuContent align="start" className="w-44">
               <DropdownMenuItem
                 disabled={!exportActions.canExportPptx}
                 onClick={() => void exportActions.exportPptx()}
@@ -155,57 +136,13 @@ export function SessionToolbar({
                 <Presentation className={dropIconClass} />
                 {t('sessionDetail.toolbarExportPptxEditable')}
               </DropdownMenuItem>
-              <DropdownMenuItem
-                className="items-start"
-                disabled={!exportActions.canExportPptx}
-                onClick={() => void exportActions.exportPptx({ imageOnly: true })}
-              >
-                <ImageIcon className={cn(dropIconClass, 'mt-0.5')} />
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5 whitespace-normal">
-                  <span>{t('sessionDetail.toolbarExportPptxImageOnly')}</span>
-                </span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => void exportActions.exportPng()}>
-                <ImageIcon className={dropIconClass} />
-                {t('sessionDetail.toolbarExportPng')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void exportActions.exportLongImage()}>
-                <Rows3 className={dropIconClass} />
-                {t('sessionDetail.toolbarExportLongImage')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void exportActions.exportVideo()}>
-                <Video className={dropIconClass} />
-                {t('sessionDetail.toolbarExportVideo')}
-              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => void exportActions.exportPdf()}>
                 <FileDown className={dropIconClass} />
                 {t('sessionDetail.toolbarExportPdf')}
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="items-start"
-                onClick={() => void exportActions.exportSlidePack()}
-              >
-                <Package className={cn(dropIconClass, 'mt-0.5')} />
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5 whitespace-normal">
-                  <span>{t('sessionDetail.toolbarExportSlidePack')}</span>
-                  <span className="text-[11px] leading-snug text-[#9a8f80]">
-                    {t('sessionDetail.toolbarExportSlidePackDesc')}
-                  </span>
-                </span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="items-start"
-                onClick={() => void exportActions.exportSessionZip()}
-              >
-                <Archive className={cn(dropIconClass, 'mt-0.5')} />
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5 whitespace-normal">
-                  <span>{t('sessionDetail.toolbarExportSessionZip')}</span>
-                  <span className="text-[11px] leading-snug text-[#9a8f80]">
-                    {t('sessionDetail.toolbarExportSessionZipDesc')}
-                  </span>
-                </span>
+              <DropdownMenuItem onClick={() => void exportActions.exportPng()}>
+                <FileDown className={dropIconClass} />
+                {t('sessionDetail.toolbarExportPng')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -303,14 +240,6 @@ export function SessionToolbar({
                 )}
                 {t('sessionDetail.saveAsNewSession')}
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                disabled={editLocked || exportingAny || isGenerating}
-                onClick={() => setSaveTemplateOpen(true)}
-              >
-                <LayoutTemplate className={dropIconClass} />
-                {t('sessionDetail.saveTemplate')}
-              </DropdownMenuItem>
               {canRevealFile && (
                 <DropdownMenuItem
                   disabled={editLocked || exportingAny || isGenerating}
@@ -325,13 +254,6 @@ export function SessionToolbar({
         )}
       </div>
 
-      <SaveTemplateDialog
-        open={saveTemplateOpen}
-        defaultName={defaultTemplateName}
-        saving={savingTemplate}
-        onOpenChange={setSaveTemplateOpen}
-        onSubmit={(payload) => void handleSaveTemplate(payload)}
-      />
       <SaveAsNewSessionDialog
         open={saveAsNewSessionOpen}
         defaultName={defaultSaveAsNewSessionName}

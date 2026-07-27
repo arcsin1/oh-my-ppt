@@ -13,6 +13,12 @@ import { resolveDeckContext } from './deck-flow'
 import { parseJsonObject } from '../utils'
 import { resolveTemplateDesignContract } from '../templates/template-design-contract'
 import { canUseSourcePlanDirectly, mapSourcePlanToOutlineItems } from './source-plan'
+import {
+  resolveCorporateTemplatePageRoles,
+  type CorporateTemplatePageRole
+} from '@shared/corporate-template'
+import { sanitizeTemplateOutlineItem } from './template-outline-grounding'
+import { normalizeCorporateTemplatePageChrome } from './template-page-chrome'
 
 type TemplateSeedPage = {
   id: string
@@ -21,6 +27,7 @@ type TemplateSeedPage = {
   title: string
   htmlPath: string
   status: string
+  templateRole: CorporateTemplatePageRole
 }
 
 type TemplateDeckContext = DeckContext & {
@@ -32,6 +39,14 @@ function isTemplateSession(sessionRecord: Record<string, unknown>): boolean {
   const metadata = parseJsonObject(sessionRecord.metadata ?? sessionRecord.metadata_json)
   return metadata.source === 'template' && typeof metadata.templateId === 'string'
 }
+
+const normalizeTemplateRole = (
+  value: unknown,
+  fallback: CorporateTemplatePageRole
+): CorporateTemplatePageRole =>
+  value === 'cover' || value === 'agenda' || value === 'body' || value === 'closing'
+    ? value
+    : fallback
 
 export function shouldUseTemplateDeckFlow(sessionRecord: Record<string, unknown>): boolean {
   return isTemplateSession(sessionRecord)
@@ -51,16 +66,29 @@ export async function resolveTemplateDeckContext(
   const templateRetry = payloadRecord.retry === true
 
   const sessionPages = await ctx.db.listSessionPages(context.sessionId)
-  const allSeedPages = sessionPages
+  const sessionMetadata = parseJsonObject(
+    context.sessionRecord.metadata ?? context.sessionRecord.metadata_json
+  )
+  const persistedRoleMap = parseJsonObject(sessionMetadata.templatePageRoles)
+  const sortedSeedPages = sessionPages
     .filter((page) => page.html_path && page.file_slug)
     .sort((a, b) => a.page_number - b.page_number)
+  const fallbackRolePlan = resolveCorporateTemplatePageRoles(
+    sortedSeedPages.length,
+    sessionMetadata.includeAgenda === true
+  )
+  const allSeedPages = sortedSeedPages
     .map((page) => ({
       id: page.id,
       pageNumber: page.page_number,
       pageId: page.file_slug,
       title: page.title || `第 ${page.page_number} 页`,
       htmlPath: page.html_path,
-      status: page.status
+      status: page.status,
+      templateRole: normalizeTemplateRole(
+        persistedRoleMap[page.file_slug],
+        fallbackRolePlan[page.page_number - 1] || 'body'
+      )
     }))
   if (allSeedPages.length === 0) {
     throw new Error('模板会话缺少已清洗的页面基底')
@@ -127,7 +155,8 @@ export async function executeTemplateDeckGeneration(
     pageNumber: page.pageNumber,
     title: page.title,
     pageId: page.pageId,
-    htmlPath: page.htmlPath
+    htmlPath: page.htmlPath,
+    templateRole: page.templateRole
   }))
   const fullDeckPageCount = Math.max(allPageRefs.length, pageRefs.length)
   const pageFileMap = Object.fromEntries(pageRefs.map((page) => [page.pageId, page.htmlPath]))
@@ -143,7 +172,10 @@ export async function executeTemplateDeckGeneration(
     '- 写回页面时要使用模板里读到的本地资源路径，不要因为替换文字/数据而删除背景层、装饰层或承载它们的结构容器。',
     '- 可以为了适配新内容做必要的局部调整：信息密度、模块数量、图表类型、局部排列、文字层级和避免遮挡的尺寸变化。',
     '- 旧模板里的业务文字、数字、公司名、日期和结论不是事实来源，必须用用户 brief/source document 替换。',
-    '- 新增/复用的中间页应沿着模板设计系统延展，而不是机械复制旧内容。'
+    '- 用户 brief 是无附件场景下的事实边界；未提供的部门、日期、姓名、数据、状态、反馈、决策和结论必须省略，不能补示例值或把验收目标写成已达成结果。',
+    '- 页面角色只有四类：封面、可选目录、正文、固定结束页。所有非封面、非目录、非结束页必须使用正文页模板，不使用章节分隔页。',
+    '- 固定结束页不参与模型生成，必须保持原模板的文字、图片、位置和样式完全不变。',
+    '- 新增/复用的中间页统一沿用正文页模板，不得自行改用其他模板页型。'
   ].join('\n')
   const templateSinglePagePromptAddendum = [
     'Template design system for this slide:',
@@ -152,6 +184,13 @@ export async function executeTemplateDeckGeneration(
     '- Treat background images, texture images, decorative images, masks, overlay layers, CSS background-image/url(...) references, and SVG image hrefs as template structure, not old business content.',
     '- Keep those template assets and their local paths in the written page unless the user explicitly asks to remove them; text/data changes must not strip the visual shell.',
     '- Keep color language, typography scale, spacing rhythm, component shapes, and chart/table styling unless a local adjustment is needed to avoid overlap.',
+    '- Keep every title and visible text block fully inside the 1600x900 canvas. Do not use negative top offsets or clipping; preserve a visible top safe area and verify the first line is fully readable.',
+    `- This deck has ${fullDeckPageCount} pages. Replace any sample footer total with ${fullDeckPageCount}; never retain a template example such as 20 pages.`,
+    '- The user brief is the factual boundary when no source document is attached. Omit missing departments, dates, names, metrics, status claims, feedback, decisions, and conclusions instead of inventing them.',
+    '- Without a source document, do not introduce user-feedback items, survey findings, acceptance conclusions, or unverified product capabilities even as generic examples.',
+    '- If an outline only names a topic, write neutral verification actions such as check, confirm, record, or compare. Do not expand it into unsupported claims beginning with supports, provides, ensures, has completed, or has achieved.',
+    '- Treat goals, risks, checks, and acceptance criteria as planned work unless the user explicitly provides evidence that they were achieved.',
+    '- This target page already has its assigned template role. Do not substitute a contents, section-divider, cover, or closing layout for a body-page target.',
     '- Do not infer or invent a separate deck-wide design contract for this template run.',
     '- If a design contract is present, treat it as inherited font/runtime metadata only; the page base remains the visual source of truth.',
     '- Do not treat old template business text, numbers, company names, dates, or conclusions as facts.'
@@ -215,15 +254,18 @@ export async function executeTemplateDeckGeneration(
   const latestPageSnapshot = context.templateRetry
     ? await db.listLatestGenerationPageSnapshot(context.sessionId)
     : []
+  const contentPlanningPageRefs = pageRefs.filter(
+    (page) => page.templateRole === 'cover' || page.templateRole === 'body'
+  )
   const shouldUseSourcePlan =
     !context.templateRetry &&
     canUseSourcePlanDirectly({
       sourcePlan: context.sourcePlan,
-      totalPages: pageRefs.length,
+      totalPages: contentPlanningPageRefs.length,
       userMessage: context.userMessage
     })
   const plannedOutlineItems = context.templateRetry
-    ? pageRefs.map((page) => {
+    ? contentPlanningPageRefs.map((page) => {
         const snapshot = latestPageSnapshot.find((item) => item.page_id === page.pageId)
         return {
           title: snapshot?.title?.trim() || page.title,
@@ -244,7 +286,7 @@ export async function executeTemplateDeckGeneration(
           modelTimeoutMs: context.modelTimeouts.planning,
           temperature: PLANNER_TEMPERATURE,
           styleId: context.styleId,
-          totalPages: pageRefs.length,
+          totalPages: contentPlanningPageRefs.length,
           appLocale: context.appLocale,
           topic: context.topic,
           userMessage: context.userMessage,
@@ -254,12 +296,43 @@ export async function executeTemplateDeckGeneration(
           signal: context.entry.abortController.signal
         })
 
-  const outlineItems = pageRefs.map((page, index) => {
-    const planned = plannedOutlineItems[index]
+  const groundedPlannedOutlineItems = plannedOutlineItems.map((item) =>
+    sanitizeTemplateOutlineItem(item, {
+      userMessage: context.userMessage,
+      hasSourceDocuments:
+        context.sourceDocumentPaths.length > 0 || Boolean(context.sourcePlan?.pageSkeleton.length)
+    })
+  )
+  const plannedByPageId = new Map(
+    contentPlanningPageRefs.map((page, index) => [
+      page.pageId,
+      groundedPlannedOutlineItems[index]
+    ])
+  )
+  const bodyTitles = contentPlanningPageRefs
+    .filter((page) => page.templateRole === 'body')
+    .map((page) => plannedByPageId.get(page.pageId)?.title?.trim() || page.title)
+  const outlineItems = pageRefs.map((page) => {
+    if (page.templateRole === 'closing') {
+      return {
+        title: '结束页',
+        contentOutline: '',
+        layoutIntent: 'cover' as const
+      }
+    }
+    if (page.templateRole === 'agenda') {
+      return {
+        title: '目录',
+        contentOutline: bodyTitles.map((title, index) => `${index + 1}. ${title}`).join('\n'),
+        layoutIntent: 'summary' as const
+      }
+    }
+    const planned = plannedByPageId.get(page.pageId)
     return {
       title: planned?.title?.trim() || page.title,
       contentOutline: planned?.contentOutline?.trim() || '',
-      layoutIntent: planned?.layoutIntent
+      layoutIntent:
+        page.templateRole === 'cover' ? ('cover' as const) : planned?.layoutIntent
     }
   })
   const outlineTitles = outlineItems.map((item) => item.title)
@@ -382,7 +455,16 @@ export async function executeTemplateDeckGeneration(
     if (!fs.existsSync(page.htmlPath)) {
       throw new Error(`${page.pageId}.html 缺失`)
     }
-    const html = await fs.promises.readFile(page.htmlPath, 'utf-8')
+    const pageRef = pageRefs.find((item) => item.pageId === page.pageId)
+    const sourceHtml = await fs.promises.readFile(page.htmlPath, 'utf-8')
+    const html = normalizeCorporateTemplatePageChrome(sourceHtml, {
+      pageNumber: page.pageNumber,
+      totalPages: fullDeckPageCount,
+      templateRole: pageRef?.templateRole || 'body'
+    })
+    if (html !== sourceHtml) {
+      await fs.promises.writeFile(page.htmlPath, html, 'utf-8')
+    }
     const validation = validatePersistedPageHtml(html, page.pageId)
     if (!validation.valid) {
       throw new Error(`HTML 验证失败 (${page.pageId}): ${validation.errors.join('; ')}`)
@@ -405,7 +487,6 @@ export async function executeTemplateDeckGeneration(
       htmlPath: page.htmlPath
     })
     completedTargetPageCount += 1
-    const pageRef = pageRefs.find((item) => item.pageId === page.pageId)
     emitDeckChunk({
       type: 'page_generated',
       payload: {
@@ -450,6 +531,7 @@ export async function executeTemplateDeckGeneration(
     await persistGenerationSnapshotMetadata()
   }
 
+  const generationPageRefs = pageRefs.filter((page) => page.templateRole !== 'closing')
   const { summary: agentSummary, failedPages } = await runDeepAgentDeckGeneration({
     sessionId: context.sessionId,
     provider: context.provider,
@@ -471,13 +553,17 @@ export async function executeTemplateDeckGeneration(
     userMessage: context.userMessage,
     outlineTitles,
     outlineItems,
-    pageTasks: pageRefs.map((page, index) => ({
+    pageTasks: generationPageRefs.map((page) => {
+      const outlineIndex = pageRefs.findIndex((item) => item.pageId === page.pageId)
+      const outlineItem = outlineItems[outlineIndex]
+      return {
       pageNumber: page.pageNumber,
       pageId: page.pageId,
       title: page.title,
-      contentOutline: outlineItems[index]?.contentOutline || '',
-      layoutIntent: outlineItems[index]?.layoutIntent
-    })),
+        contentOutline: outlineItem?.contentOutline || '',
+        layoutIntent: outlineItem?.layoutIntent
+      }
+    }),
     sourceDocumentPaths: context.sourceDocumentPaths,
     designContract: templateDesignContract,
     systemPromptAddendum: templateSystemPromptAddendum,

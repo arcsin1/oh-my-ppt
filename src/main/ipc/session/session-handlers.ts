@@ -9,6 +9,7 @@ import type { IpcContext } from '../context'
 import { resolveModelConfigForTask } from '../config/model-config-utils'
 import { readAppLocale, uiText } from '../config/locale-utils'
 import { normalizeFontSelection } from '@shared/generation'
+import { MAX_CORPORATE_PAGE_COUNT } from '@shared/brand'
 import { requireSlideSizePreset } from '@shared/slide-size'
 import { normalizeSourcePlan } from '../generation/source-plan'
 import { ensureSessionRuntimeCompatible } from './runtime-assets'
@@ -27,7 +28,7 @@ const THINKING_ID_RE = /^[a-zA-Z0-9_-]{6,32}$/
 const THINKING_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp'])
 const THINKING_REFERENCE_SOURCE_EXTENSIONS = new Set(['.md', '.txt', '.text', '.csv'])
 const THINKING_REFERENCE_THINKING_MD_LINE_OFFSET = 6
-const MAX_PAGE_COUNT = 500
+const MAX_PAGE_COUNT = MAX_CORPORATE_PAGE_COUNT
 
 const normalizeRequestedPageCount = (value: unknown): number | undefined => {
   if (value === null || value === undefined || (typeof value === 'string' && !value.trim())) {

@@ -69,7 +69,7 @@ export function useModelAction(): ModelActionState {
         warnModelSettingsRequired()
         return null
       }
-      if (!selected.model.trim() || !selected.apiKey.trim()) {
+      if (!selected.model.trim() || !selected.apiKey.trim() || !selected.baseUrl.trim()) {
         warnModelSettingsRequired()
         return null
       }

@@ -5,7 +5,6 @@ import {
   useEditHistoryStore,
   useSessionDetailUiStore,
   useSessionStore,
-  useTemplateStore,
   useToastStore
 } from '@renderer/store'
 import { ipc } from '@renderer/lib/ipc'
@@ -25,11 +24,8 @@ export function useSessionToolbarController(sessionId: string) {
   const isRetryingSinglePage = useSessionDetailUiStore((state) => state.isRetryingSinglePage)
   const isManagingPages = useSessionDetailUiStore((state) => state.isManagingPages)
   const setHistoryDialogOpen = useSessionDetailUiStore((state) => state.setHistoryDialogOpen)
-  const { createTemplateFromSession } = useTemplateStore()
   const { success: toastSuccess, error: toastError } = useToastStore()
   const exportActions = useSessionExportActions(sessionId)
-  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
-  const [savingTemplate, setSavingTemplate] = useState(false)
   const [saveAsNewSessionOpen, setSaveAsNewSessionOpen] = useState(false)
   const [savingAsNewSession, setSavingAsNewSession] = useState(false)
 
@@ -52,34 +48,6 @@ export function useSessionToolbarController(sessionId: string) {
     isManagingPages ||
     sessionStatus === 'active'
   const saveAsNewSessionDisabled = historyDisabled || savingAsNewSession
-
-  const handleSaveTemplate = async (payload: {
-    name: string
-    description: string
-    tags: string[]
-  }): Promise<void> => {
-    if (!sessionId || savingTemplate) return
-    setSavingTemplate(true)
-    try {
-      await createTemplateFromSession({
-        sessionId,
-        ...payload
-      })
-      toastSuccess(t('sessionDetail.templateSaved'), {
-        action: {
-          label: t('sessionDetail.viewTemplates'),
-          onClick: () => navigate('/templates')
-        }
-      })
-      setSaveTemplateOpen(false)
-    } catch (err) {
-      toastError(t('sessionDetail.templateSaveFailed'), {
-        description: err instanceof Error ? err.message : t('common.retryLater')
-      })
-    } finally {
-      setSavingTemplate(false)
-    }
-  }
 
   const handleSaveAsNewSession = async (payload: { title: string }): Promise<void> => {
     const title = payload.title.trim()
@@ -112,18 +80,13 @@ export function useSessionToolbarController(sessionId: string) {
     canPreview: Boolean(selectedPage?.htmlPath || pages[0]?.htmlPath),
     canRevealFile: Boolean(selectedPage?.htmlPath),
     sessionTitle: currentSession?.title || '',
-    saveTemplateOpen,
-    savingTemplate,
     saveAsNewSessionOpen,
     savingAsNewSession,
     saveAsNewSessionDisabled,
-    defaultTemplateName: currentSession?.title || '未命名模板',
     defaultSaveAsNewSessionName: t('sessionDetail.saveAsNewSessionDefaultName', {
       title: currentSession?.title || t('sessionDetail.sessionFallback')
     }),
-    setSaveTemplateOpen,
     setSaveAsNewSessionOpen,
-    handleSaveTemplate,
     handleSaveAsNewSession,
     exportActions,
     openHistory: () => {

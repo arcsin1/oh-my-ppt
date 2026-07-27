@@ -164,6 +164,13 @@ const GOOGLE_FONTS: Record<string, GoogleFontEntry> = {
 
 export const AVAILABLE_GOOGLE_FONTS = GOOGLE_FONTS
 
+/**
+ * Company-approved fonts supplied by the operating system or Office/WPS.
+ * These fonts do not need to be copied into the project; PPTX keeps the
+ * family name so WPS/PowerPoint can resolve the locally installed typeface.
+ */
+const SYSTEM_FONTS = new Set(['KaiTi', 'Microsoft YaHei'])
+
 const DEFAULT_REGISTRY: FontRegistryFile = { version: 1, fonts: [] }
 
 const normalizeFamily = (value: string): string => value.replace(/\s+/g, ' ').trim()
@@ -317,6 +324,7 @@ export async function getAvailableFonts(): Promise<AvailableFont[]> {
 export async function assertFontFamilyAvailable(family: string, fieldName: string): Promise<void> {
   const normalized = normalizeFamily(family)
   if (!normalized) throw new Error(`${fieldName} 不能为空`)
+  if (SYSTEM_FONTS.has(normalized)) return
   if (GOOGLE_FONTS[normalized]) return
   const uploaded = await getUserFont(normalized)
   if (uploaded) return
@@ -326,6 +334,7 @@ export async function assertFontFamilyAvailable(family: string, fieldName: strin
 export async function assertFontFamilyNameAvailableForUpload(family: string, currentFontId?: string): Promise<void> {
   const normalized = normalizeFamily(family)
   if (!normalized) throw new Error('字体族名称不能为空')
+  if (SYSTEM_FONTS.has(normalized)) throw new Error(`字体族名称与系统字体重名：${normalized}`)
   if (GOOGLE_FONTS[normalized]) throw new Error(`字体族名称与内置 Google Fonts 重名：${normalized}`)
   const registry = await readUserFontRegistry()
   const duplicate = registry.fonts.find(
@@ -446,6 +455,7 @@ export async function buildFontHeadTags(args: {
   const tags: string[] = []
 
   for (const family of families) {
+    if (SYSTEM_FONTS.has(family)) continue
     const google = GOOGLE_FONTS[family]
     if (google) {
       const faceTags = await buildGoogleFontFaceTags(family, args.projectDir)

@@ -47,6 +47,7 @@ import type {
   ImageModelProvider
 } from '@shared/image-generation.js'
 import type { ThinkingParameterMode } from '@shared/model-config.js'
+import type { ByokServiceId } from '@shared/byok.js'
 import type { ExportProgressPayload } from '@shared/export-progress.js'
 import type { PageMergeDisabledReason } from '@shared/page-merge'
 import type { ModelUsagePeriod, ModelUsageStats } from '@shared/model-usage'
@@ -332,6 +333,7 @@ export interface ModelConfig {
   provider: 'anthropic' | 'openai' | 'openai-responses' | 'google'
   model: string
   apiKey: string
+  credentialPersistence: 'encrypted' | 'session-only'
   baseUrl: string
   maxTokens: number
   disableTemperature: boolean
@@ -345,7 +347,7 @@ export type { GeneratedImageAsset, ImageModelConfig, ImageModelProvider }
 
 export interface UploadPrerequisitesResult {
   ready: boolean
-  missing: Array<'storagePath' | 'activeModel' | 'apiKey' | 'model'>
+  missing: Array<'storagePath' | 'activeModel' | 'apiKey' | 'model' | 'baseUrl'>
   message?: string
 }
 
@@ -626,6 +628,7 @@ export const ipc = {
     title?: string
     modelConfigId?: string
     pageCount?: number
+    includeAgenda?: boolean
     referenceDocumentPath?: string
     sourcePlan?: SourceDocumentPlan
   }) =>
@@ -820,6 +823,7 @@ export const ipc = {
     id?: string
     name: string
     provider: 'anthropic' | 'openai' | 'openai-responses' | 'google'
+    serviceId?: ByokServiceId
     model: string
     apiKey: string
     baseUrl: string
@@ -831,6 +835,7 @@ export const ipc = {
     getIpc().invoke('settings:upsertModelConfig', payload) as Promise<{
       success: boolean
       id: string
+      credentialPersistence: 'encrypted' | 'session-only'
     }>,
   setActiveModelConfig: (id: string) =>
     getIpc().invoke('settings:setActiveModelConfig', id) as Promise<{ success: boolean }>,
@@ -858,6 +863,7 @@ export const ipc = {
     }>,
   verifyApiKey: (payload: {
     provider: string
+    serviceId?: ByokServiceId
     apiKey: string
     model: string
     baseUrl: string

@@ -1,605 +1,453 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/Tabs'
-import { useSettingsStore } from '../store'
-import { useToastStore } from '../store'
-import { useLang } from '../i18n'
-import type { ImageModelConfig, ImageModelProvider, ModelConfig } from '../lib/ipc'
 import {
-  CONFIGURABLE_MODEL_TIMEOUT_PROFILES,
-  type ConfigurableModelTimeoutProfile,
-  modelTimeoutMsToSeconds,
-  resolveModelTimeoutMs
-} from '@shared/model-timeout.js'
-import { AdvancedSettingsTab } from '../components/settings/AdvancedSettingsTab'
-import { GeneralSettingsTab } from '../components/settings/GeneralSettingsTab'
-import { ImageModelConfigDialog } from '../components/settings/ImageModelConfigDialog'
-import { ImageModelSettingsTab } from '../components/settings/ImageModelSettingsTab'
-import { ModelConfigDialog } from '../components/settings/ModelConfigDialog'
-import { ModelSettingsTab } from '../components/settings/ModelSettingsTab'
+  AlertTriangle,
+  CheckCircle2,
+  ExternalLink,
+  FolderOpen,
+  Image as ImageIcon,
+  KeyRound,
+  Loader2,
+  Server,
+  ShieldCheck,
+  Trash2
+} from 'lucide-react'
 import {
-  IMAGE_PROVIDER_OPTIONS,
-  createDefaultImageModelConfig,
-  createEmptyImageModelForm,
-  createEmptyModelForm,
-  createImageModelForm,
-  createModelForm,
-  readJsonObject,
-  stringifyJsonObject
-} from '../components/settings/model-settings-utils'
-import type { ImageModelForm, ModelForm } from '../components/settings/types'
+  BYOK_SERVICE_PRESETS,
+  getByokServicePreset,
+  inferByokServiceId,
+  normalizeByokBaseUrl,
+  type ByokServiceId
+} from '@shared/byok.js'
+import type { CompanyTextProvider } from '@shared/company-config.js'
+import { useSettingsStore, useToastStore } from '@renderer/store'
+import { Button } from '@renderer/components/ui/Button'
+import { Input } from '@renderer/components/ui/Input'
 
-const createTimeoutSeconds = (
-  timeouts?: Partial<Record<ConfigurableModelTimeoutProfile, number>>
-): Record<ConfigurableModelTimeoutProfile, string> =>
-  Object.fromEntries(
-    CONFIGURABLE_MODEL_TIMEOUT_PROFILES.map((profile) => [
-      profile,
-      String(modelTimeoutMsToSeconds(timeouts?.[profile], profile))
-    ])
-  ) as Record<ConfigurableModelTimeoutProfile, string>
+const TEXT_CONFIG_NAME_PREFIX = 'BYOK · '
+const DEFAULT_BYOK_SERVICE_ID: ByokServiceId = 'aliyun'
+const DEFAULT_BYOK_PRESET = getByokServicePreset(DEFAULT_BYOK_SERVICE_ID)
 
-const normalizeModelMaxTokens = (value: string): number => {
-  const parsed = Number(value.trim())
-  if (!Number.isFinite(parsed) || parsed <= 0) return 4096
-  return Math.max(256, Math.min(16384, Math.floor(parsed)))
+const readDestination = (baseUrl: string): string => {
+  try {
+    return new URL(baseUrl).hostname
+  } catch {
+    return '尚未填写有效地址'
+  }
 }
-
-const createModelVerificationSignature = (form: ModelForm): string =>
-  JSON.stringify({
-    provider: form.provider,
-    model: form.model.trim(),
-    apiKey: form.apiKey.trim(),
-    baseUrl: form.baseUrl.trim(),
-    maxTokens: normalizeModelMaxTokens(form.maxTokens),
-    disableTemperature: form.disableTemperature,
-    thinkingParameterMode: form.thinkingParameterMode
-  })
 
 export function SettingsPage(): React.JSX.Element {
   const {
+    settings,
     modelConfigs,
-    imageModelConfigs,
+    verificationMessage,
     fetchSettings,
     saveSettings,
     upsertModelConfig,
-    upsertImageModelConfig,
-    setActiveModelConfig,
-    setActiveImageModelConfig,
     deleteModelConfig,
-    deleteImageModelConfig,
-    setVerificationMessage,
     verifyApiKey,
-    verifyImageModel,
     chooseStoragePath
   } = useSettingsStore()
-  const { success, error, warning, info } = useToastStore()
-  const { lang, setLang, t } = useLang()
-  const [storagePath, setStoragePath] = useState(
-    () => useSettingsStore.getState().settings?.storagePath || ''
+  const { success, error, warning } = useToastStore()
+  const [serviceId, setServiceId] = useState<ByokServiceId>(DEFAULT_BYOK_SERVICE_ID)
+  const [provider, setProvider] = useState<CompanyTextProvider>(DEFAULT_BYOK_PRESET.provider)
+  const [baseUrl, setBaseUrl] = useState(DEFAULT_BYOK_PRESET.defaultBaseUrl)
+  const [model, setModel] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [connecting, setConnecting] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const [choosingStorage, setChoosingStorage] = useState(false)
+
+  const textConfig = useMemo(
+    () => modelConfigs.find((item) => item.active) || modelConfigs[0] || null,
+    [modelConfigs]
   )
-  const [modelDialogOpen, setModelDialogOpen] = useState(false)
-  const [modelForm, setModelForm] = useState<ModelForm>(() => createEmptyModelForm())
-  const [imageModelDialogOpen, setImageModelDialogOpen] = useState(false)
-  const [imageModelForm, setImageModelForm] = useState<ImageModelForm>(() =>
-    createEmptyImageModelForm()
+  const preset = getByokServicePreset(serviceId)
+  const normalizedDraftBaseUrl = useMemo(() => {
+    try {
+      return normalizeByokBaseUrl(serviceId, baseUrl)
+    } catch {
+      return baseUrl.trim()
+    }
+  }, [baseUrl, serviceId])
+  const connected = Boolean(
+    textConfig?.active &&
+      textConfig.apiKey &&
+      textConfig.provider === provider &&
+      textConfig.baseUrl === normalizedDraftBaseUrl &&
+      textConfig.model === model.trim()
   )
-  const [timeoutSeconds, setTimeoutSeconds] = useState<
-    Record<ConfigurableModelTimeoutProfile, string>
-  >(() => createTimeoutSeconds(useSettingsStore.getState().settings?.timeouts))
-  const [savingModel, setSavingModel] = useState(false)
-  const [verifiedModelSignature, setVerifiedModelSignature] = useState<string | null>(null)
-  const [savingTimeouts, setSavingTimeouts] = useState(false)
-  const [proxyUrl, setProxyUrl] = useState(
-    () => useSettingsStore.getState().settings?.proxyUrl || ''
-  )
-  const [verifying, setVerifying] = useState(false)
-  const [verifyingImageModel, setVerifyingImageModel] = useState(false)
-  const [activatingId, setActivatingId] = useState<string | null>(null)
-  const [activatingImageId, setActivatingImageId] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [deletingImageId, setDeletingImageId] = useState<string | null>(null)
+  const sessionOnly = connected && textConfig?.credentialPersistence === 'session-only'
 
   useEffect(() => {
-    let active = true
-    const loadSettings = async (): Promise<void> => {
-      await fetchSettings()
-      if (!active) return
-      const nextSettings = useSettingsStore.getState().settings
-      setStoragePath(nextSettings?.storagePath || '')
-      setTimeoutSeconds(createTimeoutSeconds(nextSettings?.timeouts))
-      setProxyUrl(nextSettings?.proxyUrl || '')
+    let disposed = false
+    const load = async (): Promise<void> => {
+      setLoading(true)
+      try {
+        await fetchSettings()
+      } catch (loadError) {
+        if (!disposed) {
+          error('读取本机设置失败', {
+            description: loadError instanceof Error ? loadError.message : '请稍后重试。'
+          })
+        }
+      } finally {
+        if (!disposed) setLoading(false)
+      }
     }
-    void loadSettings()
+    void load()
     return () => {
-      active = false
+      disposed = true
     }
-  }, [fetchSettings])
+  }, [error, fetchSettings])
 
   useEffect(() => {
-    if (!modelDialogOpen) return
-    const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape' && !savingModel) {
-        setModelDialogOpen(false)
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [modelDialogOpen, savingModel])
+    if (!textConfig) return
+    const inferredServiceId = inferByokServiceId(textConfig.baseUrl)
+    setServiceId(inferredServiceId)
+    setProvider(
+      textConfig.provider === 'openai-responses' ? 'openai-responses' : 'openai'
+    )
+    setBaseUrl(textConfig.baseUrl)
+    setModel(textConfig.model)
+    setApiKey('')
+  }, [textConfig])
 
-  const activeModelConfig = modelConfigs.find((config) => config.active)
-  const activeImageModelConfig = imageModelConfigs.find((config) => config.active)
-  const modelVerificationSignature = createModelVerificationSignature(modelForm)
-  const modelVerified = verifiedModelSignature === modelVerificationSignature
-  const timeoutFields: Array<{
-    profile: ConfigurableModelTimeoutProfile
-    label: string
-    hint: string
-    min: number
-  }> = useMemo(
-    () => [
-      {
-        profile: 'planning',
-        label: t('settings.timeoutPlanning'),
-        hint: t('settings.timeoutPlanningHint'),
-        min: 120
-      },
-      {
-        profile: 'design',
-        label: t('settings.timeoutDesign'),
-        hint: t('settings.timeoutDesignHint'),
-        min: 120
-      },
-      {
-        profile: 'agent',
-        label: t('settings.timeoutAgent'),
-        hint: t('settings.timeoutAgentHint'),
-        min: 300
-      },
-      {
-        profile: 'document',
-        label: t('settings.timeoutDocument'),
-        hint: t('settings.timeoutDocumentHint'),
-        min: 300
-      }
-    ],
-    [t]
-  )
-
-  const openCreateModelDialog = (): void => {
-    setModelForm(createEmptyModelForm(modelConfigs.length === 0))
-    setVerifiedModelSignature(null)
-    setVerificationMessage(null)
-    setModelDialogOpen(true)
+  const handleServiceChange = (nextServiceId: ByokServiceId): void => {
+    const nextPreset = getByokServicePreset(nextServiceId)
+    setServiceId(nextServiceId)
+    setProvider(nextPreset.provider)
+    setBaseUrl(nextPreset.defaultBaseUrl)
+    setModel('')
+    setApiKey('')
   }
 
-  const openEditModelDialog = (config: ModelConfig): void => {
-    setModelForm(createModelForm(config))
-    setVerifiedModelSignature(null)
-    setVerificationMessage(null)
-    setModelDialogOpen(true)
-  }
-
-  const updateModelForm = (patch: Partial<ModelForm>): void => {
-    setModelForm((form) => ({ ...form, ...patch }))
-    setVerificationMessage(null)
-  }
-
-  const openCreateImageModelDialog = (): void => {
-    setImageModelForm(createEmptyImageModelForm(imageModelConfigs.length === 0))
-    setVerificationMessage(null)
-    setImageModelDialogOpen(true)
-  }
-
-  const openEditImageModelDialog = (config: ImageModelConfig): void => {
-    setImageModelForm(createImageModelForm(config))
-    setVerificationMessage(null)
-    setImageModelDialogOpen(true)
-  }
-
-  const updateImageModelForm = (patch: Partial<ImageModelForm>): void => {
-    setImageModelForm((form) => ({ ...form, ...patch }))
-    setVerificationMessage(null)
-  }
-
-  const handleImageProviderChange = (value: string): void => {
-    if (!IMAGE_PROVIDER_OPTIONS.some((item) => item.value === value)) return
-    const provider = value as ImageModelProvider
-    setImageModelForm((form) => ({
-      ...form,
-      provider,
-      modelConfig:
-        provider !== form.provider ? createDefaultImageModelConfig(provider) : form.modelConfig
-    }))
-    setVerificationMessage(null)
-  }
-
-  const normalizeImageModelConfigForSave = (): string | null => {
-    const modelConfig = readJsonObject(imageModelForm.modelConfig)
-    return modelConfig ? stringifyJsonObject(modelConfig) : null
-  }
-
-  const handleSaveModel = async (): Promise<void> => {
-    if (!modelForm.name.trim()) {
-      warning(t('settings.fillModelName'))
+  const handleConnect = async (): Promise<void> => {
+    const key = apiKey.trim()
+    const modelId = model.trim()
+    if (!modelId) {
+      warning('请填写模型 ID', {
+        description: '模型 ID 必须与服务商控制台或 API 文档完全一致。'
+      })
       return
     }
-    if (!modelForm.model.trim()) {
-      warning(t('settings.fillModel'))
-      return
-    }
-    if (!modelForm.apiKey.trim()) {
-      warning(t('settings.fillApiKey'))
-      return
-    }
-    if (!modelVerified) {
-      warning(t('settings.verifyBeforeSave'))
+    if (!key) {
+      warning('请输入个人 API Key', {
+        description: connected
+          ? '当前连接仍然有效；如需修改服务，请重新输入 Key 并验证。'
+          : '网页会员不能代替 API Key，请先在服务商控制台开通 API。'
+      })
       return
     }
 
-    setSavingModel(true)
-    setVerificationMessage(null)
+    let normalizedBaseUrl: string
     try {
-      const id = await upsertModelConfig({
-        id: modelForm.id,
-        name: modelForm.name.trim(),
-        provider: modelForm.provider,
-        model: modelForm.model.trim(),
-        apiKey: modelForm.apiKey.trim(),
-        baseUrl: modelForm.baseUrl.trim(),
-        maxTokens: normalizeModelMaxTokens(modelForm.maxTokens),
-        disableTemperature: modelForm.disableTemperature,
-        thinkingParameterMode: modelForm.thinkingParameterMode,
-        active: modelForm.active
+      normalizedBaseUrl = normalizeByokBaseUrl(serviceId, baseUrl)
+    } catch (validationError) {
+      warning('API 地址不符合要求', {
+        description:
+          validationError instanceof Error ? validationError.message : '请检查 API Base URL。'
       })
-      const saveError = useSettingsStore.getState().verificationMessage
-      if (!id || saveError) {
-        error(t('settings.saveFailed'), { description: saveError || t('common.retryLater') })
-        return
-      }
-      setModelDialogOpen(false)
-      setVerifiedModelSignature(null)
-      success(t('settings.modelSaved'), { description: t('settings.modelSavedDescription') })
-    } finally {
-      setSavingModel(false)
-    }
-  }
-
-  const handleSaveImageModel = async (): Promise<void> => {
-    if (!imageModelForm.name.trim()) {
-      warning(t('settings.fillModelName'))
-      return
-    }
-    const modelConfig = normalizeImageModelConfigForSave()
-    if (!modelConfig) {
-      warning(t('settings.fillImageModelConfig'))
       return
     }
 
-    setSavingModel(true)
-    setVerificationMessage(null)
-    try {
-      const id = await upsertImageModelConfig({
-        id: imageModelForm.id,
-        name: imageModelForm.name.trim(),
-        provider: imageModelForm.provider,
-        active: imageModelForm.active,
-        modelConfig
-      })
-      const saveError = useSettingsStore.getState().verificationMessage
-      if (!id || saveError) {
-        error(t('settings.saveFailed'), { description: saveError || t('common.retryLater') })
-        return
-      }
-      setImageModelDialogOpen(false)
-      success(t('settings.imageModelSaved'), {
-        description: t('settings.imageModelSavedDescription')
-      })
-    } finally {
-      setSavingModel(false)
-    }
-  }
-
-  const handleTimeoutChange = (profile: ConfigurableModelTimeoutProfile, value: string): void => {
-    setTimeoutSeconds((current) => ({
-      ...current,
-      [profile]: value
-    }))
-    setVerificationMessage(null)
-  }
-
-  const handleSaveAdvanced = async (): Promise<void> => {
-    const timeoutEntries = timeoutFields.map((field) => {
-      const value = timeoutSeconds[field.profile].trim()
-      const num = Number(value)
-      return { field, num, value }
-    })
-    const invalidTimeout = timeoutEntries.find(({ field, num, value }) => {
-      return !value || !Number.isFinite(num) || num < field.min || num > 3600
-    })
-    if (invalidTimeout) {
-      warning(`${invalidTimeout.field.label}: ${t('settings.timeoutPlaceholder')}`)
-      return
-    }
-
-    setSavingTimeouts(true)
-    setVerificationMessage(null)
-    try {
-      await saveSettings({
-        timeouts: Object.fromEntries(
-          timeoutEntries.map(({ field, num }) => [field.profile, Math.round(num) * 1000])
-        ) as Record<ConfigurableModelTimeoutProfile, number>,
-        proxyUrl: proxyUrl.trim()
-      })
-      const saveError = useSettingsStore.getState().verificationMessage
-      if (saveError) {
-        error(t('settings.saveFailed'), { description: saveError })
-        return
-      }
-      success(t('settings.saved'), {
-        description: t('settings.savedDescription')
-      })
-    } finally {
-      setSavingTimeouts(false)
-    }
-  }
-
-  const handleVerify = async (): Promise<void> => {
-    if (!modelForm.apiKey.trim()) {
-      warning(t('settings.fillApiKey'))
-      return
-    }
-    if (!modelForm.model.trim()) {
-      warning(t('settings.fillModel'))
-      return
-    }
-
-    setVerifying(true)
-    setVerificationMessage(null)
-    setVerifiedModelSignature(null)
-    const nextVerifiedSignature = createModelVerificationSignature(modelForm)
+    setConnecting(true)
     try {
       const valid = await verifyApiKey(
-        modelForm.provider,
-        modelForm.apiKey,
-        modelForm.model,
-        modelForm.baseUrl,
-        normalizeModelMaxTokens(modelForm.maxTokens),
-        modelForm.disableTemperature,
-        modelForm.thinkingParameterMode,
-        resolveModelTimeoutMs(undefined, 'verify')
+        provider,
+        serviceId,
+        key,
+        modelId,
+        normalizedBaseUrl,
+        8192,
+        false,
+        'omit',
+        60_000
       )
-      const verifyMessage = useSettingsStore.getState().verificationMessage
-      if (valid) {
-        setVerifiedModelSignature(nextVerifiedSignature)
-        success(t('settings.verifyPassed'), {
-          description: verifyMessage || t('settings.verifyPassedDescription')
+      if (!valid) {
+        error('连接验证失败', {
+          description:
+            useSettingsStore.getState().verificationMessage ||
+            '请检查 Key、余额、模型 ID 和 API 地址。'
+        })
+        return
+      }
+
+      const savedTextConfig = await upsertModelConfig({
+        id: textConfig?.id,
+        name: `${TEXT_CONFIG_NAME_PREFIX}${preset.label}`,
+        provider,
+        serviceId,
+        model: modelId,
+        apiKey: key,
+        baseUrl: normalizedBaseUrl,
+        maxTokens: 8192,
+        disableTemperature: false,
+        thinkingParameterMode: 'omit',
+        active: true
+      })
+      if (!savedTextConfig) {
+        throw new Error(useSettingsStore.getState().verificationMessage || 'BYOK 配置保存失败。')
+      }
+
+      setBaseUrl(normalizedBaseUrl)
+      setApiKey('')
+      await fetchSettings()
+      if (savedTextConfig.credentialPersistence === 'session-only') {
+        warning('个人 AI 服务已临时连接', {
+          description: `当前 Mac 开发环境无法使用系统安全存储。Key 仅保存在本次运行的内存中，关闭软件后失效；资料将发送到 ${readDestination(normalizedBaseUrl)}。`
         })
       } else {
-        error(t('settings.verifyFailed'), {
-          description: verifyMessage || t('settings.verifyFailedDescription')
+        success('个人 AI 服务已连接', {
+          description: `当前模型：${modelId}；资料将发送到 ${readDestination(normalizedBaseUrl)}。`
         })
       }
+    } catch (connectError) {
+      error('保存连接失败', {
+        description: connectError instanceof Error ? connectError.message : '请稍后重试。'
+      })
     } finally {
-      setVerifying(false)
+      setConnecting(false)
     }
   }
 
-  const handleVerifyImageModel = async (): Promise<void> => {
-    const modelConfig = normalizeImageModelConfigForSave()
-    if (!modelConfig) {
-      warning(t('settings.fillImageModelConfig'))
-      return
-    }
-
-    setVerifyingImageModel(true)
-    setVerificationMessage(null)
+  const handleClearConnection = async (): Promise<void> => {
+    if (!textConfig) return
+    if (!window.confirm('确定清除本机保存的 AI 配置和 API Key 吗？此操作无法撤销。')) return
+    setClearing(true)
     try {
-      const valid = await verifyImageModel(
-        imageModelForm.provider,
-        modelConfig
-      )
-      const verifyMessage = useSettingsStore.getState().verificationMessage
-      if (valid) {
-        success(t('settings.verifyPassed'), {
-          description: verifyMessage || t('settings.verifyPassedDescription')
-        })
-      } else {
-        error(t('settings.verifyFailed'), {
-          description: verifyMessage || t('settings.verifyFailedDescription')
-        })
-      }
+      await deleteModelConfig(textConfig.id)
+      setServiceId(DEFAULT_BYOK_SERVICE_ID)
+      setProvider(DEFAULT_BYOK_PRESET.provider)
+      setBaseUrl(DEFAULT_BYOK_PRESET.defaultBaseUrl)
+      setModel('')
+      setApiKey('')
+      success('本机 AI 配置已清除')
     } finally {
-      setVerifyingImageModel(false)
+      setClearing(false)
     }
   }
 
-  const handleActivateModel = async (id: string): Promise<void> => {
-    setActivatingId(id)
-    setVerificationMessage(null)
+  const handleChooseStorage = async (): Promise<void> => {
+    setChoosingStorage(true)
     try {
-      await setActiveModelConfig(id)
-      const activateError = useSettingsStore.getState().verificationMessage
-      if (activateError) {
-        error(t('settings.activateModelFailed'), { description: activateError })
-        return
-      }
-      success(t('settings.activeModelUpdated'))
-    } finally {
-      setActivatingId(null)
-    }
-  }
-
-  const handleDeleteModel = async (config: ModelConfig): Promise<void> => {
-    if (!window.confirm(t('settings.deleteModelConfirm', { name: config.name }))) return
-    setDeletingId(config.id)
-    setVerificationMessage(null)
-    try {
-      await deleteModelConfig(config.id)
-      const deleteError = useSettingsStore.getState().verificationMessage
-      if (deleteError) {
-        error(t('settings.deleteModelFailed'), { description: deleteError })
-        return
-      }
-      info(t('settings.modelDeleted'))
-    } finally {
-      setDeletingId(null)
-    }
-  }
-
-  const handleActivateImageModel = async (id: string): Promise<void> => {
-    setActivatingImageId(id)
-    setVerificationMessage(null)
-    try {
-      await setActiveImageModelConfig(id)
-      const activateError = useSettingsStore.getState().verificationMessage
-      if (activateError) {
-        error(t('settings.activateImageModelFailed'), { description: activateError })
-        return
-      }
-      success(t('settings.activeImageModelUpdated'))
-    } finally {
-      setActivatingImageId(null)
-    }
-  }
-
-  const handleDeleteImageModel = async (config: ImageModelConfig): Promise<void> => {
-    if (!window.confirm(t('settings.deleteModelConfirm', { name: config.name }))) return
-    setDeletingImageId(config.id)
-    setVerificationMessage(null)
-    try {
-      await deleteImageModelConfig(config.id)
-      const deleteError = useSettingsStore.getState().verificationMessage
-      if (deleteError) {
-        error(t('settings.deleteImageModelFailed'), { description: deleteError })
-        return
-      }
-      info(t('settings.imageModelDeleted'))
-    } finally {
-      setDeletingImageId(null)
-    }
-  }
-
-  const handleChoosePath = async (): Promise<void> => {
-    const path = await chooseStoragePath()
-    const pathError = useSettingsStore.getState().storagePathError
-    if (pathError) {
-      error(t('settings.choosePathFailed'), { description: pathError })
-      return
-    }
-    if (path) {
-      setVerificationMessage(null)
+      const path = await chooseStoragePath()
+      if (!path) return
       await saveSettings({ storagePath: path })
-      const saveError = useSettingsStore.getState().verificationMessage
-      if (saveError) {
-        error(t('settings.saveFailed'), { description: saveError })
-        return
-      }
-      setStoragePath(path)
-      info(t('settings.storagePathUpdated'), { description: path })
+      success('本地文件目录已更新')
+    } finally {
+      setChoosingStorage(false)
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center text-sm text-[#7a746b]">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin text-[#e21b22]" />
+        正在读取本机配置
+      </div>
+    )
   }
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
-      <div className="mb-5">
-        <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">
-          {t('settings.eyebrow')}
+    <main className="mx-auto w-full max-w-4xl px-8 py-10 text-[#4c4c4c]">
+      <div className="mb-8">
+        <h1 className="text-[30px] font-semibold tracking-tight text-[#333333]">设置</h1>
+        <p className="mt-2 text-sm leading-6 text-[#77736d]">
+          使用自己的模型 API。只有调用 AI 时才需要配置，本地查看、编辑和导出不受影响。
         </p>
-        <h1 className="organic-serif mt-2 text-[32px] font-semibold leading-none text-[#3e4a32]">
-          {t('settings.title')}
-        </h1>
       </div>
 
-      <Tabs defaultValue="general">
-        <TabsList>
-          <TabsTrigger value="general">{t('settings.generalTab')}</TabsTrigger>
-          <TabsTrigger value="model">{t('settings.modelTab')}</TabsTrigger>
-          <TabsTrigger value="imageModel">{t('settings.imageModelTab')}</TabsTrigger>
-          <TabsTrigger value="advanced">{t('settings.advancedTab')}</TabsTrigger>
-        </TabsList>
+      <section className="overflow-hidden rounded-xl border border-[#e6ded2] bg-white shadow-[0_12px_30px_rgba(76,76,76,0.06)]">
+        <div className="flex items-start justify-between gap-6 border-b border-[#eee7dd] px-6 py-5">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#fff1ec] text-[#e21b22]">
+              <Server className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-[#333333]">连接个人 AI 服务</h2>
+              <p className="mt-1 text-xs leading-5 text-[#817b73]">
+                系统安全存储可用时加密保存；Mac 调试环境不支持时仅保留到本次运行结束。
+              </p>
+            </div>
+          </div>
+          {connected ? (
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-[#eef7ed] px-2.5 py-1.5 text-xs font-medium text-[#39713a]">
+              <CheckCircle2 className="h-3.5 w-3.5" /> 已连接
+            </span>
+          ) : (
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-[#fff4e7] px-2.5 py-1.5 text-xs font-medium text-[#9a5a15]">
+              <AlertTriangle className="h-3.5 w-3.5" /> 未连接
+            </span>
+          )}
+        </div>
 
-        <TabsContent value="general">
-          <GeneralSettingsTab
-            lang={lang}
-            storagePath={storagePath}
-            t={t}
-            onChoosePath={() => void handleChoosePath()}
-            onLangChange={setLang}
-          />
-        </TabsContent>
+        <div className="space-y-5 px-6 py-6">
+          <div>
+            <label className="mb-2 block text-xs font-medium text-[#5f5a54]">AI 服务</label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {BYOK_SERVICE_PRESETS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleServiceChange(item.id)}
+                  className={`rounded-lg border px-3.5 py-3 text-left transition-colors ${
+                    serviceId === item.id
+                      ? 'border-[#e21b22] bg-[#fff8f5]'
+                      : 'border-[#e7e0d6] bg-white hover:border-[#f2a36d]'
+                  }`}
+                >
+                  <span className="block text-sm font-semibold text-[#3f3a35]">{item.label}</span>
+                  <span className="mt-1 block text-[11px] leading-4 text-[#817b73]">
+                    {item.description}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
 
-        <TabsContent value="model">
-          <ModelSettingsTab
-            activeModelConfig={activeModelConfig}
-            activatingId={activatingId}
-            deletingId={deletingId}
-            modelConfigs={modelConfigs}
-            t={t}
-            onActivate={(configId) => void handleActivateModel(configId)}
-            onCreate={openCreateModelDialog}
-            onDelete={(config) => void handleDeleteModel(config)}
-            onEdit={openEditModelDialog}
-          />
-        </TabsContent>
+          {serviceId === 'custom' ? (
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[#5f5a54]">接口协议</label>
+              <select
+                value={provider}
+                onChange={(event) =>
+                  setProvider(
+                    event.target.value === 'openai-responses' ? 'openai-responses' : 'openai'
+                  )
+                }
+                className="h-11 w-full rounded-lg border border-[#ded6cb] bg-white px-3 text-sm outline-none focus:border-[#e21b22]"
+              >
+                <option value="openai">OpenAI Chat Completions（推荐）</option>
+                <option value="openai-responses">OpenAI Responses API</option>
+              </select>
+            </div>
+          ) : null}
 
-        <TabsContent value="imageModel">
-          <ImageModelSettingsTab
-            activeImageModelConfig={activeImageModelConfig}
-            activatingImageId={activatingImageId}
-            deletingImageId={deletingImageId}
-            imageModelConfigs={imageModelConfigs}
-            t={t}
-            onActivate={(configId) => void handleActivateImageModel(configId)}
-            onCreate={openCreateImageModelDialog}
-            onDelete={(config) => void handleDeleteImageModel(config)}
-            onEdit={openEditImageModelDialog}
-          />
-        </TabsContent>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[#5f5a54]">
+                API Base URL
+              </label>
+              <Input
+                value={baseUrl}
+                onChange={(event) => setBaseUrl(event.target.value)}
+                placeholder={preset.baseUrlPlaceholder}
+                autoComplete="off"
+                className="h-11 border-[#ded6cb] bg-white text-sm focus-visible:border-[#e21b22] focus-visible:ring-[#e21b22]/15"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[#5f5a54]">模型 ID</label>
+              <Input
+                value={model}
+                onChange={(event) => setModel(event.target.value)}
+                placeholder={preset.modelPlaceholder}
+                autoComplete="off"
+                className="h-11 border-[#ded6cb] bg-white text-sm focus-visible:border-[#e21b22] focus-visible:ring-[#e21b22]/15"
+              />
+            </div>
+          </div>
 
-        <TabsContent value="advanced">
-          <AdvancedSettingsTab
-            proxyUrl={proxyUrl}
-            savingTimeouts={savingTimeouts}
-            timeoutFields={timeoutFields}
-            timeoutSeconds={timeoutSeconds}
-            t={t}
-            onProxyUrlChange={(value) => {
-              setProxyUrl(value)
-              setVerificationMessage(null)
-            }}
-            onSaveAdvanced={() => void handleSaveAdvanced()}
-            onTimeoutChange={handleTimeoutChange}
-          />
-        </TabsContent>
-      </Tabs>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[#5f5a54]">个人 API Key</label>
+            <div className="relative">
+              <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9a938a]" />
+              <Input
+                type="password"
+                autoComplete="new-password"
+                value={apiKey}
+                onChange={(event) => setApiKey(event.target.value)}
+                placeholder={
+                  connected
+                    ? sessionOnly
+                      ? 'Key 仅在本次运行中有效；输入新 Key 可替换'
+                      : 'Key 已加密保存在本机；输入新 Key 可替换'
+                    : '输入服务商提供的 API Key'
+                }
+                className="h-11 border-[#ded6cb] bg-white pl-10 pr-3 text-sm focus-visible:border-[#e21b22] focus-visible:ring-[#e21b22]/15"
+              />
+            </div>
+            <div className="mt-2 space-y-1.5 text-xs text-[#817b73]">
+              <p className="flex items-center gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5 text-[#c96a31]" />
+                {sessionOnly
+                  ? '当前为 Mac 调试模式：Key 只在内存中，关闭软件后失效。'
+                  : 'Key 不写入安装包、日志或演示文稿；正式版要求系统加密存储。'}
+              </p>
+              <p>资料发送目标：{readDestination(baseUrl)}</p>
+              <p>{preset.visionHint}</p>
+            </div>
+          </div>
 
-      <ModelConfigDialog
-        form={modelForm}
-        open={modelDialogOpen}
-        saving={savingModel}
-        verifying={verifying}
-        verified={modelVerified}
-        t={t}
-        onClose={() => setModelDialogOpen(false)}
-        onFormChange={updateModelForm}
-        onSave={() => void handleSaveModel()}
-        onVerify={() => void handleVerify()}
-      />
+          <div className="flex flex-wrap items-center gap-3 border-t border-[#f0e9df] pt-5">
+            <Button
+              type="button"
+              disabled={connecting}
+              onClick={() => void handleConnect()}
+              className="h-10 bg-[#e21b22] px-5 text-white shadow-none hover:bg-[#ba1218]"
+            >
+              {connecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              验证并保存
+            </Button>
+            {textConfig ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={clearing}
+                onClick={() => void handleClearConnection()}
+                className="h-10 border-[#ded6cb] bg-white text-[#6b625b] hover:bg-[#fff5f2] hover:text-[#ba1218]"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                清除本机配置
+              </Button>
+            ) : null}
+            {preset.documentationUrl ? (
+              <a
+                href={preset.documentationUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-[#9a5a15] hover:text-[#e21b22]"
+              >
+                获取 API Key <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            ) : null}
+            {verificationMessage ? (
+              <span className="basis-full text-xs text-[#817b73]">{verificationMessage}</span>
+            ) : null}
+          </div>
+        </div>
+      </section>
 
-      <ImageModelConfigDialog
-        form={imageModelForm}
-        open={imageModelDialogOpen}
-        saving={savingModel}
-        verifying={verifyingImageModel}
-        t={t}
-        onClose={() => setImageModelDialogOpen(false)}
-        onFormChange={updateImageModelForm}
-        onProviderChange={handleImageProviderChange}
-        onSave={() => void handleSaveImageModel()}
-        onVerify={() => void handleVerifyImageModel()}
-      />
-    </div>
+      <section className="mt-5 rounded-xl border border-[#e6ded2] bg-white px-6 py-5 shadow-[0_12px_30px_rgba(76,76,76,0.05)]">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#fff7df] text-[#c96a31]">
+              <FolderOpen className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-[#333333]">本地文件目录</h2>
+              <p className="mt-1 truncate text-xs text-[#817b73]">
+                {settings?.storagePath || '尚未选择，演示文稿无法保存'}
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={choosingStorage}
+            onClick={() => void handleChooseStorage()}
+            className="h-9 shrink-0 border-[#ded6cb] bg-white text-[#4c4c4c] hover:bg-[#faf8f3]"
+          >
+            {choosingStorage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            选择目录
+          </Button>
+        </div>
+        <div className="mt-4 flex items-center gap-2 border-t border-[#f0e9df] pt-4 text-xs text-[#817b73]">
+          <ImageIcon className="h-4 w-4 text-[#f5831f]" />
+          AI 生图在首版 BYOK 中默认关闭；文字生成、扫描件识别能力取决于员工所选模型。
+        </div>
+      </section>
+    </main>
   )
 }

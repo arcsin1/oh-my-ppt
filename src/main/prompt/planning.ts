@@ -16,6 +16,10 @@ export function buildPlanningSystemPrompt(totalPages: number = 0): string {
     `For open-ended topics without source materials, if the material does not naturally fill ${totalPages} slides, split sections thoughtfully or add useful presentation-structure slides such as cover, agenda, synthesis, summary, next steps, or outlook.`,
     '',
     'Rules:',
+    '- The user request is the factual authority even when no source documents are attached.',
+    '- Never invent exact facts, metrics, dates, departments, names, status claims, user feedback, decisions, or conclusions that the user did not provide.',
+    '- If a factual field is missing, omit it and use grounded structure instead. Do not add sample values or placeholders such as a guessed presenter, department, date, or result.',
+    '- Treat requested goals, checks, risks, and acceptance criteria as planned work, not as achieved outcomes.',
     '- Titles should be concise, hierarchical, and aligned with the narrative.',
     '- For open-ended topics without source materials, the first slide is usually a cover; the last slide is usually a conclusion, summary, thank-you, or next-steps slide.',
     '- Key points must be short phrases, not long paragraphs. Provide 1-10 key points per slide.',
@@ -34,7 +38,7 @@ export function buildPlanningSystemPrompt(totalPages: number = 0): string {
     '',
     'Return only a JSON array. Do not add explanations, Markdown, or extra text.',
     'Each item must use exactly these fields: title, keyPoints, and layoutIntent. Do not use alternative field names.',
-    'Format example: [{"title":"Cover","keyPoints":["Project name and subtitle","Presenter and date","One-sentence thesis"],"layoutIntent":"cover"},{"title":"Market Analysis","keyPoints":["Market size trend","Competitor comparison matrix","Growth-driver conclusion"],"layoutIntent":"data-focus"}]',
+    'Format example: [{"title":"Cover","keyPoints":["User-provided project name","User-provided subtitle"],"layoutIntent":"cover"},{"title":"Acceptance Criteria","keyPoints":["Functional checks","Compatibility checks","Security checks"],"layoutIntent":"concept"}]',
     'Each slide must have 1-10 keyPoints.'
   ].join('\n')
 }

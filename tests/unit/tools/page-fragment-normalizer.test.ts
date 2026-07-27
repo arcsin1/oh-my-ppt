@@ -18,4 +18,19 @@ describe('normalizeCreativePageFragment block ids', () => {
 
     expect(html).toContain('data-ppt-readable-fonts="1"')
   })
+
+  it('does not add a second content main when the model already returned one', () => {
+    const html = normalizeCreativePageFragment(`
+      <div class="page">
+        <main data-block-id="content" data-role="content">
+          <h2>验收目标</h2>
+        </main>
+        <footer>内部文件 请勿外传</footer>
+      </div>
+    `)
+
+    expect(html.match(/data-block-id="content"/g)).toHaveLength(1)
+    expect(html).toContain('data-page-scaffold="1"')
+    expect(html).toContain('<footer>内部文件 请勿外传</footer>')
+  })
 })

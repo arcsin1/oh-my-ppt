@@ -84,6 +84,9 @@ const resolveImageModelConfig = async (
       ? await ctx.db.getImageModelConfig(modelConfigId.trim())
       : await ctx.db.getActiveImageModelConfig()
   if (!raw) throw new Error('请先在设置中配置并启用生图模型。')
+  if (raw.provider !== 'openaiCompatible') {
+    throw new Error('安居建业内部版仅支持 OpenAI 兼容生图协议；首版 BYOK 默认关闭生图。')
+  }
   return {
     id: raw.id,
     name: raw.name,

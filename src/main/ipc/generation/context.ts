@@ -315,7 +315,7 @@ export async function resolveCommonContext(
     styleVersion: styleSnapshot.version,
     slideSize: requireSessionSlideSize(sessionRecord),
     topic: String(sessionRecord.topic || '当前主题'),
-    deckTitle: String(sessionRecord.title || 'OhMyPPT Preview'),
+    deckTitle: String(sessionRecord.title || '安居建业PPT预览'),
     appLocale,
     fontSelection: normalizeFontSelection(sessionMetadata.fontSelection),
     sourcePlan,

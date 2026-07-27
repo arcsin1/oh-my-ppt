@@ -92,8 +92,6 @@ export function useWorkspaceRibbonController(isSavingEdits: boolean): {
     () => ({
       preview: t('sessionDetail.previewMode'),
       edit: t('sessionDetail.editMode'),
-      browse: t('sessionDetail.browseMode'),
-      style: t('sessionDetail.styleMode'),
       animation: t('sessionDetail.animationTab'),
       speech: t('sessionDetail.speechScript'),
       ai: t('sessionDetail.aiMode')
@@ -110,11 +108,6 @@ export function useWorkspaceRibbonController(isSavingEdits: boolean): {
       }
       setActiveTab(tab)
       if (tab === 'preview') {
-        setInteractionMode('preview')
-        setSpeechScriptDialogOpen(false)
-        return
-      }
-      if (tab === 'browse' || tab === 'style') {
         setInteractionMode('preview')
         setSpeechScriptDialogOpen(false)
         return
@@ -162,7 +155,7 @@ export function useWorkspaceRibbonController(isSavingEdits: boolean): {
   const activateTab = useCallback(
     (tab: SessionWorkspaceTab): void => {
       if (tab === activeTab) return
-      const canSwitchWithoutSave = tab === 'browse' || tab === 'edit' || tab === 'preview'
+      const canSwitchWithoutSave = tab === 'edit' || tab === 'preview'
       if (!canSwitchWithoutSave) {
         useEditSessionStore.getState().commitCurrentDraft()
       }

@@ -17,10 +17,12 @@ import type {
   PreparedReferenceDocumentResult
 } from '@shared/generation'
 import { isSectionAgendaReason } from '@shared/generation'
+import { MAX_CORPORATE_PAGE_COUNT } from '@shared/brand'
 import { resolveModelTimeoutMs } from '@shared/model-timeout'
 import { resolveGlobalModelTimeouts, resolveModelConfigForTask } from '../config/model-config-utils'
 import { assertImageWasRead, isImageUnsupportedError } from '../../utils/style-image-import'
 import { invokeVisionModelText } from '../../utils/vision-model'
+import { convertPdfToMarkdown } from '../../utils/pdf-reference'
 import { normalizeGeneratedPlan as normalizeDocumentPlan } from './document-plan-normalizer'
 import { convertCsvTextToMarkdown } from './document-csv-to-markdown'
 import {
@@ -44,9 +46,18 @@ type PreparedSourceFile = ParsedDocumentPlanResult['files'][number] & {
   virtualPath: string
 }
 
+type PdfVisionConfig = {
+  provider: string
+  apiKey: string
+  model: string
+  baseUrl: string
+  maxTokens: number | undefined
+  modelTimeoutMs: number
+}
+
 const MAX_DOCUMENT_FILES = 1
 const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024
-const MAX_PAGE_COUNT = 500
+const MAX_PAGE_COUNT = MAX_CORPORATE_PAGE_COUNT
 const MAX_PARSE_SOURCE_PREVIEW_CHARS = 20_000
 const PAGE_SUMMARY_BATCH_SIZE = 10
 const PAGE_SUMMARY_BATCH_CONCURRENCY = 2
@@ -56,7 +67,7 @@ const MAX_PAGE_SUMMARY_PASSAGE_CHARS = 1_600
 const MAX_PAGE_SUMMARY_TOTAL_PAGES = 300
 const MAX_PAGE_SUMMARY_CHARS = 80
 
-const SUPPORTED_EXTENSIONS = new Set(['.md', '.txt', '.text', '.csv', '.docx'])
+const SUPPORTED_EXTENSIONS = new Set(['.md', '.txt', '.text', '.csv', '.docx', '.pdf'])
 const SUPPORTED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp'])
 const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
   '.png': 'image/png',
@@ -176,6 +187,19 @@ const convertDocxToMarkdown = async (filePath: string): Promise<string> => {
   )
 }
 
+const buildPdfPageOcrPrompt = (args: {
+  fileName: string
+  pageNumber: number
+  totalPages: number
+}): string =>
+  [
+    `这是 PDF 文件“${args.fileName}”的第 ${args.pageNumber}/${args.totalPages} 页扫描图。`,
+    '请逐项读取这一页的可见文字、标题、表格、图表标签、数字、日期和专有名词，并整理为简洁 Markdown。',
+    '保持原文语言和层级；表格尽量还原为 Markdown 表格，图表需说明可见的指标与关系。',
+    '不确定或无法辨认的内容明确标为“无法辨认”，不得猜测或补写。',
+    '只返回本页 Markdown 内容，不要返回代码围栏、页数建议、PPT 大纲或任务解释。'
+  ].join('\n')
+
 const toSafeFileName = (value: string): string =>
   value
     .replace(/[\\/:"*?<>|]+/g, '-')
@@ -185,7 +209,8 @@ const toSafeFileName = (value: string): string =>
 
 const prepareSourceFile = async (
   file: { path?: unknown; name?: unknown },
-  workspaceDir: string
+  workspaceDir: string,
+  options: { pdfVision?: PdfVisionConfig } = {}
 ): Promise<PreparedSourceFile> => {
   const rawPath = typeof file.path === 'string' ? file.path.trim() : ''
   if (!rawPath) throw new Error('无法读取文档路径')
@@ -197,7 +222,7 @@ const prepareSourceFile = async (
   const ext = path.extname(filePath).toLowerCase()
   const isImage = SUPPORTED_IMAGE_EXTENSIONS.has(ext)
   if (!SUPPORTED_EXTENSIONS.has(ext) && !isImage) {
-    throw new Error('暂只支持 md、txt、csv、docx 文档，以及 png、jpg、jpeg、webp 图片')
+    throw new Error('暂只支持 pdf、docx、md、txt、csv 文档，以及 png、jpg、jpeg、webp 图片')
   }
   log.info('[documents:parsePlan] read source file', {
     fileName: path.basename(filePath),
@@ -213,6 +238,8 @@ const prepareSourceFile = async (
     ? 'image'
     : ext === '.docx'
       ? 'docx'
+      : ext === '.pdf'
+        ? 'markdown'
       : ext === '.md'
         ? 'markdown'
         : ext === '.csv'
@@ -223,7 +250,7 @@ const prepareSourceFile = async (
   const stamp = Date.now()
   const uniqueId = nanoid(8)
   const workspaceName =
-    ext === '.docx' || ext === '.csv'
+    ext === '.docx' || ext === '.csv' || ext === '.pdf'
       ? `${stamp}-${uniqueId}-${safeBaseName || 'source'}.md`
       : `${stamp}-${uniqueId}-${safeBaseName}${ext}`
   const workspacePath = path.join(workspaceDir, workspaceName)
@@ -270,6 +297,44 @@ const prepareSourceFile = async (
     log.info('[documents:parsePlan] csv converted for reading', {
       originalName: name,
       workspaceName,
+      characterCount
+    })
+  } else if (ext === '.pdf') {
+    const pdfResult = await convertPdfToMarkdown({
+      filePath,
+      fileName: name,
+      ocrPage: options.pdfVision
+        ? async ({ imageBase64, mimeType, pageNumber, totalPages, fileName }) => {
+            try {
+              return await invokeVisionModelText({
+                imageBase64,
+                mimeType,
+                prompt: buildPdfPageOcrPrompt({ fileName, pageNumber, totalPages }),
+                provider: options.pdfVision!.provider,
+                apiKey: options.pdfVision!.apiKey,
+                model: options.pdfVision!.model,
+                baseUrl: options.pdfVision!.baseUrl,
+                maxTokens: options.pdfVision!.maxTokens,
+                modelTimeoutMs: options.pdfVision!.modelTimeoutMs,
+                logTag: `documents:parsePlan:pdf-page-${pageNumber}`
+              })
+            } catch (error) {
+              if (isImageUnsupportedError(error)) {
+                throw new Error('该 PDF 包含扫描页，当前公司模型不支持图片识别')
+              }
+              throw error
+            }
+          }
+        : undefined
+    })
+    await fs.promises.writeFile(workspacePath, pdfResult.markdown, 'utf-8')
+    type = 'markdown'
+    characterCount = pdfResult.markdown.length
+    log.info('[documents:parsePlan] pdf converted for reading', {
+      originalName: name,
+      workspaceName,
+      pageCount: pdfResult.pageCount,
+      ocrPageCount: pdfResult.ocrPageCount,
       characterCount
     })
   } else {
@@ -1224,7 +1289,29 @@ export function registerDocumentParseHandlers(ctx: IpcContext): void {
 
       const docsDir = path.join(await resolveStoragePath(), 'docs')
       await fs.promises.mkdir(docsDir, { recursive: true })
-      const preparedFiles = await Promise.all(files.map((file) => prepareSourceFile(file, docsDir)))
+      const activeModel = await resolveModelConfigForTask(ctx, {
+        modelConfigId: input.modelConfigId,
+        purpose: 'documents:parsePlan'
+      })
+      const modelTimeouts = await resolveGlobalModelTimeouts(ctx)
+      const { provider, model, apiKey } = activeModel
+      const baseUrl = activeModel.baseUrl
+      const maxTokens = activeModel.maxTokens
+      const modelTimeoutMs = modelTimeouts.document
+      const preparedFiles = await Promise.all(
+        files.map((file) =>
+          prepareSourceFile(file, docsDir, {
+            pdfVision: {
+              provider,
+              apiKey,
+              model,
+              baseUrl,
+              maxTokens,
+              modelTimeoutMs
+            }
+          })
+        )
+      )
       const [sourceFile] = preparedFiles
       if (!sourceFile) throw new Error('请先选择要解析的文档')
       parseEndSourceVirtualPath = sourceFile.virtualPath
@@ -1241,16 +1328,6 @@ export function registerDocumentParseHandlers(ctx: IpcContext): void {
           sourceVirtualPath: sourceFile.virtualPath
         })
       }
-
-      const activeModel = await resolveModelConfigForTask(ctx, {
-        modelConfigId: input.modelConfigId,
-        purpose: 'documents:parsePlan'
-      })
-      const modelTimeouts = await resolveGlobalModelTimeouts(ctx)
-      const { provider, model, apiKey } = activeModel
-      const baseUrl = activeModel.baseUrl
-      const maxTokens = activeModel.maxTokens
-      const modelTimeoutMs = modelTimeouts.document
 
       const topic = typeof input.topic === 'string' ? input.topic.trim() : ''
       const existingBrief =

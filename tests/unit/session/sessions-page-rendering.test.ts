@@ -11,8 +11,6 @@ const state = vi.hoisted(() => ({
   fetchSessions: vi.fn(async () => undefined),
   deleteSession: vi.fn(async () => undefined),
   updateSessionTitle: vi.fn(async () => undefined),
-  importSessionFile: vi.fn(async () => ({ cancelled: true })),
-  createTemplateFromSession: vi.fn(async () => 'template-1'),
   listActiveGenerateRuns: vi.fn(async () => []),
   onGenerateChunk: vi.fn(() => () => undefined),
   onHtmlThumbnailChanged: vi.fn(() => () => undefined)
@@ -65,7 +63,6 @@ vi.mock('../../../src/renderer/src/store', () => ({
     updateSessionTitle: state.updateSessionTitle,
     importSessionFile: state.importSessionFile
   }),
-  useTemplateStore: () => ({ createTemplateFromSession: state.createTemplateFromSession }),
   useToastStore: () => ({
     success: vi.fn(),
     error: vi.fn()
@@ -79,10 +76,6 @@ vi.mock('@renderer/lib/ipc', () => ({
   }
 }))
 vi.mock('@renderer/i18n', () => ({ useT: () => (key: string) => key }))
-vi.mock('../../../src/renderer/src/components/templates/SaveTemplateDialog', () => ({
-  SaveTemplateDialog: () => null
-}))
-
 const setInputValue = (input: HTMLInputElement, value: string): void => {
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
   setter?.call(input, value)
@@ -127,9 +120,7 @@ describe('SessionsPage rendering', () => {
     expect(container.querySelectorAll('iframe')).toHaveLength(0)
     expect(container.textContent).toContain('Quarterly Review')
     expect(container.querySelector('button[aria-label="sessions.editTitleTooltip"]')).toBeTruthy()
-    expect(
-      container.querySelector('button[aria-label="sessions.saveTemplateTooltip"]')
-    ).toBeTruthy()
+    expect(container.querySelector('button[aria-label="sessions.saveTemplateTooltip"]')).toBeNull()
     expect(container.querySelector('button[aria-label="common.delete"]')).toBeTruthy()
 
     await act(async () => root.unmount())
