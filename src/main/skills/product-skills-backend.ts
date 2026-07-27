@@ -5,6 +5,7 @@ import {
   FilesystemBackend,
   createSkillsMiddleware,
   type EditResult,
+  type FileDownloadResponse,
   type WriteResult
 } from 'deepagents'
 import log from 'electron-log/main.js'
@@ -75,7 +76,7 @@ class FilteredReadOnlySkillsBackend extends ReadOnlyFilesystemBackend {
     return super.read(filePath, offset, length)
   }
 
-  async downloadFiles(filePaths: string[]) {
+  async downloadFiles(filePaths: string[]): Promise<FileDownloadResponse[]> {
     const allowed = filePaths.map((filePath) => this.isAllowed(filePath))
     if (allowed.every(Boolean)) return super.downloadFiles(filePaths)
     const downloads = await Promise.all(
@@ -85,7 +86,7 @@ class FilteredReadOnlySkillsBackend extends ReadOnlyFilesystemBackend {
           : Promise.resolve({
               path: filePath,
               content: new Uint8Array(),
-              error: `Product skill is not enabled for this canvas: ${filePath}`
+              error: 'permission_denied' as const
             })
       )
     )

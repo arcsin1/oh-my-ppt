@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useThinkingStore } from '../store/thinkingStore'
-import { useSessionStore, useToastStore } from '../store'
+import { useTemplateStore, useToastStore } from '../store'
 import { ipc } from '@renderer/lib/ipc'
 import { ThinkingChat } from '../components/thinking/ThinkingChat'
 import { ThinkingPageCards } from '../components/thinking/ThinkingPageCards'
@@ -18,7 +18,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/Popove
 import { useLang, useT, type I18nKey } from '../i18n'
 import { Clock3, FileText, History, Loader2, Plus, Trash2 } from 'lucide-react'
 import type { SourceDocumentPlan } from '@shared/generation'
-import type { SlideSizePresetId } from '@shared/slide-size'
+import { CORPORATE_TEMPLATE_ID } from '@shared/brand.js'
+import { resolveCorporateAgendaPreference } from '@shared/corporate-template.js'
 import type {
   ThinkingChatMessage,
   ThinkingSource,
@@ -39,6 +40,7 @@ const buildThinkingGenerationPrompt = (args: {
   topic: string
   pageCount: number
   referenceDocumentPath: string
+  includeAgenda: boolean
 }): string =>
   [
     `Create a ${args.pageCount}-slide presentation about "${args.topic}" from the finalized thinking document.`,
@@ -46,7 +48,12 @@ const buildThinkingGenerationPrompt = (args: {
     'Follow the prepared page outline exactly. Each page outline is derived from the matching "## Page N: ..." section.',
     'Before writing a page, inspect only the relevant source range for that page instead of reading the full document.',
     'If the attached reference document includes image source notes, use the listed ./images/... public paths when relevant.',
-    'Determine the presentation content language from the thinking document and source notes; do not infer it from the application UI language.'
+    'Determine the presentation content language from the thinking document and source notes; do not infer it from the application UI language.',
+    '严格沿用安居建业标准模板中的公司标识、红橙黄波浪、页码和“内部文件 请勿外传”页脚。',
+    args.includeAgenda
+      ? '页面角色固定为封面、目录、正文页、原样结束页；除第1页、第2页和末页外全部使用正文页模板。'
+      : '页面角色固定为封面、正文页、原样结束页；不生成目录，除第1页和末页外全部使用正文页模板。',
+    '末页保持原模板内容完全不变。'
   ].join('\n')
 
 const stageKeyByStage: Record<ThinkingStage, I18nKey> = {
@@ -99,7 +106,7 @@ export function ThinkingDetailPage(): ReactElement {
   const { lang } = useLang()
   const navigate = useNavigate()
   const { success, error: toastError } = useToastStore()
-  const { createSession } = useSessionStore()
+  const { createSessionFromTemplate } = useTemplateStore()
   const {
     thinkingId,
     thinkingMd,
@@ -259,9 +266,6 @@ export function ThinkingDetailPage(): ReactElement {
   const handleGenerationConfirm = async (params: {
     topic: string
     pageCount: number
-    styleId: string
-    fontSelection: import('@shared/generation').FontSelection
-    slideSizeId: SlideSizePresetId
     referenceDocumentPath: string
     sourcePlan?: SourceDocumentPlan
     modelConfigId?: string
@@ -269,27 +273,30 @@ export function ThinkingDetailPage(): ReactElement {
     if (generating || !prepared) return
     setGenerating(true)
     try {
-      const sessionId = await createSession({
-        topic: params.topic,
-        styleId: params.styleId,
+      const includeAgenda = resolveCorporateAgendaPreference({
+        sourceTitles: params.sourcePlan?.pageSkeleton.map((page) => page.title)
+      })
+      const sessionId = await createSessionFromTemplate({
+        templateId: CORPORATE_TEMPLATE_ID,
+        title: params.topic,
         modelConfigId: params.modelConfigId,
         pageCount: params.pageCount,
-        slideSizeId: params.slideSizeId,
+        includeAgenda,
         referenceDocumentPath: params.referenceDocumentPath,
-        fontSelection: params.fontSelection,
         sourcePlan: params.sourcePlan
       })
       success(t('home.sessionCreated'), {
         description: t('home.generationStarted'),
         duration: 1000
       })
-      navigate(`/sessions/${sessionId}/generating`, {
+      navigate(`/sessions/${sessionId}/template-generating`, {
         state: {
           modelConfigId: params.modelConfigId,
           initialPrompt: buildThinkingGenerationPrompt({
             topic: params.topic,
             pageCount: params.pageCount,
-            referenceDocumentPath: params.referenceDocumentPath
+            referenceDocumentPath: params.referenceDocumentPath,
+            includeAgenda
           })
         }
       })
@@ -322,19 +329,19 @@ export function ThinkingDetailPage(): ReactElement {
   })
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col bg-[#f5f1e8] text-foreground">
-      <div className="relative z-50 shrink-0 border-b border-[#e0d8c8] bg-[#f5f1e8]/90 px-6 py-4 backdrop-blur">
+    <div className="relative flex h-full min-h-0 flex-col bg-[#f7f5f1] text-foreground">
+      <div className="relative z-50 shrink-0 border-b border-[#eadfd8] bg-[#fffdf9]/95 px-6 py-4 backdrop-blur">
         <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">
               {t('thinking.eyebrow')}
             </p>
-            <h1 className="organic-serif mt-2 flex min-w-0 items-baseline gap-3 text-[32px] font-semibold leading-none text-[#3e4a32]">
+            <h1 className="mt-2 flex min-w-0 items-baseline gap-3 text-[30px] font-semibold leading-none text-[#2e2926]">
               <span className="truncate">{t('thinking.title')}</span>
               {thinkingId && (
                 <button
                   type="button"
-                  className="min-w-0 rounded-full px-2 py-0.5 font-mono text-[11px] font-normal leading-none text-[#7a806c] transition-colors hover:bg-[#d4e4c1] hover:text-[#3e4a32]"
+                  className="min-w-0 rounded-md px-2 py-0.5 font-mono text-[11px] font-normal leading-none text-[#857872] transition-colors hover:bg-[#fff0e7] hover:text-[#e31921]"
                   onClick={() => void handleRevealWorkspace()}
                   title={t('thinking.revealWorkspace')}
                 >
@@ -351,12 +358,12 @@ export function ThinkingDetailPage(): ReactElement {
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[#d9cfbd] bg-[#fffdf8]/95 px-4 text-[13px] font-semibold text-[#3e4a32] shadow-[0_10px_22px_rgba(86,73,54,0.12)] transition-colors hover:bg-[#f5f1e8]"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#eadfd8] bg-white px-4 text-[13px] font-semibold text-[#3b332f] shadow-sm transition-colors hover:border-[#e31921] hover:text-[#e31921]"
                 >
                   {historyLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin text-[#7a806c]" />
                   ) : (
-                    <History className="h-4 w-4 text-[#5d6b4d]" />
+                    <History className="h-4 w-4 text-[#e31921]" />
                   )}
                   {t('thinking.historyTitle')}
                 </button>
@@ -457,7 +464,7 @@ export function ThinkingDetailPage(): ReactElement {
               type="button"
               onClick={() => void handleCreateWorkspace()}
               disabled={creatingWorkspace}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[#3e4a32] px-4 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(62,74,50,0.18)] transition-colors hover:bg-[#5d6b4d] disabled:cursor-not-allowed disabled:opacity-65"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#e31921] px-4 text-[13px] font-semibold text-white shadow-[0_8px_18px_rgba(227,25,33,0.2)] transition-colors hover:bg-[#c9161d] disabled:cursor-not-allowed disabled:opacity-65"
             >
               {creatingWorkspace ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -475,7 +482,7 @@ export function ThinkingDetailPage(): ReactElement {
           showOutlinePanel ? 'lg:grid-cols-[minmax(0,1fr)_360px]' : 'grid-cols-1'
         }`}
       >
-        <section className="min-h-0 overflow-hidden rounded-[2rem] border border-[#e0d8c8] bg-[#fffdf8] shadow-[0_14px_34px_rgba(86,73,54,0.12)]">
+        <section className="min-h-0 overflow-hidden rounded-xl border border-[#eadfd8] bg-white shadow-[0_12px_30px_rgba(67,48,39,0.08)]">
           {thinkingId ? (
             <ThinkingChat
               thinkingId={thinkingId}
@@ -491,20 +498,20 @@ export function ThinkingDetailPage(): ReactElement {
             />
           ) : (
             <div className="flex h-full min-h-[360px] flex-col items-center justify-center px-8 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-[10%_90%_16%_84%/78%_22%_78%_22%] bg-[#d4e4c1] text-[#3e4a32]">
+              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-[#fff0e7] text-[#e31921]">
                 <History className="h-6 w-6" />
               </div>
-              <h2 className="organic-serif mt-5 text-[28px] font-semibold leading-none text-[#3e4a32]">
+              <h2 className="mt-5 text-[28px] font-semibold leading-none text-[#2e2926]">
                 {t('thinking.emptyWorkspaceTitle')}
               </h2>
-              <p className="mt-3 max-w-md text-[13px] leading-relaxed text-[#5d6b4d]">
+              <p className="mt-3 max-w-md text-[13px] leading-relaxed text-[#786d66]">
                 {t('thinking.emptyWorkspaceDescription')}
               </p>
               <button
                 type="button"
                 onClick={() => void handleCreateWorkspace()}
                 disabled={creatingWorkspace}
-                className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#3e4a32] px-5 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(62,74,50,0.18)] transition-colors hover:bg-[#5d6b4d] disabled:cursor-not-allowed disabled:opacity-65"
+                className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#e31921] px-5 text-[13px] font-semibold text-white shadow-[0_8px_18px_rgba(227,25,33,0.2)] transition-colors hover:bg-[#c9161d] disabled:cursor-not-allowed disabled:opacity-65"
               >
                 {creatingWorkspace ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -517,7 +524,7 @@ export function ThinkingDetailPage(): ReactElement {
           )}
         </section>
         {showOutlinePanel && (
-          <aside className="min-h-0 overflow-hidden rounded-[2rem] border border-[#c8d6ba] bg-[#d4e4c1] shadow-[0_14px_34px_rgba(86,73,54,0.12)]">
+          <aside className="min-h-0 overflow-hidden rounded-xl border border-[#eadfd8] bg-[#fff7f1] shadow-[0_12px_30px_rgba(67,48,39,0.08)]">
             <ThinkingPageCards
               thinkingMd={thinkingMd}
               stage={stage}

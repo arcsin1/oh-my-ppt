@@ -2,6 +2,7 @@ import {
   requirePersistedSlideSize,
   type SlideSizePresetId
 } from '@shared/slide-size'
+import type { CorporateTemplatePageRole } from '@shared/corporate-template'
 
 export type TemplateSource = 'user'
 
@@ -10,6 +11,7 @@ export interface TemplateManifestPage {
   pageId: string
   title: string
   htmlPath: string
+  role?: CorporateTemplatePageRole
 }
 
 export interface TemplateManifest {
@@ -79,7 +81,10 @@ export function parseTemplateManifest(raw: unknown): TemplateManifest {
         pageNumber,
         pageId,
         title: asString(page.title) || `第 ${pageNumber} 页`,
-        htmlPath: asString(page.htmlPath) || `pages/${pageId}.html`
+        htmlPath: asString(page.htmlPath) || `pages/${pageId}.html`,
+        role: ['cover', 'agenda', 'body', 'closing'].includes(asString(page.role))
+          ? (asString(page.role) as CorporateTemplatePageRole)
+          : undefined
       }
     })
     .sort((a, b) => a.pageNumber - b.pageNumber)

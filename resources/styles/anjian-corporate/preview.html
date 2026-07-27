@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>安居建业标准风格预览</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+        background: #f8f5ef;
+        color: #595959;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1600px;
+        height: 900px;
+        overflow: hidden;
+      }
+      body {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 96px 128px;
+        background:
+          linear-gradient(90deg, #e31921 0 19%, #f5831f 19% 34%, #ffd104 34% 43%, transparent 43%)
+            top left / 100% 18px no-repeat,
+          #fff;
+      }
+      .brand {
+        position: absolute;
+        top: 58px;
+        right: 72px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        color: #262626;
+        font-weight: 700;
+        font-size: 25px;
+      }
+      .mark {
+        position: relative;
+        width: 64px;
+        height: 48px;
+      }
+      .mark::before,
+      .mark::after {
+        position: absolute;
+        left: 0;
+        width: 64px;
+        height: 20px;
+        content: "";
+        clip-path: polygon(0 0, 50% 55%, 100% 0, 100% 58%, 50% 100%, 0 58%);
+      }
+      .mark::before {
+        top: 0;
+        background: #ffd104;
+      }
+      .mark::after {
+        bottom: 0;
+        background: #e31921;
+        transform: rotate(180deg);
+      }
+      .eyebrow {
+        margin: 0 0 26px;
+        color: #e31921;
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+      }
+      h1 {
+        max-width: 1160px;
+        margin: 0;
+        color: #343434;
+        font-size: 78px;
+        line-height: 1.18;
+      }
+      .summary {
+        max-width: 1080px;
+        margin: 38px 0 0;
+        font-size: 30px;
+        line-height: 1.7;
+      }
+      .summary strong {
+        color: #c00000;
+      }
+      .footer {
+        position: absolute;
+        right: 74px;
+        bottom: 52px;
+        color: #808080;
+        font-size: 18px;
+      }
+      .waves {
+        position: absolute;
+        bottom: -58px;
+        left: -80px;
+        width: 720px;
+        height: 170px;
+        border-radius: 50%;
+        background: #e31921;
+        box-shadow:
+          0 -30px 0 #f5831f,
+          0 -60px 0 #ffd104;
+        transform: rotate(-4deg);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="brand"><span class="mark" aria-hidden="true"></span><span>安居建业</span></div>
+    <p class="eyebrow">ANJU JIANYE · INTERNAL PRESENTATION</p>
+    <h1>专业、清晰、统一的公司汇报表达</h1>
+    <p class="summary">
+      严格继承安居建业标准模板，使用公司红、橙、黄色序；<strong>重点结论清楚突出</strong>，保留
+      Logo、页码及内部文件标识。
+    </p>
+    <div class="waves" aria-hidden="true"></div>
+    <div class="footer">内部文件 请勿外传</div>
+  </body>
+</html>

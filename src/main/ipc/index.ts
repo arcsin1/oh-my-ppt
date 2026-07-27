@@ -9,9 +9,6 @@ import { registerAssetHandlers, registerLocalAssetProtocol } from './io/assets-h
 import { registerThumbnailHandlers } from './io/thumbnail-handlers'
 import { registerGenerationHandlers } from './engine/generation-handlers'
 import { registerExportHandlers } from './io/export-handlers'
-import { registerStyleHandlers } from './config/style-handlers'
-import { registerStylePreviewHandlers } from './config/style-preview-handlers'
-import { registerFontHandlers } from './config/font-handlers'
 import { registerSettingsHandlers } from './config/settings-handlers'
 import { registerImageModelHandlers } from './config/image-model-handlers'
 import { registerPreviewHandlers } from './session/preview-handlers'
@@ -47,9 +44,6 @@ export function setupIPC(
   registerThumbnailHandlers(context)
   registerGenerationHandlers(context)
   registerExportHandlers(context)
-  registerStyleHandlers(context)
-  registerStylePreviewHandlers(context)
-  registerFontHandlers(context)
   registerSettingsHandlers(context)
   registerImageModelHandlers(context)
   registerPreviewHandlers(context)

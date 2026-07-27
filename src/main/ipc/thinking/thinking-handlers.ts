@@ -23,6 +23,7 @@ import { invalidateRuntime, runThinkingChat } from '../../thinking/thinking-agen
 import { buildThinkingSourceBrief } from '../../thinking/source-brief'
 import { buildThinkingSourcePlan } from '../../thinking/source-plan'
 import { normalizeFontSelection } from '@shared/generation'
+import { MAX_CORPORATE_PAGE_COUNT } from '@shared/brand'
 import type {
   ThinkingChatMessage,
   ThinkingPageOutlineUpdate,
@@ -442,7 +443,7 @@ export function registerThinkingHandlers(ctx: IpcContext): void {
     const result: ThinkingPrepareGenerationResult = {
       thinkingDocumentPath,
       topic,
-      pageCount: Math.max(1, Math.min(500, pageCount)),
+      pageCount: Math.max(1, Math.min(MAX_CORPORATE_PAGE_COUNT, pageCount)),
       styleId: '',
       styleText,
       fontSelection,

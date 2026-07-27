@@ -87,7 +87,7 @@ export function WorkspaceRibbon({
             <AlertDialogCancel disabled={savingBeforeTabSwitch}>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               disabled={savingBeforeTabSwitch}
-              className="bg-[#5d6b4d] text-white hover:bg-[#4d5a40] disabled:cursor-not-allowed disabled:opacity-60"
+              className="bg-[#e21b22] text-white hover:bg-[#ba1218] disabled:cursor-not-allowed disabled:opacity-60"
               onClick={(event) => {
                 event.preventDefault()
                 void confirmPendingTab()

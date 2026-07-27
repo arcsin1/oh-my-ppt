@@ -2,9 +2,6 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Check,
   Copy,
-  Download,
-  FilePlus2,
-  Files,
   Image as ImageIcon,
   LayoutTemplate,
   Loader2,
@@ -155,9 +152,7 @@ export const PageSidebar = memo(function PageSidebar({
   const {
     pages,
     disabled,
-    onAddBlankPage,
     onAddPage,
-    onMergeSessionPages,
     onMergeTemplatePages,
     onRetryFailedPage,
     onReorderPages,
@@ -167,7 +162,6 @@ export const PageSidebar = memo(function PageSidebar({
     onUpdatePageOutline,
     onExportPagePptx,
     canExportPptx,
-    onDownloadAllOutlines,
     pageManagementDisabled,
     collapsed,
     onToggleCollapsed
@@ -334,14 +328,9 @@ export const PageSidebar = memo(function PageSidebar({
     }
   }
 
-  const handleDownloadAllOutlines = (): void => {
-    if (pages.length === 0) return
-    onDownloadAllOutlines?.()
-  }
-
   return (
     <aside
-      className={`relative flex min-h-0 shrink-0 flex-col overflow-hidden bg-[#f5f1e8] pb-3 pt-3 shadow-[inset_-16px_0_30px_rgba(93,107,77,0.045)] transition-[width] duration-300 ${
+      className={`relative flex min-h-0 shrink-0 flex-col overflow-hidden border-r border-[#eadfd8] bg-[#faf8f4] pb-3 pt-3 transition-[width] duration-300 ${
         collapsed ? 'w-[48px] min-w-[48px] max-w-[48px]' : 'w-[220px] min-w-[220px] max-w-[220px]'
       }`}
     >
@@ -362,7 +351,7 @@ export const PageSidebar = memo(function PageSidebar({
                     type="button"
                     data-page-id={page.id}
                     onClick={() => requestSelectPage(page.id)}
-                    className={`flex h-8 w-full items-center justify-center rounded-xl text-xs font-semibold transition-all ${selectedPageId === page.id ? 'bg-[#d4e4c1]/86 text-[#3e4a32] shadow-[0_4px_12px_rgba(93,107,77,0.15)]' : 'text-[#5c6c47] hover:bg-[#e8e0d0]/50'}`}
+                    className={`flex h-8 w-full items-center justify-center rounded-md text-xs font-semibold transition-all ${selectedPageId === page.id ? 'bg-[#e31921] text-white shadow-sm' : 'text-[#665c56] hover:bg-[#f3e9e3]'}`}
                   >
                     P{page.pageNumber}
                   </button>
@@ -379,28 +368,15 @@ export const PageSidebar = memo(function PageSidebar({
                     disabled={disabled}
                     title={t('sessionDetail.addPage')}
                     aria-label={t('sessionDetail.addPage')}
-                    className="flex h-8 w-full items-center justify-center rounded-xl bg-[#d4e4c1]/30 text-[#5d6b4d] transition-colors hover:bg-[#d4e4c1]/50 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                    className="flex h-8 w-full cursor-pointer items-center justify-center rounded-md bg-[#fff0e7] text-[#e31921] transition-colors hover:bg-[#ffe1d2] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Plus className="h-3.5 w-3.5" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent side="top" align="start" className="w-max min-w-[9rem]">
-                  <DropdownMenuItem onSelect={onAddBlankPage}>
-                    <FilePlus2 className="h-3.5 w-3.5 shrink-0 text-[#5f6b50]" />
-                    <span className="whitespace-nowrap">{t('sessionDetail.addBlankPage')}</span>
-                  </DropdownMenuItem>
                   <DropdownMenuItem onSelect={onAddPage}>
-                    <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#7c6a4c]" />
+                    <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#e31921]" />
                     <span className="whitespace-nowrap">{t('sessionDetail.addGeneratedPage')}</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={pageManagementDisabled}
-                    onSelect={onMergeSessionPages}
-                  >
-                    <Files className="h-3.5 w-3.5 shrink-0 text-[#62758a]" />
-                    <span className="whitespace-nowrap">
-                      {t('sessionDetail.addPagesFromSession')}
-                    </span>
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     disabled={pageManagementDisabled}
@@ -418,7 +394,7 @@ export const PageSidebar = memo(function PageSidebar({
                   <button
                     type="button"
                     onClick={onToggleCollapsed}
-                    className="flex h-8 w-full items-center justify-center rounded-xl text-[#7a875f] transition-colors hover:bg-[#e8e0d0]/50 hover:text-[#3e4a32] cursor-pointer"
+                    className="flex h-8 w-full cursor-pointer items-center justify-center rounded-md text-[#857872] transition-colors hover:bg-[#f3e9e3] hover:text-[#e31921]"
                     aria-label={t('sessionDetail.expandSidebar')}
                   >
                     <PanelRight className="h-4 w-4" />
@@ -431,14 +407,14 @@ export const PageSidebar = memo(function PageSidebar({
         ) : (
           // Expanded: full sidebar
           <>
-            <div className="mx-1 mb-2 grid grid-cols-2 rounded-lg bg-[#e8e0d0]/38 p-0.5 text-[10.5px] font-medium text-[#6a705d]">
+            <div className="mx-1 mb-2 grid grid-cols-2 rounded-md bg-[#f1ece8] p-0.5 text-[10.5px] font-medium text-[#746963]">
               <button
                 type="button"
                 onClick={() => setActiveView('pages')}
                 className={`h-6 rounded-md transition-all ${
                   activeView === 'pages'
-                    ? 'bg-[#fffaf1]/86 text-[#3e4a32] shadow-[0_1px_4px_rgba(93,107,77,0.08)]'
-                    : 'hover:bg-[#fffaf1]/36 hover:text-[#4f6340]'
+                    ? 'bg-white text-[#e31921] shadow-sm'
+                    : 'hover:bg-white/70 hover:text-[#e31921]'
                 }`}
               >
                 {t('sessionDetail.pageTab')}
@@ -448,25 +424,13 @@ export const PageSidebar = memo(function PageSidebar({
                 onClick={() => setActiveView('outline')}
                 className={`h-6 rounded-md transition-all ${
                   activeView === 'outline'
-                    ? 'bg-[#fffaf1]/86 text-[#3e4a32] shadow-[0_1px_4px_rgba(93,107,77,0.08)]'
-                    : 'hover:bg-[#fffaf1]/36 hover:text-[#4f6340]'
+                    ? 'bg-white text-[#e31921] shadow-sm'
+                    : 'hover:bg-white/70 hover:text-[#e31921]'
                 }`}
               >
                 {t('sessionDetail.outlineTab')}
               </button>
             </div>
-            {activeView === 'outline' ? (
-              <button
-                type="button"
-                disabled={pages.length === 0 || !onDownloadAllOutlines}
-                onClick={handleDownloadAllOutlines}
-                className="mx-1 mb-2 flex h-7 items-center justify-center gap-1.5 rounded-lg border border-[#b5c4a1]/50 bg-[#fffaf1]/72 px-2 text-[11px] font-medium text-[#5d6b4d] shadow-[0_3px_8px_rgba(86,72,53,0.05)] transition-colors hover:bg-[#d4e4c1]/45 hover:text-[#3e4a32] disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                <Download className="h-3.5 w-3.5" />
-                {t('sessionDetail.downloadAllOutlines')}
-              </button>
-            ) : null}
-
             {/* Middle: page list */}
             <ScrollArea
               className="min-h-0 min-w-0 flex-1"
@@ -817,29 +781,16 @@ export const PageSidebar = memo(function PageSidebar({
                   <button
                     type="button"
                     disabled={disabled}
-                    className="flex flex-1 items-center justify-center gap-1 rounded-[1rem] border border-dashed border-[#b5c4a1]/60 bg-[#d4e4c1]/30 px-2 py-1.5 text-[11px] font-medium text-[#5d6b4d] transition-colors hover:bg-[#d4e4c1]/50 hover:text-[#3e4a32] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                    className="flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-md border border-dashed border-[#efb6a5] bg-[#fff2eb] px-2 py-1.5 text-[11px] font-medium text-[#e31921] transition-colors hover:bg-[#ffe2d5] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Plus className="h-3 w-3" />
                     {t('sessionDetail.addPage')}
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent side="top" align="start" className="w-max min-w-[9rem]">
-                  <DropdownMenuItem onSelect={onAddBlankPage}>
-                    <FilePlus2 className="h-3.5 w-3.5 shrink-0 text-[#5f6b50]" />
-                    <span className="whitespace-nowrap">{t('sessionDetail.addBlankPage')}</span>
-                  </DropdownMenuItem>
                   <DropdownMenuItem onSelect={onAddPage}>
-                    <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#7c6a4c]" />
+                    <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#e31921]" />
                     <span className="whitespace-nowrap">{t('sessionDetail.addGeneratedPage')}</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={pageManagementDisabled}
-                    onSelect={onMergeSessionPages}
-                  >
-                    <Files className="h-3.5 w-3.5 shrink-0 text-[#62758a]" />
-                    <span className="whitespace-nowrap">
-                      {t('sessionDetail.addPagesFromSession')}
-                    </span>
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     disabled={pageManagementDisabled}
@@ -857,7 +808,7 @@ export const PageSidebar = memo(function PageSidebar({
                   <button
                     type="button"
                     onClick={onToggleCollapsed}
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#7a875f] transition-colors hover:bg-[#e8e0d0]/60 hover:text-[#3e4a32] cursor-pointer"
+                    className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-[#857872] transition-colors hover:bg-[#f3e9e3] hover:text-[#e31921]"
                     aria-label={t('sessionDetail.collapseSidebar')}
                   >
                     <PanelLeft className="h-3.5 w-3.5" />
@@ -886,7 +837,7 @@ export const PageSidebar = memo(function PageSidebar({
             <AlertDialogCancel disabled={savingBeforeSwitch}>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               disabled={savingBeforeSwitch}
-              className="bg-[#5d6b4d] text-white hover:bg-[#4d5a40] disabled:cursor-not-allowed disabled:opacity-60"
+              className="bg-[#e31921] text-white hover:bg-[#c9161d] disabled:cursor-not-allowed disabled:opacity-60"
               onClick={(event) => {
                 event.preventDefault()
                 void handleConfirmSaveAndSwitch()

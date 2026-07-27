@@ -362,7 +362,7 @@ describe('document outline scan', () => {
     })
   })
 
-  it('keeps large candidate skeleton counts aligned with the prompt-visible target', () => {
+  it('caps large candidate skeleton counts to the corporate 50-page limit', () => {
     const source = [
       '# Large Manual',
       ...Array.from({ length: 150 }, (_, index) => [
@@ -375,9 +375,9 @@ describe('document outline scan', () => {
     const promptText = formatDocumentOutlineScanForPrompt(scan)
 
     expect(deriveOutlinePageCandidates(scan)).toHaveLength(150)
-    expect(estimate?.preferredPageCount).toBe(150)
-    expect(promptText).toContain('Page candidate skeleton (150 slides)')
-    expect(promptText).not.toContain('Page candidate skeleton truncated')
+    expect(estimate?.preferredPageCount).toBe(50)
+    expect(promptText).toContain('Page candidate skeleton (50 visible of 150 candidates)')
+    expect(promptText).toContain('Return pageCount=50')
   })
 
   it('caps extremely large candidate skeletons to the visible parse target', () => {
@@ -393,10 +393,10 @@ describe('document outline scan', () => {
     const promptText = formatDocumentOutlineScanForPrompt(scan)
 
     expect(deriveOutlinePageCandidates(scan)).toHaveLength(520)
-    expect(estimate?.preferredPageCount).toBe(500)
-    expect(estimate?.basis).toContain('capped to 500 visible page candidates')
-    expect(promptText).toContain('Page candidate skeleton (500 visible of 520 candidates)')
-    expect(promptText).toContain('Return pageCount=500')
+    expect(estimate?.preferredPageCount).toBe(50)
+    expect(estimate?.basis).toContain('capped to 50 visible page candidates')
+    expect(promptText).toContain('Page candidate skeleton (50 visible of 520 candidates)')
+    expect(promptText).toContain('Return pageCount=50')
   })
 
   it('estimates a stable slide count for large multi-section manuals', () => {

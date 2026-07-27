@@ -10,8 +10,6 @@ export type SessionDetailAiPanelMode = 'chat' | 'image'
 export type InteractionMode = 'preview' | 'ai-inspect' | 'animation-select' | 'edit'
 export type SessionWorkspaceTab =
   | 'preview'
-  | 'browse'
-  | 'style'
   | 'edit'
   | 'animation'
   | 'speech'

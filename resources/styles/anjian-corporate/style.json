@@ -1,0 +1,13 @@
+{
+  "style": "anjian-corporate",
+  "name": {
+    "zh": "安居建业标准",
+    "en": "Anju Jianye Corporate"
+  },
+  "description": "安居建业内部统一汇报风格，严格继承公司标准模板",
+  "category": "企业内部 · 标准",
+  "aliases": ["安居建业", "公司模板", "企业汇报", "ajjy"],
+  "styleCase": "内部汇报、经营分析、项目复盘、方案请示、工作总结",
+  "version": "1.0.0",
+  "source": "builtin"
+}

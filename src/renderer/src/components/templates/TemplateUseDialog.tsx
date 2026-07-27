@@ -28,6 +28,8 @@ import { useT } from '@renderer/i18n'
 import { ipc, type TemplateListItem } from '@renderer/lib/ipc'
 import { useTemplateStore, useToastStore } from '@renderer/store'
 import type { ParsedDocumentPlanResult } from '@shared/generation'
+import { MAX_CORPORATE_PAGE_COUNT } from '@shared/brand'
+import { resolveCorporateAgendaPreference } from '@shared/corporate-template'
 import ReactMarkdown from 'react-markdown'
 import {
   buildSuggestionDraft,
@@ -38,7 +40,7 @@ import {
 } from '../session-create/SessionCreateSuggestionDialog'
 
 const MIN_PAGE_COUNT = 1
-const MAX_PAGE_COUNT = 500
+const MAX_PAGE_COUNT = MAX_CORPORATE_PAGE_COUNT
 const MAX_DOCUMENT_SIZE_MB = 10
 const MAX_DOCUMENT_SIZE_BYTES = MAX_DOCUMENT_SIZE_MB * 1024 * 1024
 
@@ -55,12 +57,16 @@ const buildTemplateInitialPrompt = (args: {
   title: string
   pageCount: number
   brief: string
+  includeAgenda: boolean
 }): string =>
   [
     `Create a ${args.pageCount}-slide presentation titled "${args.title}".`,
     `Use the selected template "${args.templateName}" as the fixed visual template reference.`,
     'Regenerate every slide from the new brief/source document. Preserve the template direction for layout roles, visual rhythm, colors, typography, and component treatment, but do not reuse old slide text unless the user asks for it.',
-    'Page-count mapping: preserve the template cover/opening role for slide 1 and the closing/ending role for the final slide when possible. If the final deck has more pages than the template, add the extra pages in the middle by reusing or varying relevant middle-page roles. If it has fewer pages, merge or skip less relevant middle-page roles. Do not force one-to-one page matching.',
+    args.includeAgenda
+      ? 'Page roles are fixed: slide 1 uses the cover, slide 2 uses the contents page, every other middle slide uses the body-page template, and the final slide is the original closing page.'
+      : 'Page roles are fixed: slide 1 uses the cover, there is no contents page, every middle slide uses the body-page template, and the final slide is the original closing page.',
+    'Do not modify any content, image, position, or style on the final closing page.',
     'Determine the presentation content language from the brief and source documents; do not infer it from the application UI language or this instruction language.',
     '',
     'Brief:',
@@ -286,6 +292,10 @@ export function TemplateUseDialog({
       return
     }
     const safePageCount = resolvePageCount(pageCount, template.pageCount || 5)
+    const includeAgenda = resolveCorporateAgendaPreference({
+      brief: briefText,
+      sourceTitles: acceptedSourcePlan?.pageSkeleton.map((page) => page.title)
+    })
     setCreating(true)
     try {
       const sessionId = await createSessionFromTemplate({
@@ -293,6 +303,7 @@ export function TemplateUseDialog({
         title: deckTitle,
         modelConfigId: resolvedModelConfigId,
         pageCount: safePageCount,
+        includeAgenda,
         referenceDocumentPath: referenceDocumentPath || undefined,
         sourcePlan: acceptedSourcePlan
       })
@@ -300,7 +311,8 @@ export function TemplateUseDialog({
         templateName: template.name,
         title: deckTitle,
         pageCount: safePageCount,
-        brief: briefText
+        brief: briefText,
+        includeAgenda
       })
       success(t('templates.sessionCreated'), {
         description: t('templates.sessionCreatedDescription')

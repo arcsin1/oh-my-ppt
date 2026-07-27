@@ -2,7 +2,11 @@
 import { escapeHtml } from '../utils'
 import * as cheerio from 'cheerio'
 import { buildBasePageStyleTag, buildFitScript } from '../../tools'
-import { requireSlideSize, type SlideSizePreset } from '@shared/slide-size'
+import {
+  requireSlideSize,
+  requireSlideSizePreset,
+  type SlideSizePreset
+} from '@shared/slide-size'
 import { buildSessionAssetHeadTags } from './page-assets'
 import {
   DEFAULT_INDEX_TRANSITION_CONFIG,
@@ -86,7 +90,7 @@ export const buildProjectIndexHtml = (
   slideSizeInput: SlideSizePreset
 ): string => {
   const slideSize = requireSlideSize(slideSizeInput)
-  const safeTitle = escapeHtml(title || 'OhMyPPT Preview')
+  const safeTitle = escapeHtml(title || '安居建业PPT预览')
   const pagesData = JSON.stringify(
     pages.map((page) => ({
       id: page.id || undefined,
@@ -306,13 +310,14 @@ export const buildProjectIndexScaffold = (
   pages: Array<{ pageNumber: number; title: string; pageId: string }>
 ): string => {
   return buildProjectIndexHtml(
-    title || 'OhMyPPT Preview',
+    title || '安居建业PPT预览',
     pages.map((page) => ({
       pageNumber: page.pageNumber,
       pageId: page.pageId,
       title: page.title,
       htmlPath: `${page.pageId}.html`
-    }))
+    })),
+    requireSlideSizePreset('wide-16-9')
   )
 }
 

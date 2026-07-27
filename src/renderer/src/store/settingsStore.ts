@@ -7,6 +7,7 @@ import {
 } from '@renderer/lib/ipc'
 import type { ConfigurableModelTimeoutProfile } from '@shared/model-timeout.js'
 import type { ThinkingParameterMode } from '@shared/model-config.js'
+import type { ByokServiceId } from '@shared/byok.js'
 
 interface Settings {
   theme: string
@@ -30,6 +31,7 @@ interface SettingsStore {
     id?: string
     name: string
     provider: 'anthropic' | 'openai' | 'openai-responses' | 'google'
+    serviceId?: ByokServiceId
     model: string
     apiKey: string
     baseUrl: string
@@ -37,7 +39,10 @@ interface SettingsStore {
     disableTemperature?: boolean
     thinkingParameterMode?: ThinkingParameterMode
     active?: boolean
-  }) => Promise<string | null>
+  }) => Promise<{
+    id: string
+    credentialPersistence: 'encrypted' | 'session-only'
+  } | null>
   upsertImageModelConfig: (config: {
     id?: string
     name: string
@@ -52,6 +57,7 @@ interface SettingsStore {
   setVerificationMessage: (message: string | null) => void
   verifyApiKey: (
     provider: string,
+    serviceId: ByokServiceId,
     apiKey: string,
     model: string,
     baseUrl: string,
@@ -131,7 +137,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     try {
       const result = await ipc.upsertModelConfig(config)
       await get().fetchSettings()
-      return result.id
+      return {
+        id: result.id,
+        credentialPersistence: result.credentialPersistence
+      }
     } catch (error) {
       const message =
         error instanceof Error && error.message
@@ -218,6 +227,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   verifyApiKey: async (
     provider,
+    serviceId,
     apiKey,
     model,
     baseUrl,
@@ -229,6 +239,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     try {
       const { valid, message } = await ipc.verifyApiKey({
         provider,
+        serviceId,
         apiKey,
         model,
         baseUrl,

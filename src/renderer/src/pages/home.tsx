@@ -1,281 +1,400 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useToastStore } from '../store'
-import { useT } from '../i18n'
-import { useModelAction } from '../hooks/useModelAction'
-import { ipc } from '@renderer/lib/ipc'
 import {
   ArrowRight,
   FileText,
   FileUp,
   Loader2,
+  LockKeyhole,
   MessageCircle,
-  Sparkles
+  ShieldCheck,
+  X
 } from 'lucide-react'
+import { CORPORATE_TEMPLATE_ID } from '@shared/brand.js'
+import type { SourceDocumentPlan } from '@shared/generation'
+import templatePreviewUrl from '@renderer/assets/images/corporate-template-preview.png'
+import { ipc } from '@renderer/lib/ipc'
+import { useModelAction } from '@renderer/hooks/useModelAction'
+import { useTemplateStore, useToastStore } from '@renderer/store'
+import {
+  buildCorporatePrompt,
+  clampCorporatePageCount,
+  resolveRequestedPageCount,
+  shouldIncludeCorporateAgenda
+} from './home-utils'
 
 const MAX_PPTX_SIZE_MB = 500
 const MAX_PPTX_SIZE_BYTES = MAX_PPTX_SIZE_MB * 1024 * 1024
+const MAX_DOCUMENT_SIZE_MB = 10
+const MAX_DOCUMENT_SIZE_BYTES = MAX_DOCUMENT_SIZE_MB * 1024 * 1024
+const SUPPORTED_DOCUMENT_NAME = /\.(pdf|docx|md|txt|text|csv|png|jpe?g|webp)$/i
+
+type CorporateReferencePlan = {
+  topic: string
+  pageCount: number
+  referenceDocumentPath: string
+  sourcePlan?: SourceDocumentPlan
+  fileName: string
+}
 
 export function HomePage(): ReactElement {
   const navigate = useNavigate()
   const { success, error, warning } = useToastStore()
-  const modelAction = useModelAction()
-  const { ensureModelActive } = modelAction
-  const t = useT()
+  const { createSessionFromTemplate } = useTemplateStore()
+  const { ensureModelActive } = useModelAction()
+  const [brief, setBrief] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [parsingDocument, setParsingDocument] = useState(false)
+  const [referencePlan, setReferencePlan] = useState<CorporateReferencePlan | null>(null)
   const [importingPptx, setImportingPptx] = useState(false)
   const [pptxImportProgress, setPptxImportProgress] = useState<string | null>(null)
+  const documentInputRef = useRef<HTMLInputElement | null>(null)
   const pptxInputRef = useRef<HTMLInputElement | null>(null)
 
-  const ensureHomeModelReady = useCallback(async (): Promise<boolean> => {
-    return Boolean(await ensureModelActive())
-  }, [ensureModelActive])
+  const handleCreate = useCallback(async (): Promise<void> => {
+    const request = brief.trim()
+    if (!request) {
+      warning('请输入汇报主题或粘贴提纲')
+      return
+    }
+    const modelConfigId = await ensureModelActive()
+    if (!modelConfigId) return
+    const pageCount = resolveRequestedPageCount(request, referencePlan?.pageCount)
+    const includeAgenda = shouldIncludeCorporateAgenda({
+      brief: request,
+      sourcePlan: referencePlan?.sourcePlan
+    })
+    setCreating(true)
+    try {
+      const sessionId = await createSessionFromTemplate({
+        templateId: CORPORATE_TEMPLATE_ID,
+        title: (referencePlan?.topic || request).replace(/\s+/g, ' ').slice(0, 56),
+        modelConfigId,
+        pageCount,
+        includeAgenda,
+        referenceDocumentPath: referencePlan?.referenceDocumentPath,
+        sourcePlan: referencePlan?.sourcePlan
+      })
+      success('已创建安居建业演示', {
+        description: `正在按公司模板生成 ${pageCount} 页内容。`
+      })
+      navigate(`/sessions/${sessionId}/template-generating`, {
+        state: {
+          initialPrompt: buildCorporatePrompt({
+            brief: request,
+            pageCount,
+            hasReferenceDocument: Boolean(referencePlan),
+            includeAgenda
+          }),
+          modelConfigId
+        }
+      })
+    } catch (createError) {
+      error('创建演示失败', {
+        description: createError instanceof Error ? createError.message : '请稍后重试。'
+      })
+    } finally {
+      setCreating(false)
+    }
+  }, [
+    brief,
+    createSessionFromTemplate,
+    ensureModelActive,
+    error,
+    navigate,
+    referencePlan,
+    success,
+    warning
+  ])
 
-  const handleQuickCreate = useCallback(async () => {
-    if (!(await ensureHomeModelReady())) return
-    navigate('/create/session')
-  }, [ensureHomeModelReady, navigate])
-
-  const handleExplore = useCallback(async () => {
-    navigate('/thinking')
-  }, [navigate])
-
-  const ensureUploadPrerequisites = useCallback(async (): Promise<boolean> => {
+  const validateUploadReady = useCallback(async (): Promise<boolean> => {
     const validation = await ipc.validateUploadPrerequisites()
     if (validation.ready) return true
-    warning(t('home.settingsRequiredTitle'), {
-      description: validation.message || t('home.settingsRequired'),
-      action: {
-        label: t('home.goToSettings'),
-        onClick: () => navigate('/settings')
-      }
+    warning('请先完成设置', {
+      description: validation.message || '需要个人 AI 服务和本地文件目录。',
+      action: { label: '前往设置', onClick: () => navigate('/settings') }
     })
     return false
-  }, [navigate, t, warning])
+  }, [navigate, warning])
 
-  const handleImportPptxClick = useCallback(async (): Promise<void> => {
-    if (importingPptx) return
-    if (!(await ensureHomeModelReady())) return
-    if (!(await ensureUploadPrerequisites())) return
-    pptxInputRef.current?.click()
-  }, [ensureHomeModelReady, ensureUploadPrerequisites, importingPptx])
+  const validateStorageReady = useCallback(async (): Promise<boolean> => {
+    const settings = await ipc.getSettings()
+    const storagePath =
+      typeof settings.storagePath === 'string' ? settings.storagePath.trim() : ''
+    if (storagePath) return true
+    warning('请先选择本地文件目录', {
+      description: '导入 PPTX 不需要 AI，但需要一个本地目录保存可编辑页面。',
+      action: { label: '前往设置', onClick: () => navigate('/settings') }
+    })
+    return false
+  }, [navigate, warning])
 
-  const handlePptxFilesSelected = useCallback(
+  const handleDocumentClick = useCallback(async (): Promise<void> => {
+    if (parsingDocument) return
+    const modelConfigId = await ensureModelActive()
+    if (!modelConfigId || !(await validateUploadReady())) return
+    documentInputRef.current?.click()
+  }, [ensureModelActive, parsingDocument, validateUploadReady])
+
+  const handleDocumentSelected = useCallback(
     async (files: FileList | null): Promise<void> => {
-      const selectedFiles = Array.from(files || [])
-      if (pptxInputRef.current) {
-        pptxInputRef.current.value = ''
-      }
-      if (selectedFiles.length === 0) return
-      if (selectedFiles.length > 1) {
-        error(t('home.pptxSingleOnlyTitle'), {
-          description: t('home.pptxSingleOnly')
+      const selectedFile = Array.from(files || [])[0]
+      if (documentInputRef.current) documentInputRef.current.value = ''
+      if (!selectedFile) return
+      if (!SUPPORTED_DOCUMENT_NAME.test(selectedFile.name)) {
+        error('暂不支持此文件', {
+          description: '请选择 PDF、Word、Markdown、TXT、CSV 或常见图片。'
         })
         return
       }
-      const selectedFile = selectedFiles[0]
-      if (!/\.pptx$/i.test(selectedFile.name)) {
-        error(t('home.unsupportedFileTitle'), {
-          description: t('home.unsupportedPptx')
-        })
-        return
-      }
-      if (selectedFile.size > MAX_PPTX_SIZE_BYTES) {
-        error(t('home.pptxTooLargeTitle'), {
-          description: t('home.pptxTooLarge', { maxSize: MAX_PPTX_SIZE_MB })
-        })
+      if (selectedFile.size > MAX_DOCUMENT_SIZE_BYTES) {
+        error('文件过大', { description: `参考资料不能超过 ${MAX_DOCUMENT_SIZE_MB}MB。` })
         return
       }
       const filePath = window.electron?.getPathForFile?.(selectedFile) || ''
       if (!filePath) {
-        error(t('home.pptxPathFailedTitle'), {
-          description: t('home.pptxPathFailed')
-        })
+        error('无法读取文件路径')
         return
       }
-      setImportingPptx(true)
-      setPptxImportProgress(t('home.pptxPreparing'))
+      const modelConfigId = await ensureModelActive()
+      if (!modelConfigId || !(await validateUploadReady())) return
+
+      setParsingDocument(true)
       try {
-        const modelConfigId = await ensureModelActive()
-        if (!modelConfigId) return
+        const result = await ipc.parseDocumentPlan({
+          files: [{ path: filePath, name: selectedFile.name }],
+          modelConfigId,
+          existingBrief: brief.trim()
+        })
+        const referenceFile = result.files[0]
+        if (!referenceFile?.path) throw new Error('参考资料解析完成，但未返回可读取的资料文件')
+        const pageCount = clampCorporatePageCount(result.pageCount)
+        setBrief(result.briefText)
+        setReferencePlan({
+          topic: result.topic,
+          pageCount,
+          referenceDocumentPath: referenceFile.path,
+          sourcePlan: result.sourcePlan,
+          fileName: selectedFile.name
+        })
+        success('参考资料解析完成', {
+          description: `已形成“${result.topic}”的 ${pageCount} 页建议结构，可继续修改要求。`
+        })
+      } catch (parseError) {
+        error('参考资料解析失败', {
+          description: parseError instanceof Error ? parseError.message : '请稍后重试。'
+        })
+      } finally {
+        setParsingDocument(false)
+      }
+    },
+    [brief, ensureModelActive, error, success, validateUploadReady]
+  )
+
+  const handleImportPptxClick = useCallback(async (): Promise<void> => {
+    if (importingPptx) return
+    if (!(await validateStorageReady())) return
+    pptxInputRef.current?.click()
+  }, [importingPptx, validateStorageReady])
+
+  const handlePptxFilesSelected = useCallback(
+    async (files: FileList | null): Promise<void> => {
+      const selectedFile = Array.from(files || [])[0]
+      if (pptxInputRef.current) pptxInputRef.current.value = ''
+      if (!selectedFile) return
+      if (!/\.pptx$/i.test(selectedFile.name)) {
+        error('仅支持导入 PPTX 文件')
+        return
+      }
+      if (selectedFile.size > MAX_PPTX_SIZE_BYTES) {
+        error('文件过大', { description: `PPTX 不能超过 ${MAX_PPTX_SIZE_MB}MB。` })
+        return
+      }
+      const filePath = window.electron?.getPathForFile?.(selectedFile) || ''
+      if (!filePath) {
+        error('无法读取文件路径')
+        return
+      }
+      if (!(await validateStorageReady())) return
+
+      setImportingPptx(true)
+      setPptxImportProgress('正在准备导入')
+      try {
         const result = await ipc.importPptx({
           filePath,
           title: selectedFile.name.replace(/\.pptx$/i, ''),
-          styleId: null,
-          modelConfigId
+          styleId: null
         })
-        success(t('home.pptxImportDone'), {
-          description:
-            result.warnings.length > 0
-              ? t('home.pptxImportedWithWarnings', {
-                  pageCount: result.pageCount,
-                  warningCount: result.warnings.length
-                })
-              : t('home.pptxImported', { pageCount: result.pageCount })
+        success('PPTX 导入完成', {
+          description: `已导入 ${result.pageCount} 页，可继续编辑。`
         })
         navigate(`/sessions/${result.sessionId}`)
-      } catch (err) {
-        error(t('home.pptxImportFailed'), {
-          description: err instanceof Error ? err.message : t('common.retryLater')
+      } catch (importError) {
+        error('PPTX 导入失败', {
+          description: importError instanceof Error ? importError.message : '请稍后重试。'
         })
       } finally {
         setImportingPptx(false)
         setPptxImportProgress(null)
       }
     },
-    [ensureModelActive, error, navigate, success, t]
+    [error, navigate, success, validateStorageReady]
   )
 
-  useEffect(() => {
-    return ipc.onPptxImportProgress((payload) => {
+  useEffect(() =>
+    ipc.onPptxImportProgress((payload) => {
       setPptxImportProgress(`${payload.label}${payload.progress ? ` · ${payload.progress}%` : ''}`)
-    })
-  }, [])
+    }), [])
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-9 text-[#3e4a32] lg:px-8">
-      <section className="relative overflow-hidden border-b border-[#e0d8c8] pb-8">
-        <div className="pointer-events-none absolute -right-10 -top-14 h-36 w-36 rounded-[38%_62%_44%_56%/55%_45%_55%_45%] bg-[#d4e4c1]/55" />
-        <div className="pointer-events-none absolute bottom-3 right-28 h-16 w-28 rounded-[8%_92%_12%_88%/78%_22%_78%_22%] bg-[#c8b89e]/30" />
+    <main className="mx-auto w-full max-w-[1180px] px-8 pb-10 pt-12 text-[#4c4c4c]">
+      <section>
+        <h1 className="text-[38px] font-semibold leading-tight tracking-[-0.025em] text-[#333333]">
+          开始制作安居建业演示文稿
+        </h1>
 
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full bg-[#d4e4c1]/78 px-4 py-1.5 text-[11px] font-semibold text-[#3e4a32] shadow-[0_6px_14px_rgba(93,107,77,0.10)]">
-              <Sparkles className="h-3.5 w-3.5 text-[#5d6b4d]" />
-              {t('home.eyebrow')}
+        <div className="mt-7 rounded-xl border border-[#e4dcd0] bg-white p-4 shadow-[0_12px_30px_rgba(76,76,76,0.07)]">
+          <textarea
+            value={brief}
+            onChange={(event) => setBrief(event.target.value)}
+            placeholder="输入汇报主题或粘贴提纲，也可以上传参考资料由 AI 梳理"
+            className="h-[112px] w-full resize-none border-0 bg-transparent px-2 py-1 text-[15px] leading-6 text-[#3e3a36] outline-none placeholder:text-[#aaa39a]"
+          />
+          {referencePlan ? (
+            <div className="mx-2 mb-3 flex items-center gap-3 rounded-lg border border-[#f1d7bf] bg-[#fff8f1] px-3 py-2">
+              <FileText className="h-4 w-4 shrink-0 text-[#e21b22]" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-semibold text-[#4b423b]">
+                  {referencePlan.fileName}
+                </span>
+                <span className="mt-0.5 block text-[11px] text-[#8c7e73]">
+                  已读取资料 · 建议 {referencePlan.pageCount} 页 · 可继续编辑上方要求
+                </span>
+              </span>
+              <button
+                type="button"
+                aria-label="移除参考资料"
+                onClick={() => setReferencePlan(null)}
+                className="rounded p-1 text-[#9a8f86] hover:bg-white hover:text-[#e21b22]"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
-            <h1 className="organic-serif mt-5 text-[32px] font-semibold leading-none text-[#3e4a32] sm:text-[40px]">
-              {t('thinking.homeTitle')}
-            </h1>
-            <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-[#5d6b4d]">
-              {t('thinking.homeDescription')}
-            </p>
+          ) : null}
+          <div className="flex items-center justify-between border-t border-[#f0e9df] pt-3">
+            <span className="text-xs text-[#989087]">
+              支持 1–50 页；可在要求中注明页数，例如“制作 12 页年度总结”
+            </span>
+            <button
+              type="button"
+              disabled={creating}
+              onClick={() => void handleCreate()}
+              className="inline-flex h-10 min-w-[126px] items-center justify-center rounded-lg bg-[#e21b22] px-5 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(226,27,34,0.18)] transition-colors hover:bg-[#ba1218] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              开始创建
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <button
+            type="button"
+            disabled={parsingDocument}
+            onClick={() => void handleDocumentClick()}
+            className="group flex min-h-[86px] items-center gap-4 rounded-xl border border-[#e4dcd0] bg-white px-5 text-left transition-all hover:border-[#f5831f]/45 hover:shadow-[0_9px_24px_rgba(76,76,76,0.06)] disabled:opacity-60"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#fff3e9] text-[#f5831f]">
+              {parsingDocument ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <FileText className="h-5 w-5" />
+              )}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-semibold text-[#3d3935]">上传参考资料</span>
+              <span className="mt-1 block text-xs text-[#817b73]">
+                {parsingDocument ? '正在读取并梳理内容' : '支持 PDF、Word、表格、文本和图片'}
+              </span>
+            </span>
+            <ArrowRight className="h-4 w-4 text-[#aaa39a] transition-transform group-hover:translate-x-0.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate('/thinking')}
+            className="group flex min-h-[86px] items-center gap-4 rounded-xl border border-[#e4dcd0] bg-white px-5 text-left transition-all hover:border-[#f5831f]/45 hover:shadow-[0_9px_24px_rgba(76,76,76,0.06)]"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#fff3e9] text-[#f5831f]">
+              <MessageCircle className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-semibold text-[#3d3935]">对话创作</span>
+              <span className="mt-1 block text-xs text-[#817b73]">与 AI 对话，梳理思路并形成汇报结构</span>
+            </span>
+            <ArrowRight className="h-4 w-4 text-[#aaa39a] transition-transform group-hover:translate-x-0.5" />
+          </button>
+
+          <button
+            type="button"
+            disabled={importingPptx}
+            onClick={() => void handleImportPptxClick()}
+            className="group flex min-h-[86px] items-center gap-4 rounded-xl border border-[#e4dcd0] bg-white px-5 text-left transition-all hover:border-[#f5831f]/45 hover:shadow-[0_9px_24px_rgba(76,76,76,0.06)] disabled:opacity-60"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#fff3e9] text-[#f5831f]">
+              {importingPptx ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileUp className="h-5 w-5" />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-semibold text-[#3d3935]">导入 PPTX</span>
+              <span className="mt-1 block truncate text-xs text-[#817b73]">
+                {pptxImportProgress || '保留原有颜色和版式，导入后继续编辑'}
+              </span>
+            </span>
+            <ArrowRight className="h-4 w-4 text-[#aaa39a] transition-transform group-hover:translate-x-0.5" />
+          </button>
+        </div>
+      </section>
+
+      <section className="mt-9">
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <h2 className="text-[17px] font-semibold text-[#3d3935]">安居建业标准模板 · 16:9</h2>
+          <span className="inline-flex items-center gap-1.5 text-xs text-[#817b73]">
+            <LockKeyhole className="h-3.5 w-3.5" /> 所有新演示均使用公司模板
+          </span>
+        </div>
+        <div className="overflow-hidden rounded-xl border border-[#e2d8cb] bg-white shadow-[0_14px_34px_rgba(76,76,76,0.07)]">
+          <img
+            src={templatePreviewUrl}
+            alt="安居建业标准模板封面预览"
+            className="aspect-video w-full object-cover"
+            draggable={false}
+          />
+          <div className="flex items-center justify-between border-t border-[#eee6db] px-4 py-3 text-xs text-[#817b73]">
+            <span className="inline-flex items-center gap-2">
+              <FileText className="h-3.5 w-3.5 text-[#e21b22]" />
+              封面、可选目录、统一正文页和固定结束页
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <ShieldCheck className="h-3.5 w-3.5 text-[#c96a31]" /> 文件仅保存在本机
+            </span>
           </div>
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-3">
-        <button
-          type="button"
-          onClick={() => void handleQuickCreate()}
-          className="group relative flex min-h-[240px] flex-col overflow-hidden rounded-[2rem] border border-[#e0d8c8] bg-[#e8e0d0] p-7 text-left shadow-[0_14px_34px_rgba(86,73,54,0.12)] transition-colors hover:border-[#c8b89e] hover:bg-[#e5dccb] disabled:cursor-not-allowed disabled:opacity-65"
-        >
-          <div className="pointer-events-none absolute -right-12 -top-12 h-36 w-36 rounded-[30%_70%_70%_30%/30%_30%_70%_70%] bg-[#d4e4c1]/70 transition-transform group-hover:scale-110" />
-          <div className="pointer-events-none absolute -bottom-14 left-10 h-28 w-40 rounded-[8%_92%_12%_88%/78%_22%_78%_22%] bg-[#c8b89e]/35" />
-
-          <div className="relative flex items-start justify-between gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[10%_90%_16%_84%/78%_22%_78%_22%] bg-[#8fbc8f] text-white shadow-[0_10px_22px_rgba(93,107,77,0.18)]">
-              <FileText className="h-5 w-5" />
-            </div>
-            <span className="rounded-full bg-[#fffdf8]/84 px-3 py-1.5 text-[11px] font-semibold text-[#5d6b4d] shadow-[0_6px_14px_rgba(86,73,54,0.08)]">
-              {t('thinking.quickCreateBadge')}
-            </span>
-          </div>
-
-          <div className="relative mt-7">
-            <h2 className="organic-serif text-[30px] font-semibold leading-none text-[#3e4a32]">
-              {t('thinking.quickCreate')}
-            </h2>
-            <p className="mt-3 max-w-[32rem] text-[14px] leading-relaxed text-[#5d6b4d]">
-              {t('thinking.quickCreateDescription')}
-            </p>
-          </div>
-
-          <div className="relative mt-auto pt-7">
-            <span className="inline-flex h-11 items-center gap-2 rounded-full bg-[#5d6b4d] px-5 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(93,107,77,0.22)] transition-colors group-hover:bg-[#3e4a32]">
-              {t('thinking.startQuickCreate')}
-              <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-            </span>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => void handleExplore()}
-          className="group relative flex min-h-[240px] flex-col overflow-hidden rounded-[2rem] border border-[#c8d6ba] bg-[#d4e4c1] p-7 text-left shadow-[0_14px_34px_rgba(86,73,54,0.12)] transition-colors hover:border-[#a9bd97] hover:bg-[#cedfb8]"
-        >
-          <div className="pointer-events-none absolute -bottom-12 -left-10 h-36 w-36 rounded-[30%_70%_70%_30%/30%_30%_70%_70%] bg-[#8fbc8f]/28 transition-transform group-hover:scale-110" />
-          <div className="pointer-events-none absolute right-8 top-9 h-24 w-32 rounded-[8%_92%_12%_88%/78%_22%_78%_22%] bg-[#f5f1e8]/55" />
-
-          <div className="relative flex items-start justify-between gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[10%_90%_16%_84%/78%_22%_78%_22%] bg-[#5d6b4d] text-white shadow-[0_10px_22px_rgba(93,107,77,0.18)]">
-              <MessageCircle className="h-5 w-5" />
-            </div>
-            <span className="rounded-full bg-[#fffdf8]/84 px-3 py-1.5 text-[11px] font-semibold text-[#5d6b4d] shadow-[0_6px_14px_rgba(86,73,54,0.08)]">
-              {t('thinking.exploreProjectBadge')}
-            </span>
-          </div>
-
-          <div className="relative mt-7">
-            <h2 className="organic-serif text-[30px] font-semibold leading-none text-[#3e4a32]">
-              {t('thinking.exploreProject')}
-            </h2>
-            <p className="mt-3 max-w-[32rem] text-[14px] leading-relaxed text-[#5d6b4d]">
-              {t('thinking.exploreProjectDescription')}
-            </p>
-          </div>
-
-          <div className="relative mt-auto pt-7">
-            <span className="inline-flex h-11 items-center gap-2 rounded-full bg-[#3e4a32] px-5 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(62,74,50,0.20)] transition-colors group-hover:bg-[#5d6b4d]">
-              {t('thinking.startExplore')}
-              <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-            </span>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => void handleImportPptxClick()}
-          disabled={importingPptx}
-          className="group relative flex min-h-[240px] flex-col overflow-hidden rounded-[2rem] border border-[#d9cfbd] bg-[#f5f1e8] p-7 text-left shadow-[0_14px_34px_rgba(86,73,54,0.10)] transition-colors hover:border-[#c8b89e] hover:bg-[#efe7d8] disabled:cursor-not-allowed disabled:opacity-65"
-        >
-          <div className="pointer-events-none absolute -right-14 -bottom-12 h-36 w-36 rounded-[30%_70%_70%_30%/30%_30%_70%_70%] bg-[#c8b89e]/30 transition-transform group-hover:scale-110" />
-          <div className="pointer-events-none absolute left-8 top-9 h-24 w-32 rounded-[8%_92%_12%_88%/78%_22%_78%_22%] bg-[#d4e4c1]/45" />
-
-          <div className="relative flex items-start justify-between gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[10%_90%_16%_84%/78%_22%_78%_22%] bg-[#b18f5e] text-white shadow-[0_10px_22px_rgba(86,73,54,0.16)]">
-              <FileUp className="h-5 w-5" />
-            </div>
-            <span className="rounded-full bg-[#fffdf8]/84 px-3 py-1.5 text-[11px] font-semibold text-[#7c6a4c] shadow-[0_6px_14px_rgba(86,73,54,0.08)]">
-              PPTX
-            </span>
-          </div>
-
-          <div className="relative mt-7">
-            <h2 className="organic-serif text-[30px] font-semibold leading-none text-[#3e4a32]">
-              {t('home.importPptx')}
-            </h2>
-            <p className="mt-3 max-w-[32rem] text-[14px] leading-relaxed text-[#5d6b4d]">
-              {t('home.importPptxTooltip', { maxSize: MAX_PPTX_SIZE_MB })}
-            </p>
-          </div>
-
-          <div className="relative mt-auto pt-7">
-            <span className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#5d6b4d] px-5 py-2 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(93,107,77,0.20)] transition-colors group-hover:bg-[#3e4a32]">
-              {importingPptx ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  {pptxImportProgress || t('home.importingPptx')}
-                </>
-              ) : (
-                <>
-                  {t('home.importPptx')}
-                  <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                </>
-              )}
-            </span>
-          </div>
-        </button>
-      </section>
-
+      <input
+        ref={documentInputRef}
+        type="file"
+        accept=".pdf,.docx,.md,.txt,.text,.csv,.png,.jpg,.jpeg,.webp"
+        className="hidden"
+        onChange={(event) => void handleDocumentSelected(event.target.files)}
+      />
       <input
         ref={pptxInputRef}
         type="file"
         accept=".pptx"
-        multiple={false}
         className="hidden"
         onChange={(event) => void handlePptxFilesSelected(event.target.files)}
       />
-
-    </div>
+    </main>
   )
 }

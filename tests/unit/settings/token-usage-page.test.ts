@@ -124,7 +124,7 @@ describe('token usage route', () => {
     await act(async () => root.unmount())
   })
 
-  it('exposes the dedicated route from the sidebar', async () => {
+  it('does not expose the generic token accounting route in the internal sidebar', async () => {
     const root = createRoot(container)
     await act(async () => {
       root.render(
@@ -137,8 +137,8 @@ describe('token usage route', () => {
     })
 
     const usageLink = container.querySelector('a[href="/token-usage"]')
-    expect(usageLink).not.toBeNull()
-    expect(usageLink?.textContent).toContain('Token 用量')
+    expect(usageLink).toBeNull()
+    expect(container.textContent).not.toContain('Token 用量')
 
     await act(async () => root.unmount())
   })

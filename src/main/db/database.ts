@@ -367,8 +367,8 @@ export class PPTDatabase {
 
   constructor(dbPath?: string) {
     const defaultPath = is.dev
-      ? path.join(process.cwd(), 'ohmyppt.dev.db')
-      : path.join(app.getPath('userData'), 'ohmyppt.db')
+      ? path.join(process.cwd(), 'ajjy-ppt.dev.db')
+      : path.join(app.getPath('userData'), 'ajjy-ppt.db')
     const resolvedPath = dbPath || defaultPath
 
     const dir = path.dirname(resolvedPath)

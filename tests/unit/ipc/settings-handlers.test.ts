@@ -239,9 +239,10 @@ describe('registerSettingsHandlers model temperature settings', () => {
     await saveModelConfig?.(undefined, {
       name: 'Reasoning model',
       provider: 'openai',
+      serviceId: 'custom',
       model: 'reasoner',
       apiKey: 'secret',
-      baseUrl: '',
+      baseUrl: 'https://ai.example.com/v1',
       maxTokens: 4096,
       disableTemperature: true,
       thinkingParameterMode: 'omit'
@@ -277,6 +278,97 @@ describe('registerSettingsHandlers model temperature settings', () => {
         thinkingParameterMode: 'auto'
       })
     )
+  })
+
+  it('validates preset domains before persisting BYOK configuration', async () => {
+    const upsertModelConfig = vi.fn(async () => 'model-1')
+    const { getHandler } = await registerWithDb({ upsertModelConfig })
+
+    const saveModelConfig = getHandler('settings:upsertModelConfig')
+    await expect(
+      saveModelConfig?.(undefined, {
+        name: 'DeepSeek BYOK',
+        provider: 'openai',
+        serviceId: 'deepseek',
+        model: 'model-id',
+        apiKey: 'secret',
+        baseUrl: 'https://deepseek.example.com/v1',
+        active: true
+      })
+    ).rejects.toThrow('官方接口域名')
+    expect(upsertModelConfig).not.toHaveBeenCalled()
+  })
+
+  it('rejects non-HTTPS custom BYOK endpoints during verification', async () => {
+    const { getHandler } = await registerWithDb()
+
+    const verifyApiKey = getHandler('settings:verifyApiKey')
+    const result = await verifyApiKey?.(undefined, {
+      provider: 'openai',
+      serviceId: 'custom',
+      model: 'model-id',
+      apiKey: 'secret',
+      baseUrl: 'http://ai.example.com/v1',
+      timeoutMs: 60000
+    })
+
+    expect(result).toEqual({
+      valid: false,
+      message: expect.stringContaining('HTTPS')
+    })
+    expect(settingsHandlersState.resolveModelMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects pasted Chinese API Key text before constructing HTTP headers', async () => {
+    settingsHandlersState.resolveModelMock.mockImplementation(() => {
+      throw new TypeError(
+        'Cannot convert argument to a ByteString because the character at index 7 has a value of 31532 which is greater than 255.'
+      )
+    })
+    const { getHandler } = await registerWithDb()
+
+    const verifyApiKey = getHandler('settings:verifyApiKey')
+    const result = await verifyApiKey?.(undefined, {
+      provider: 'openai',
+      serviceId: 'deepseek',
+      model: 'deepseek-v4-flash',
+      apiKey: 'sk-test第八位',
+      baseUrl: 'https://api.deepseek.com',
+      timeoutMs: 60000
+    })
+
+    expect(result).toEqual({
+      valid: false,
+      message: expect.stringContaining('只粘贴控制台复制的 Key 本身')
+    })
+    expect(settingsHandlersState.resolveModelMock).not.toHaveBeenCalled()
+  })
+
+  it('does not write credentials embedded in an invalid Base URL to logs', async () => {
+    settingsHandlersState.logMock.info.mockClear()
+    settingsHandlersState.logMock.error.mockClear()
+    const { getHandler } = await registerWithDb()
+
+    const verifyApiKey = getHandler('settings:verifyApiKey')
+    const result = await verifyApiKey?.(undefined, {
+      provider: 'openai',
+      serviceId: 'custom',
+      model: 'model-id',
+      apiKey: 'request-secret',
+      baseUrl: 'https://user:super-secret@ai.example.com/v1?api_key=super-secret',
+      timeoutMs: 60000
+    })
+
+    expect(result).toEqual({
+      valid: false,
+      message: expect.stringContaining('不能包含账号')
+    })
+    const logged = JSON.stringify([
+      settingsHandlersState.logMock.info.mock.calls,
+      settingsHandlersState.logMock.error.mock.calls
+    ])
+    expect(logged).not.toContain('request-secret')
+    expect(logged).not.toContain('super-secret')
   })
 
   it('explains invalid Responses API payloads during model verification', async () => {
@@ -382,39 +474,43 @@ describe('registerSettingsHandlers model temperature settings', () => {
   })
 })
 
+describe('registerSettingsHandlers BYOK prerequisites', () => {
+  it('requires a complete endpoint, model, key and local storage before AI document work', async () => {
+    const { getHandler } = await registerWithDb({
+      getAllSettings: vi.fn(async () => ({ storage_path: '/tmp/ppt' })),
+      listModelConfigs: vi.fn(async () => [
+        {
+          id: 'model-1',
+          provider: 'openai',
+          model: 'model-id',
+          apiKey: 'encrypted-key',
+          baseUrl: '',
+          active: 1
+        }
+      ])
+    })
+
+    const validate = getHandler('settings:validateUploadPrerequisites')
+    await expect(validate?.()).resolves.toEqual(
+      expect.objectContaining({
+        ready: false,
+        missing: ['baseUrl']
+      })
+    )
+  })
+})
+
 describe('registerSettingsHandlers model usage', () => {
   beforeEach(() => {
     settingsHandlersState.handlers.clear()
     settingsHandlersState.ipcMainMock.handle.mockClear()
   })
 
-  it('delegates the selected usage period to the database', async () => {
-    const stats = {
-      period: '7d',
-      startedAt: 1,
-      totals: {
-        callCount: 2,
-        exactCallCount: 1,
-        estimatedCallCount: 1,
-        inputTokens: 100,
-        outputTokens: 20,
-        totalTokens: 120
-      },
-      byModel: [],
-      byDay: []
-    }
-    const getModelUsageStats = vi.fn(async () => stats)
+  it('does not register the usage dashboard channel in the internal edition', async () => {
+    const getModelUsageStats = vi.fn()
     const { getHandler } = await registerWithDb({ getModelUsageStats })
 
-    await expect(getHandler('settings:getModelUsage')?.(undefined, '7d')).resolves.toBe(stats)
-    expect(getModelUsageStats).toHaveBeenCalledWith('7d')
-  })
-
-  it('falls back to 30 days for an invalid usage period', async () => {
-    const getModelUsageStats = vi.fn(async () => ({ period: '30d' }))
-    const { getHandler } = await registerWithDb({ getModelUsageStats })
-
-    await getHandler('settings:getModelUsage')?.(undefined, 'invalid')
-    expect(getModelUsageStats).toHaveBeenCalledWith('30d')
+    expect(getHandler('settings:getModelUsage')).toBeUndefined()
+    expect(getModelUsageStats).not.toHaveBeenCalled()
   })
 })

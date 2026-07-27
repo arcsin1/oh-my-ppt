@@ -99,7 +99,7 @@ describe('mergeSessionPages template source', () => {
 
   beforeEach(async () => {
     root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'page-merge-template-'))
-    templateDir = path.join(root, 'tpl_source')
+    templateDir = path.join(root, 'tpl_anjian_standard_v1')
     targetProjectDir = path.join(root, 'target')
     upsertedPages = []
 
@@ -126,7 +126,7 @@ describe('mergeSessionPages template source', () => {
     mocks.loadTemplateManifest.mockResolvedValue({
       manifest: {
         schemaVersion: 1 as const,
-        id: 'tpl_source',
+        id: 'tpl_anjian_standard_v1',
         name: 'Source Template',
         description: '',
         pageCount: 1,
@@ -172,7 +172,7 @@ describe('mergeSessionPages template source', () => {
     await fs.promises.rm(root, { recursive: true, force: true })
   })
 
-  it('pins the source template first and disables size-mismatched templates', async () => {
+  it('only exposes the corporate source template for page merging', async () => {
     mocks.listTemplates.mockResolvedValue({
       items: [
         {
@@ -185,7 +185,7 @@ describe('mergeSessionPages template source', () => {
           previewPages: [{ pageNumber: 1, pageId: 'p', title: 'p', htmlPath: 'p.html' }]
         },
         {
-          id: 'tpl_source',
+          id: 'tpl_anjian_standard_v1',
           name: 'Source Template',
           pageCount: 1,
           ...wideSlideSize,
@@ -207,21 +207,18 @@ describe('mergeSessionPages template source', () => {
       ]
     })
 
-    const context = createContext(JSON.stringify({ source: 'template', templateId: 'tpl_source' }))
+    const context = createContext(
+      JSON.stringify({ source: 'template', templateId: 'tpl_anjian_standard_v1' })
+    )
 
     const result = await listMergeSourceTemplates(context as never, 'target')
 
-    expect(result.map((item) => item.id)).toEqual(['tpl_source', 'tpl_small', 'tpl_other'])
+    expect(result.map((item) => item.id)).toEqual(['tpl_anjian_standard_v1'])
     expect(result[0]).toEqual(
-      expect.objectContaining({ id: 'tpl_source', isSource: true, selectable: true })
+      expect.objectContaining({ id: 'tpl_anjian_standard_v1', isSource: true, selectable: true })
     )
-    expect(result.find((item) => item.id === 'tpl_small')).toEqual(
-      expect.objectContaining({
-        selectable: false,
-        disabledReason: 'PAGE_MERGE_SLIDE_SIZE_MISMATCH'
-      })
-    )
-    expect(result.find((item) => item.id === 'tpl_other')?.selectable).toBe(true)
+    expect(result.find((item) => item.id === 'tpl_small')).toBeUndefined()
+    expect(result.find((item) => item.id === 'tpl_other')).toBeUndefined()
   })
 
   it('keeps template fonts as-is (preserveFonts) instead of normalizing to the target deck', async () => {
@@ -230,8 +227,8 @@ describe('mergeSessionPages template source', () => {
     const result = await mergeSessionPages(context as never, {
       targetSessionId: 'target',
       sourceType: 'template',
-      sourceTemplateId: 'tpl_source',
-      sourcePageIds: ['tpl_source:1']
+      sourceTemplateId: 'tpl_anjian_standard_v1',
+      sourcePageIds: ['tpl_anjian_standard_v1:1']
     })
 
     expect(result.insertedPageIds).toHaveLength(1)
@@ -255,7 +252,7 @@ describe('mergeSessionPages template source', () => {
     mocks.loadTemplateManifest.mockResolvedValue({
       manifest: {
         schemaVersion: 1 as const,
-        id: 'tpl_source',
+        id: 'tpl_anjian_standard_v1',
         name: 'Source Template',
         description: '',
         pageCount: 1,
@@ -277,8 +274,8 @@ describe('mergeSessionPages template source', () => {
       mergeSessionPages(context as never, {
         targetSessionId: 'target',
         sourceType: 'template',
-        sourceTemplateId: 'tpl_source',
-        sourcePageIds: ['tpl_source:1']
+        sourceTemplateId: 'tpl_anjian_standard_v1',
+        sourcePageIds: ['tpl_anjian_standard_v1:1']
       })
     ).rejects.toMatchObject({ code: 'PAGE_MERGE_SLIDE_SIZE_MISMATCH' })
 
@@ -289,7 +286,7 @@ describe('mergeSessionPages template source', () => {
     mocks.loadTemplateManifest.mockResolvedValue({
       manifest: {
         schemaVersion: 1 as const,
-        id: 'tpl_source',
+        id: 'tpl_anjian_standard_v1',
         name: 'Source Template',
         description: '',
         pageCount: 1,
@@ -308,7 +305,7 @@ describe('mergeSessionPages template source', () => {
     const context = createContext()
 
     await expect(
-      listMergeSourceTemplatePages(context as never, 'target', 'tpl_source')
+      listMergeSourceTemplatePages(context as never, 'target', 'tpl_anjian_standard_v1')
     ).rejects.toMatchObject({ code: 'PAGE_MERGE_SLIDE_SIZE_MISMATCH' })
   })
 })

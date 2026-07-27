@@ -6,8 +6,6 @@ import type { PreviewIframeHandle } from '../components/preview/PreviewIframe'
 import { TooltipProvider } from '../components/ui/Tooltip'
 import { PageSidebar } from '../components/session-detail/sidebar'
 import { PreviewStage } from '../components/session-detail/preview'
-import { BrowseView } from '../components/session-detail/browse/BrowseView'
-import { StyleView } from '../components/session-detail/style/StyleView'
 import { ElementInspectorPanel } from '../components/session-detail/element-inspector'
 import { SessionDetailRightPanel, WorkspaceRibbon } from '../components/session-detail/workspace'
 import { SessionToolbar } from '../components/session-detail/toolbar'
@@ -114,7 +112,6 @@ export function SessionDetailPage(): React.JSX.Element {
   const assetPickerOpen = useSessionDetailUiStore((state) => state.assetPickerOpen)
   const assetPickerType = useSessionDetailUiStore((state) => state.assetPickerType)
   const setAssetPickerOpen = useSessionDetailUiStore((state) => state.setAssetPickerOpen)
-  const workspaceTab = useSessionDetailUiStore((state) => state.workspaceTab)
   const activeChatRef = useRef<{ chatType: ChatType; pageId?: string }>({ chatType: 'page' })
   const editHistory = useEditHistoryStore()
   const isSavingEdits = useEditSessionStore((state) => state.isSavingEdits)
@@ -1074,13 +1071,13 @@ export function SessionDetailPage(): React.JSX.Element {
   })
 
   if (!id || !slideSize) {
-    return <div className="h-full bg-[#f5f1e8]" />
+    return <div className="h-full bg-[#f3f1ed]" />
   }
 
   return (
     <TooltipProvider delayDuration={180}>
-      <div className="flex h-full min-h-0 flex-col bg-[#f5f1e8] text-foreground outline-none">
-        <header className="app-drag-region app-titlebar relative shrink-0 bg-[#f5f1e8]/95 shadow-[0_10px_26px_rgba(93,107,77,0.055)] backdrop-blur-xl">
+      <div className="flex h-full min-h-0 flex-col bg-[#f3f1ed] text-foreground outline-none">
+        <header className="app-drag-region app-titlebar relative shrink-0 border-b border-[#e7dfd4] bg-[#faf8f3]/98 backdrop-blur-xl">
           <div
             className={`relative flex h-full items-center ${
               isMac ? '' : 'pr-[calc(var(--app-titlebar-control-safe-area)+16px)]'
@@ -1092,19 +1089,14 @@ export function SessionDetailPage(): React.JSX.Element {
           </div>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col bg-[#f5f1e8]">
+        <div className="flex min-h-0 flex-1 flex-col bg-[#f3f1ed]">
           <WorkspaceRibbon isSavingEdits={isSavingEdits} />
 
-          {workspaceTab === 'browse' ? (
-            <BrowseView sessionId={id} />
-          ) : workspaceTab === 'style' ? (
-            <StyleView sessionId={id} />
-          ) : (
-            <div className="flex min-h-0 flex-1">
-              <PageSidebar sessionId={id} />
+          <div className="flex min-h-0 flex-1">
+            <PageSidebar sessionId={id} />
 
-              <div className="flex min-h-0 flex-1">
-                <PreviewStage
+            <div className="flex min-h-0 flex-1">
+              <PreviewStage
                   ref={handlePreviewIframe}
                   selectedPage={selectedPage}
                   sessionTitle={currentSession?.title}
@@ -1122,8 +1114,8 @@ export function SessionDetailPage(): React.JSX.Element {
                     setPendingDeleteSelector(selector)
                     setDeleteConfirmOpen(true)
                   }}
-                />
-                <SessionDetailRightPanel
+              />
+              <SessionDetailRightPanel
                   sessionId={id}
                   elementInspector={
                     elementSelection ? (
@@ -1137,10 +1129,9 @@ export function SessionDetailPage(): React.JSX.Element {
                       />
                     ) : undefined
                   }
-                />
-              </div>
+              />
             </div>
-          )}
+          </div>
         </div>
 
         <HistoryDialog sessionId={id} />

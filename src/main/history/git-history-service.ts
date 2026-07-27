@@ -28,6 +28,26 @@ const GITIGNORE_ENTRIES = [
   'speech/'
 ]
 const GITIGNORE_CONTENT = [...GITIGNORE_ENTRIES, ''].join('\n')
+const historyProjectLocks = new Map<string, Promise<void>>()
+
+export async function withHistoryProjectLock<T>(
+  projectDir: string,
+  task: () => Promise<T>
+): Promise<T> {
+  const key = path.resolve(projectDir)
+  const previous = historyProjectLocks.get(key) || Promise.resolve()
+  const run = previous.catch(() => undefined).then(task)
+  const settled = run.then(
+    () => undefined,
+    () => undefined
+  )
+  historyProjectLocks.set(key, settled)
+  try {
+    return await run
+  } finally {
+    if (historyProjectLocks.get(key) === settled) historyProjectLocks.delete(key)
+  }
+}
 
 type RecordOperationArgs = {
   sessionId: string
@@ -175,14 +195,19 @@ export class GitHistoryService {
 
   async ensureBaseline(sessionId: string, projectDir: string): Promise<void> {
     const resolvedProjectDir = path.resolve(projectDir)
-    if (!(await this.db.hasAnyOperationPageSnapshots(sessionId))) {
-      await fs.promises.rm(path.join(resolvedProjectDir, '.git'), { recursive: true, force: true })
-      await this.db.cleanupSessionOperations(sessionId)
+    await withHistoryProjectLock(resolvedProjectDir, async () => {
+      if (!(await this.db.hasAnyOperationPageSnapshots(sessionId))) {
+        await fs.promises.rm(path.join(resolvedProjectDir, '.git'), {
+          recursive: true,
+          force: true
+        })
+        await this.db.cleanupSessionOperations(sessionId)
+        await this.ensureRepository(resolvedProjectDir)
+        await this.createLegacyImport(sessionId, resolvedProjectDir)
+        return
+      }
       await this.ensureRepository(resolvedProjectDir)
-      await this.createLegacyImport(sessionId, resolvedProjectDir)
-      return
-    }
-    await this.ensureRepository(resolvedProjectDir)
+    })
   }
 
   async recordOperation(args: RecordOperationArgs): Promise<SessionOperationRecord | null> {
@@ -283,7 +308,7 @@ export class GitHistoryService {
         dir: projectDir,
         message: this.buildCommitMessage(args, changedPages),
         author: {
-          name: 'Oh My PPT',
+          name: '安居建业PPT助手',
           email: 'history@oh-my-ppt.local'
         }
       })
@@ -615,7 +640,7 @@ export class GitHistoryService {
     const gitDir = path.join(projectDir, '.git')
     if (!fs.existsSync(gitDir)) {
       await git.init({ fs, dir: projectDir, defaultBranch: 'main' })
-      await git.setConfig({ fs, dir: projectDir, path: 'user.name', value: 'Oh My PPT' })
+      await git.setConfig({ fs, dir: projectDir, path: 'user.name', value: '安居建业PPT助手' })
       await git.setConfig({
         fs,
         dir: projectDir,

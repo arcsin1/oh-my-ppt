@@ -30,6 +30,7 @@ import {
 import { useT } from '../i18n'
 import ReactMarkdown from 'react-markdown'
 import { isSupportedImageMimeType } from '@shared/image-mime'
+import { MAX_CORPORATE_PAGE_COUNT } from '@shared/brand'
 import {
   buildSuggestionDraft,
   formatSourceOutlineBriefText,
@@ -44,7 +45,7 @@ import {
   type SlideSizePresetId
 } from '@shared/slide-size'
 const MIN_PAGE_COUNT = 1
-const MAX_PAGE_COUNT = 500
+const MAX_PAGE_COUNT = MAX_CORPORATE_PAGE_COUNT
 const DEFAULT_PAGE_COUNT = 5
 const MAX_DOCUMENT_SIZE_MB = 10
 const MAX_DOCUMENT_SIZE_BYTES = MAX_DOCUMENT_SIZE_MB * 1024 * 1024

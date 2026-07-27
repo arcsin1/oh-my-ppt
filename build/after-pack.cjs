@@ -1,52 +1,41 @@
 const fs = require('fs/promises')
 const path = require('path')
-const { Arch } = require('builder-util')
 
-const sourceFileNameFor = (platformName, archName) => {
-  if (platformName === 'darwin' && archName === 'arm64') return 'ffmpeg-arm'
-  if (platformName === 'darwin' && archName === 'x64') return 'ffmpeg-intel'
-  if (platformName === 'win32' && archName === 'x64') return 'ffmpeg.exe'
-  if (platformName === 'linux' && archName === 'x64') return 'ffmpeg-linux-x64'
-  return null
+const CORPORATE_STYLE_ENTRIES = new Set(['anjian-corporate', 'manifest.json'])
+
+const pruneDirectoryExcept = async (directory, allowedEntries) => {
+  let entries = []
+  try {
+    entries = await fs.readdir(directory, { withFileTypes: true })
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return 0
+    throw error
+  }
+
+  let removed = 0
+  for (const entry of entries) {
+    if (allowedEntries.has(entry.name)) continue
+    await fs.rm(path.join(directory, entry.name), { recursive: true, force: true })
+    removed += 1
+  }
+  return removed
 }
 
-const targetFileNameFor = (platformName) => (platformName === 'win32' ? 'ffmpeg.exe' : 'ffmpeg')
-
-const isRequiredFfmpegFor = (platformName) => platformName !== 'linux'
-
 exports.default = async function afterPack(context) {
-  const platformName = context.electronPlatformName
-  const archName = Arch[context.arch]
-  const sourceFileName = sourceFileNameFor(platformName, archName)
-
-  if (!sourceFileName) return
-
-  const sourcePath = path.join(context.packager.projectDir, 'resources', 'ffmpeg', sourceFileName)
   const resourcesDir = context.packager.getResourcesDir(context.appOutDir)
-  const targetDir = path.join(resourcesDir, 'app.asar.unpacked', 'resources', 'ffmpeg')
-  const targetPath = path.join(targetDir, targetFileNameFor(platformName))
+  const unpackedResources = path.join(resourcesDir, 'app.asar.unpacked', 'resources')
 
-  try {
-    await fs.access(sourcePath)
-  } catch {
-    if (!isRequiredFfmpegFor(platformName)) {
-      console.warn(
-        `[afterPack] optional bundled ffmpeg missing for ${platformName}-${archName}: ${sourcePath}. ` +
-          'The package will be created without built-in MP4 export support.'
-      )
-      return
-    }
+  // MP4 export is intentionally outside the internal product scope.
+  await fs.rm(path.join(unpackedResources, 'ffmpeg'), { recursive: true, force: true })
 
-    throw new Error(`Missing bundled ffmpeg for ${platformName}-${archName}: ${sourcePath}`)
-  }
+  // Runtime generation still needs one installed style package, but the public
+  // style catalogue and user style-management UI are removed.
+  const removedStyleCount = await pruneDirectoryExcept(
+    path.join(unpackedResources, 'styles'),
+    CORPORATE_STYLE_ENTRIES
+  )
 
-  await fs.rm(targetDir, { recursive: true, force: true })
-  await fs.mkdir(targetDir, { recursive: true })
-  await fs.copyFile(sourcePath, targetPath)
-
-  if (platformName !== 'win32') {
-    await fs.chmod(targetPath, 0o755)
-  }
-
-  console.log(`[afterPack] bundled ffmpeg ${sourceFileName} -> ${targetPath}`)
+  console.log(
+    `[afterPack] internal package scope applied: removed ${removedStyleCount} generic styles; ffmpeg omitted`
+  )
 }

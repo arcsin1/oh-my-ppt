@@ -533,7 +533,8 @@ const enforceSessionsSchema = async (client: LibSqlClient): Promise<void> => {
         OR slide_width <= 0
         OR slide_height IS NULL
         OR slide_height <= 0
-    `
+    `,
+    args: []
   })
   if (!columns.has('current_operation_id')) {
     await client.execute('ALTER TABLE sessions ADD COLUMN current_operation_id TEXT')

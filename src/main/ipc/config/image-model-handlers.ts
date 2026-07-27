@@ -3,22 +3,25 @@ import log from 'electron-log/main.js'
 import type { ImageModelProvider } from '@shared/image-generation'
 import type { IpcContext } from '../context'
 import { readAppLocale, uiText } from './locale-utils'
+import { REDACTED_LOCAL_SECRET } from '@shared/company-config'
 
-const VALID_IMAGE_PROVIDERS = [
-  'jimeng',
-  'jimeng4',
-  'agnes',
-  'siliconflow',
-  'openaiCompatible',
-  'gemini',
-  'seedream'
-] as const
+const COMPANY_IMAGE_PROVIDER = 'openaiCompatible' as const
 
 const resolveProvider = (provider: unknown): ImageModelProvider => {
-  if (VALID_IMAGE_PROVIDERS.includes(provider as ImageModelProvider)) {
-    return provider as ImageModelProvider
+  if (provider === COMPANY_IMAGE_PROVIDER) return COMPANY_IMAGE_PROVIDER
+  throw new Error('安居建业内部版仅支持 OpenAI 兼容生图协议；首版 BYOK 默认关闭生图。')
+}
+
+const redactModelConfig = (value: string): string => {
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>
+    for (const key of Object.keys(parsed)) {
+      if (/(?:api.?key|token|secret|password)/i.test(key)) parsed[key] = REDACTED_LOCAL_SECRET
+    }
+    return JSON.stringify(parsed)
+  } catch {
+    return '{}'
   }
-  throw new Error('Unsupported image provider')
 }
 
 const normalizeModelConfig = (value: unknown): string => {
@@ -37,15 +40,17 @@ export function registerImageModelHandlers(ctx: IpcContext): void {
   const { db, encryptApiKey, decryptApiKey } = ctx
 
   ipcMain.handle('imageModels:list', async () => {
-    return (await db.listImageModelConfigs()).map((config) => ({
-      id: config.id,
-      name: config.name,
-      provider: resolveProvider(config.provider),
-      active: config.active === 1,
-      modelConfig: decryptApiKey(config.modelConfig || '{}'),
-      createdAt: config.createdAt,
-      updatedAt: config.updatedAt
-    }))
+    return (await db.listImageModelConfigs())
+      .filter((config) => config.provider === COMPANY_IMAGE_PROVIDER)
+      .map((config) => ({
+        id: config.id,
+        name: config.name,
+        provider: resolveProvider(config.provider),
+        active: config.active === 1,
+        modelConfig: redactModelConfig(decryptApiKey(config.modelConfig || '{}')),
+        createdAt: config.createdAt,
+        updatedAt: config.updatedAt
+      }))
   })
 
   ipcMain.handle('imageModels:upsert', async (_event, payload) => {

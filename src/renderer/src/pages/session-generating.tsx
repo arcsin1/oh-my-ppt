@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ipc } from '@renderer/lib/ipc'
 import type { AnimationPreferencesPayload, GenerateChunkEvent } from '@shared/generation.js'
-import videoSrc from '../assets/images/video.mp4'
+import videoSrc from '../assets/images/anjian-logo-grow.mp4'
 import { getEditorGate, type EditorGate } from '../lib/sessionMetadata'
 import { useLang, type Lang } from '../i18n'
 import {

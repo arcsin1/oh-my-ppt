@@ -1,6 +1,7 @@
 import type { ParsedDocumentPlanResult } from '@shared/generation'
+import { MAX_CORPORATE_PAGE_COUNT } from '@shared/brand'
 
-const MAX_PAGE_COUNT = 500
+const MAX_PAGE_COUNT = MAX_CORPORATE_PAGE_COUNT
 const CHINESE_NUMERAL_MAP: Record<string, number> = {
   零: 0,
   一: 1,

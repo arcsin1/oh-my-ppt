@@ -11,6 +11,7 @@ import {
   normalizeThinkingParameterMode,
   type ThinkingParameterMode
 } from '@shared/model-config'
+import { isCompanyTextProvider } from '@shared/company-config'
 
 export interface ActiveModelConfig {
   id: string
@@ -87,6 +88,15 @@ const resolveModelConfigRow = (
         options.locale,
         `${options.missingPrefixZh}缺少 provider，请到设置页检查。`,
         `${options.missingPrefixEn} is missing provider. Check Settings.`
+      )
+    )
+  }
+  if (!isCompanyTextProvider(provider)) {
+    throw new Error(
+      uiText(
+        options.locale,
+        '安居建业内部版 BYOK 仅支持 OpenAI 兼容服务，请重新配置。',
+        'This internal BYOK build only supports OpenAI-compatible services.'
       )
     )
   }

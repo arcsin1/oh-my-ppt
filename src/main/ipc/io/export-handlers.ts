@@ -45,6 +45,7 @@ type PptxExportPayload = {
 }
 
 const EXPORT_PAGE_RENDER_CONCURRENCY = Math.max(1, Math.min(2, os.cpus().length || 1))
+const ENABLE_UNSUPPORTED_INTERNAL_EXPORTS = false
 
 const clampExportProgress = (progress: number): number =>
   Math.max(0, Math.min(100, Math.round(progress)))
@@ -421,7 +422,8 @@ export function registerExportHandlers(ctx: IpcContext): void {
     }
   })
 
-  ipcMain.handle('export:longImage', async (event, payload: unknown) => {
+  ENABLE_UNSUPPORTED_INTERNAL_EXPORTS &&
+    ipcMain.handle('export:longImage', async (event, payload: unknown) => {
     const sessionId = parseSessionId(payload)
     if (!sessionId) {
       throw new Error('sessionId 不能为空')
@@ -729,6 +731,15 @@ export function registerExportHandlers(ctx: IpcContext): void {
         if (pagesWithoutText > 0) {
           warnings.push(`${pages.length} 页中有 ${pagesWithoutText} 页未提取到可编辑文本。`)
         }
+        const nativeAnimationCount = slides.reduce(
+          (total, slide) => total + (slide.animationTraces?.length || 0),
+          0
+        )
+        if (nativeAnimationCount > 0) {
+          warnings.push(
+            `已尝试写入 ${nativeAnimationCount} 个原生动画；PowerPoint 与 WPS 对部分效果的兼容性可能不同，不支持的效果仍会保留最终静态内容。`
+          )
+        }
       }
 
       // Collect embedded fonts (editable mode only). The user-facing behavior is
@@ -764,7 +775,7 @@ export function registerExportHandlers(ctx: IpcContext): void {
       try {
         await writeHtmlToPptx(saveResult.filePath, {
           title: sessionTitle,
-          author: 'OhMyPPT',
+          author: '安居建业PPT助手',
           slides,
           embeddedFonts: embeddedFonts.length > 0 ? embeddedFonts : undefined
         })
@@ -778,7 +789,7 @@ export function registerExportHandlers(ctx: IpcContext): void {
         embeddedFonts = []
         await writeHtmlToPptx(saveResult.filePath, {
           title: sessionTitle,
-          author: 'OhMyPPT',
+          author: '安居建业PPT助手',
           slides
         })
       }
@@ -815,7 +826,8 @@ export function registerExportHandlers(ctx: IpcContext): void {
     }
   })
 
-  ipcMain.handle('export:video', async (event, payload: unknown) => {
+  ENABLE_UNSUPPORTED_INTERNAL_EXPORTS &&
+    ipcMain.handle('export:video', async (event, payload: unknown) => {
     const sessionId = parseSessionId(payload)
     if (!sessionId) {
       throw new Error('sessionId 不能为空')
@@ -941,7 +953,8 @@ export function registerExportHandlers(ctx: IpcContext): void {
     }
   })
 
-  ipcMain.handle('export:outlinesMarkdown', async (event, payload: unknown) => {
+  ENABLE_UNSUPPORTED_INTERNAL_EXPORTS &&
+    ipcMain.handle('export:outlinesMarkdown', async (event, payload: unknown) => {
     const sessionId = parseSessionId(payload)
     if (!sessionId) {
       throw new Error('sessionId 不能为空')
@@ -1005,7 +1018,8 @@ export function registerExportHandlers(ctx: IpcContext): void {
   })
 
   // Export: slide-pack (standalone executable with embedded slides)
-  ipcMain.handle('export:slidePack', async (event, payload: unknown) => {
+  ENABLE_UNSUPPORTED_INTERNAL_EXPORTS &&
+    ipcMain.handle('export:slidePack', async (event, payload: unknown) => {
     const sessionId = parseSessionId(payload)
     if (!sessionId) throw new Error('Missing sessionId')
 
@@ -1188,7 +1202,8 @@ export function registerExportHandlers(ctx: IpcContext): void {
     }
   })
 
-  ipcMain.handle('export:sessionZip', async (event, payload: unknown) => {
+  ENABLE_UNSUPPORTED_INTERNAL_EXPORTS &&
+    ipcMain.handle('export:sessionZip', async (event, payload: unknown) => {
     const sessionId = parseSessionId(payload)
     if (!sessionId) throw new Error('Missing sessionId')
 

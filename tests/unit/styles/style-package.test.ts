@@ -309,6 +309,35 @@ describe('style packages', () => {
     expect(pkg.skillMarkdown).toBe('local unchanged\n')
   })
 
+  it('installs and retains only the approved internal system style', async () => {
+    const tmp = await mkdtemp(path.join(os.tmpdir(), 'ohmyppt-style-internal-scope-'))
+    const bundled = path.join(tmp, 'bundled')
+    const installed = path.join(tmp, 'installed')
+    await makeStyle(bundled, 'anjian-corporate', '1.0.0')
+    await makeStyle(bundled, 'minimal-white', '1.0.0')
+    await writeFile(
+      path.join(bundled, 'manifest.json'),
+      JSON.stringify({ version: '2.1.1', time: '2026-07-20', author: '安居建业' }, null, 2) + '\n',
+      'utf8'
+    )
+    await makeStyle(path.join(installed, 'system'), 'legacy-generic', '1.0.0')
+
+    const result = await initializeStyles({
+      bundledSourcePath: bundled,
+      installedRootPath: installed,
+      allowedStyleKeys: new Set(['anjian-corporate'])
+    })
+
+    expect(result).toMatchObject({
+      bundledCount: 1,
+      copiedCount: 1,
+      failedCount: 0
+    })
+    await expect(listStylePackageDirectories(path.join(installed, 'system'))).resolves.toEqual([
+      'anjian-corporate'
+    ])
+  })
+
   it('lists style package directories with valid names and style.json files', async () => {
     const tmp = await mkdtemp(path.join(os.tmpdir(), 'ohmyppt-style-package-list-'))
     await makeStyle(tmp, 'minimal-white', '1.0.0')

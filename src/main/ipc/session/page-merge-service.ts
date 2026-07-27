@@ -33,6 +33,7 @@ import {
   requireSlideSize,
   type SlideSizePresetId
 } from '@shared/slide-size'
+import { CORPORATE_TEMPLATE_ID } from '@shared/brand'
 import { listTemplates, loadTemplateManifest } from '../templates/template-service'
 import { resolveTemplateRelativePath } from '../templates/template-paths'
 
@@ -464,28 +465,30 @@ export async function listMergeSourceTemplates(
     sourceTemplateId = ''
   }
   const { items } = await listTemplates()
-  const summaries: MergeTemplateSourceSummary[] = items.map((item) => {
-    const sizeMatches =
-      item.slideWidth === targetSlideSize.width && item.slideHeight === targetSlideSize.height
-    const hasPages = item.previewPages.length > 0
-    return {
-      id: item.id,
-      title: item.name,
-      pageCount: item.pageCount,
-      slideSizeId: item.slideSizeId,
-      slideWidth: item.slideWidth,
-      slideHeight: item.slideHeight,
-      updatedAt: item.updatedAt,
-      thumbnailPath: item.thumbnailPath,
-      selectable: sizeMatches && hasPages,
-      disabledReason: !sizeMatches
-        ? ('PAGE_MERGE_SLIDE_SIZE_MISMATCH' as PageMergeDisabledReason)
-        : !hasPages
-          ? ('PAGE_MERGE_SESSION_EMPTY' as PageMergeDisabledReason)
-          : undefined,
-      isSource: Boolean(sourceTemplateId) && item.id === sourceTemplateId
-    }
-  })
+  const summaries: MergeTemplateSourceSummary[] = items
+    .filter((item) => item.id === CORPORATE_TEMPLATE_ID)
+    .map((item) => {
+      const sizeMatches =
+        item.slideWidth === targetSlideSize.width && item.slideHeight === targetSlideSize.height
+      const hasPages = item.previewPages.length > 0
+      return {
+        id: item.id,
+        title: item.name,
+        pageCount: item.pageCount,
+        slideSizeId: item.slideSizeId,
+        slideWidth: item.slideWidth,
+        slideHeight: item.slideHeight,
+        updatedAt: item.updatedAt,
+        thumbnailPath: item.thumbnailPath,
+        selectable: sizeMatches && hasPages,
+        disabledReason: !sizeMatches
+          ? ('PAGE_MERGE_SLIDE_SIZE_MISMATCH' as PageMergeDisabledReason)
+          : !hasPages
+            ? ('PAGE_MERGE_SESSION_EMPTY' as PageMergeDisabledReason)
+            : undefined,
+        isSource: Boolean(sourceTemplateId) && item.id === sourceTemplateId
+      }
+    })
   return summaries.sort((a, b) => {
     if (a.isSource !== b.isSource) return a.isSource ? -1 : 1
     return b.updatedAt - a.updatedAt
@@ -497,6 +500,9 @@ export async function listMergeSourceTemplatePages(
   targetSessionId: string,
   templateId: string
 ): Promise<MergeSourcePageSummary[]> {
+  if (templateId !== CORPORATE_TEMPLATE_ID) {
+    throw new PageMergeError('PAGE_MERGE_SESSION_NOT_FOUND', '内部版仅允许使用公司标准模板')
+  }
   const targetSession = await ctx.db.getSession(targetSessionId)
   if (!targetSession) {
     throw new PageMergeError('PAGE_MERGE_SESSION_NOT_FOUND', '当前会话不存在')
@@ -646,6 +652,9 @@ async function loadTemplateMergeSource(
   targetSlideSize: { width: number; height: number },
   sourcePageIds: string[]
 ): Promise<MergeSourceData> {
+  if (templateId !== CORPORATE_TEMPLATE_ID) {
+    throw new PageMergeError('PAGE_MERGE_SESSION_NOT_FOUND', '内部版仅允许使用公司标准模板')
+  }
   const loaded = await loadTemplateManifest(templateId).catch(() => {
     throw new PageMergeError('PAGE_MERGE_SESSION_NOT_FOUND', '模板不存在')
   })

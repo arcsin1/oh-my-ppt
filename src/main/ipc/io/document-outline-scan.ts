@@ -7,6 +7,7 @@ import {
   SECTION_AGENDA_REASON_PREFIX_EN,
   SECTION_AGENDA_REASON_PREFIX_ZH
 } from '@shared/generation'
+import { MAX_CORPORATE_PAGE_COUNT } from '@shared/brand'
 
 export interface MarkdownHeadingNode {
   level: number
@@ -56,7 +57,7 @@ const STANDALONE_UNIT_TITLE_PATTERN =
 const H2_OWN_BODY_SLIDE_CHAR_COUNT = 160
 const DEEP_STANDALONE_SLIDE_CHAR_COUNT = 240
 const DEEP_STANDALONE_HIGH_SIGNAL_CHAR_COUNT = 120
-const MAX_PROMPT_PAGE_CANDIDATES = 500
+const MAX_PROMPT_PAGE_CANDIDATES = MAX_CORPORATE_PAGE_COUNT
 
 type AstNode = Nodes | Root
 
