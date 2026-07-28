@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   collectRuntimeSpecifiers,
   normalizeArchivePath,
+  toNativeArchiveEntryPath,
   validateDependencyClosure,
   validateDynamicLoads,
   validateRequiredArchivePaths,
@@ -20,6 +21,12 @@ describe('最终安装包运行时验证器', () => {
     expect(normalizeArchivePath('out\\main\\index.js')).toBe('/out/main/index.js')
     expect(normalizeArchivePath('\\resources\\styles\\anjian-corporate\\style.json')).toBe(
       '/resources/styles/anjian-corporate/style.json'
+    )
+  })
+
+  it('用宿主平台的分隔符读取归档条目', () => {
+    expect(toNativeArchiveEntryPath('/out/main/index.js', '\\')).toBe(
+      'out\\main\\index.js'
     )
   })
 

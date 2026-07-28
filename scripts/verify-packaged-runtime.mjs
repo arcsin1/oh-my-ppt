@@ -55,6 +55,9 @@ export const normalizeArchivePath = (value) => {
   return normalized.startsWith('/') ? normalized : `/${normalized}`
 }
 
+export const toNativeArchiveEntryPath = (archiveFilePath, separator = path.sep) =>
+  archiveFilePath.replace(/^[/\\]+/, '').replaceAll('/', separator)
+
 export const packageRootFromSpecifier = (specifier) => {
   if (!specifier || specifier.startsWith('.') || specifier.startsWith('/')) return ''
   if (specifier.startsWith('node:')) return ''
@@ -340,7 +343,7 @@ export const validateRequiredArchivePaths = (
     .map((requiredPath) => `missing required packaged runtime file ${requiredPath}`)
 
 const readArchiveText = (archivePath, archiveFilePath) =>
-  extractFile(archivePath, archiveFilePath.replace(/^\//, '')).toString('utf8')
+  extractFile(archivePath, toNativeArchiveEntryPath(archiveFilePath)).toString('utf8')
 
 export const verifyPackagedRuntime = ({
   archivePath,
