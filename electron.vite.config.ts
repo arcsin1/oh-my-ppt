@@ -13,14 +13,11 @@ export default defineConfig({
     },
     build: {
       externalizeDeps: false,
+      commonjsOptions: {
+        transformMixedEsModules: true
+      },
       rollupOptions: {
-        external: [
-          'electron',
-          'better-sqlite3',
-          '@napi-rs/canvas',
-          '@node-rs/jieba',
-          '@libsql/client'
-        ]
+        external: ['electron', '@napi-rs/canvas', '@node-rs/jieba', '@libsql/client']
       }
     }
   },

@@ -174,6 +174,7 @@ function createWindow(): BrowserWindow {
   })
 
   window.on('ready-to-show', () => {
+    log.info('[app] main window ready-to-show')
     window.show()
     // if (is.dev) {
     //   window.webContents.openDevTools({ mode: 'detach' })

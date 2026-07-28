@@ -11,6 +11,21 @@ files:
   # Only the corporate style package is shipped. Keep the style manifest and
   # anjian-corporate, but omit every other style directory from app.asar too.
   - '!resources/styles/!(anjian-corporate)/**'
+  # The Windows candidate must not carry optional native binaries for other
+  # operating systems or CPU architectures.
+  - '!node_modules/@napi-rs/canvas-android-*/**'
+  - '!node_modules/@napi-rs/canvas-darwin-*/**'
+  - '!node_modules/@napi-rs/canvas-linux-*/**'
+  - '!node_modules/@napi-rs/canvas-win32-arm64-msvc/**'
+  - '!node_modules/@node-rs/jieba-android-*/**'
+  - '!node_modules/@node-rs/jieba-darwin-*/**'
+  - '!node_modules/@node-rs/jieba-freebsd-*/**'
+  - '!node_modules/@node-rs/jieba-linux-*/**'
+  - '!node_modules/@node-rs/jieba-wasm32-*/**'
+  - '!node_modules/@node-rs/jieba-win32-arm64-msvc/**'
+  - '!node_modules/@node-rs/jieba-win32-ia32-msvc/**'
+  - '!node_modules/@libsql/darwin-*/**'
+  - '!node_modules/@libsql/linux-*/**'
   - '!**/.vscode/*'
   - '!**/.idea/**'
   - '!**/.git/**'

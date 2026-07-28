@@ -1,4 +1,3 @@
-import { createRequire } from 'module'
 import fs from 'fs'
 import path from 'path'
 import log from 'electron-log/main.js'
@@ -8,55 +7,13 @@ import { resolveModelTimeoutMs } from '@shared/model-timeout'
 import { isSupportedImageMimeType, normalizeImageMimeType } from '@shared/image-mime'
 import { resolveModel } from '../agent'
 import { extractModelText } from '../ipc/utils'
+import { convertDocxToMarkdown } from '../utils/docx-to-markdown'
 import type { ThinkingSource } from '@shared/thinking'
-
-const require = createRequire(import.meta.url)
-const mammoth = require('mammoth') as typeof import('mammoth')
-const TurndownService = require('turndown') as new (options?: Record<string, unknown>) => {
-  use: (plugin: unknown) => void
-  turndown: (html: string) => string
-}
-const { gfm } = require('@joplin/turndown-plugin-gfm') as { gfm: unknown }
-
-const NULL_CHAR_PATTERN = new RegExp(String.fromCharCode(0), 'g')
 
 const SUPPORTED_EXTENSIONS = new Set(['.md', '.txt', '.text', '.csv', '.docx'])
 const SUPPORTED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp'])
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024
-
-const stripControlChars = (value: string): string =>
-  value.replace(NULL_CHAR_PATTERN, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-
-const compactText = (value: string): string =>
-  stripControlChars(value)
-    .split('\n')
-    .map((line) => line.replace(/[ \t]+/g, ' ').trim())
-    .join('\n')
-    .replace(/\n{4,}/g, '\n\n\n')
-    .trim()
-
-const stripInlineImagesFromHtml = (html: string): string =>
-  html.replace(/<img\b[^>]*>/gi, (tag) => {
-    const alt = tag.match(/\balt=(["'])(.*?)\1/i)?.[2]?.trim()
-    return alt ? `<p>[图片：${alt}]</p>` : ''
-  })
-
-const stripMarkdownDataImages = (markdown: string): string =>
-  markdown.replace(/!\[[^\]]*]\(data:[^)]+\)/gi, '').replace(/!\[[^\]]*]\(\s*\)/g, '')
-
-const convertDocxToMarkdown = async (filePath: string): Promise<string> => {
-  const result = await mammoth.convertToHtml({ path: filePath })
-  const turndown = new TurndownService({
-    headingStyle: 'atx',
-    bulletListMarker: '-',
-    codeBlockStyle: 'fenced'
-  })
-  turndown.use(gfm)
-  return compactText(
-    stripMarkdownDataImages(turndown.turndown(stripInlineImagesFromHtml(result.value)))
-  )
-}
 
 const toSafeFileName = (value: string): string =>
   value

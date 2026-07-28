@@ -1,6 +1,6 @@
 {
   "name": "anjian-ppt-assistant",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "安居建业内部 AI 演示文稿制作工具",
   "main": "./out/main/index.js",
   "author": "深圳市安居建业投资运营有限公司（基于 Oh My PPT）",
@@ -23,9 +23,10 @@
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "verify:package": "node scripts/verify-packaged-runtime.mjs --expected-version 1.0.3",
     "postinstall": "electron-builder install-app-deps",
-    "build:unpack": "npm run build && electron-builder --dir",
-    "build:win": "npm run build && electron-builder --win",
+    "build:unpack": "electron-vite build && electron-builder --dir",
+    "build:win": "electron-vite build && electron-builder --win --x64 --dir && node scripts/verify-packaged-runtime.mjs --expected-version 1.0.3 && electron-builder --win nsis --x64",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
@@ -109,6 +110,7 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@electron/asar": "3.4.1",
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
@@ -118,6 +120,7 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "acorn": "8.16.0",
     "autoprefixer": "^10.4.20",
     "drizzle-kit": "^0.31.4",
     "electron": "^39.2.6",
@@ -132,34 +135,10 @@
     "prettier": "^3.7.4",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
+    "semver": "7.7.4",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.9.3",
     "vite": "^7.2.6",
     "vitest": "^4.1.6"
-  },
-  "pnpm": {
-    "supportedArchitectures": {
-      "os": [
-        "current",
-        "darwin",
-        "win32"
-      ],
-      "cpu": [
-        "current",
-        "arm64",
-        "x64"
-      ]
-    },
-    "onlyBuiltDependencies": [
-      "@google/genai",
-      "electron",
-      "electron-winstaller",
-      "esbuild",
-      "protobufjs"
-    ],
-    "overrides": {
-      "@langchain/core": "^1.1.47",
-      "@langchain/langgraph": "^1.3.0"
-    }
   }
 }

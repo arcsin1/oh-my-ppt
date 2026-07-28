@@ -1,11 +1,11 @@
 import { dialog, ipcMain } from 'electron'
 import fs from 'fs'
 import path from 'path'
-import { createRequire } from 'module'
+import * as XLSX from 'xlsx'
+import Papa from 'papaparse'
 import type { IpcContext } from '../context'
 import type { ParsedChartDataResult } from '../../../shared/chart-data'
 
-const require = createRequire(import.meta.url)
 const MAX_ROWS = 200
 const MAX_SERIES = 8
 const X_KEYS = ['x', 'label', 'category', 'name']
@@ -46,19 +46,11 @@ type PapaApi = {
 }
 
 function loadXlsx(): XlsxApi {
-  try {
-    return require('xlsx') as XlsxApi
-  } catch {
-    throw new Error('Excel 解析依赖 xlsx 尚未安装，请先安装项目依赖')
-  }
+  return XLSX as unknown as XlsxApi
 }
 
 function loadPapa(): PapaApi {
-  try {
-    return require('papaparse') as PapaApi
-  } catch {
-    throw new Error('CSV 解析依赖 papaparse 尚未安装，请先安装项目依赖')
-  }
+  return Papa as PapaApi
 }
 
 function toFiniteNumber(value: unknown): number | null {
@@ -172,7 +164,7 @@ function normalizeChartRows(rows: RawRow[]): {
   }
 }
 
-async function parseChartDataFile(filePath: string): Promise<ParsedChartDataResult> {
+export async function parseChartDataFile(filePath: string): Promise<ParsedChartDataResult> {
   const ext = path.extname(filePath).toLowerCase()
   let rawRows: RawRow[] = []
 
