@@ -39,7 +39,7 @@ function App(): React.JSX.Element {
           <div className="app-drag-region app-titlebar bg-background/85 backdrop-blur-xl" />
 
           <div className="flex min-h-0 flex-1">
-            <aside className="hidden min-h-0 w-[230px] shrink-0 flex-col border-r border-[#e8e1d7] bg-[#fbfaf7] md:flex">
+            <aside className="hidden min-h-0 w-[260px] shrink-0 flex-col border-r border-[#e8e1d7] bg-[#fbfaf7] md:flex">
               <Sidebar />
             </aside>
             {isThinkingRoute ? (

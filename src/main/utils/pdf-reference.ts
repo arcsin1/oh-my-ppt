@@ -15,10 +15,11 @@ const MIN_LOCAL_TEXT_CHARS = 12
 const OCR_RENDER_WIDTH = 1600
 const require = createRequire(import.meta.url)
 const PDFJS_PACKAGE_DIR = path.dirname(require.resolve('pdfjs-dist/package.json'))
-const PDFJS_STANDARD_FONT_DATA_URL = `${path.join(
-  PDFJS_PACKAGE_DIR,
-  'standard_fonts'
-)}${path.sep}`
+export const normalizePdfJsFactoryDirectory = (value: string): string =>
+  `${value.replace(/\\/g, '/').replace(/\/+$/, '')}/`
+const PDFJS_STANDARD_FONT_DATA_URL = normalizePdfJsFactoryDirectory(
+  path.join(PDFJS_PACKAGE_DIR, 'standard_fonts')
+)
 GlobalWorkerOptions.workerSrc = pathToFileURL(
   path.join(PDFJS_PACKAGE_DIR, 'legacy', 'build', 'pdf.worker.mjs')
 ).href

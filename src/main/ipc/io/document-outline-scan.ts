@@ -58,6 +58,7 @@ const H2_OWN_BODY_SLIDE_CHAR_COUNT = 160
 const DEEP_STANDALONE_SLIDE_CHAR_COUNT = 240
 const DEEP_STANDALONE_HIGH_SIGNAL_CHAR_COUNT = 120
 const MAX_PROMPT_PAGE_CANDIDATES = MAX_CORPORATE_PAGE_COUNT
+const TARGET_NON_WHITESPACE_CHARS_PER_PAGE = 800
 
 type AstNode = Nodes | Root
 
@@ -567,5 +568,53 @@ export const estimateOutlinePageCount = (
     basis: preferTopLevelSections
       ? `Based on ${h2Count} top-level level-2 document sections, including ${sectionAgendaPageCount} section agenda pages with at least 2 child sections and ${directLevel3PageCount} direct level-3 content pages${pageCandidates.length > MAX_PROMPT_PAGE_CANDIDATES ? `, capped to ${MAX_PROMPT_PAGE_CANDIDATES} visible page candidates for parsing` : ''}.`
       : `Based on ${chapterDividerCount} chapter divider headings, ${h2ContentPageCount} level-2 content slide candidates, and ${standaloneSectionCount} standalone level-3+ slide candidates${pageCandidates.length > MAX_PROMPT_PAGE_CANDIDATES ? `, capped to ${MAX_PROMPT_PAGE_CANDIDATES} visible page candidates for parsing` : ''}.`
+  }
+}
+
+export const estimateDocumentContentPageCount = (
+  content: string,
+  scan: DocumentOutlineScan | null,
+  pageCandidatesOverride?: DocumentOutlinePageCandidate[]
+): DocumentOutlinePageCountEstimate => {
+  const structureEstimate = estimateOutlinePageCount(scan, pageCandidatesOverride)
+  const pageCandidates = pageCandidatesOverride ?? deriveOutlinePageCandidates(scan)
+  if (structureEstimate && pageCandidates.length >= 2) return structureEstimate
+  const nonWhitespaceCharacterCount = content.replace(/\s/g, '').length
+  const densityPageCount = Math.max(
+    nonWhitespaceCharacterCount > 1_200 ? 2 : 1,
+    Math.ceil(nonWhitespaceCharacterCount / TARGET_NON_WHITESPACE_CHARS_PER_PAGE)
+  )
+  const preferredPageCount = Math.min(
+    MAX_PROMPT_PAGE_CANDIDATES,
+    Math.max(structureEstimate?.preferredPageCount ?? 1, densityPageCount)
+  )
+  const minPageCount =
+    preferredPageCount <= 1
+      ? 1
+      : Math.max(
+          2,
+          Math.max(
+            structureEstimate?.minPageCount ?? preferredPageCount,
+            Math.floor(preferredPageCount * 0.75)
+          )
+        )
+  const maxPageCount = Math.min(
+    MAX_PROMPT_PAGE_CANDIDATES,
+    Math.max(
+      structureEstimate?.maxPageCount ?? preferredPageCount,
+      Math.ceil(preferredPageCount * 1.25)
+    )
+  )
+
+  return {
+    preferredPageCount,
+    minPageCount,
+    maxPageCount,
+    basis: [
+      structureEstimate?.basis,
+      `Based on ${nonWhitespaceCharacterCount} non-whitespace characters at about ${TARGET_NON_WHITESPACE_CHARS_PER_PAGE} characters per content slide.`
+    ]
+      .filter(Boolean)
+      .join(' ')
   }
 }

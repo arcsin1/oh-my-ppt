@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   deriveOutlinePageCandidates,
+  estimateDocumentContentPageCount,
   estimateOutlinePageCount,
   formatDocumentOutlineScanForPrompt,
   scanDocumentOutline,
@@ -8,6 +9,17 @@ import {
 } from '../../../src/main/ipc/io/document-outline-scan'
 
 describe('document outline scan', () => {
+  it('uses body density when a long Word-like document has only one title', () => {
+    const source = ['# 项目议案', '', '这是正文内容。'.repeat(400)].join('\n')
+    const scan = scanDocumentOutline(source)
+    const estimate = estimateDocumentContentPageCount(source, scan)
+
+    expect(source.replace(/\s/g, '').length).toBeGreaterThan(2700)
+    expect(estimate.preferredPageCount).toBeGreaterThan(1)
+    expect(estimate.minPageCount).toBeGreaterThan(1)
+    expect(estimate.basis).toContain('non-whitespace characters')
+  })
+
   it('extracts markdown heading structure and density hints', () => {
     const scan = scanDocumentOutline(
       [

@@ -47,37 +47,37 @@ jobs:
           pnpm exec electron-builder --win --x64 --dir
 
       - name: Verify packaged runtime closure
-        run: node scripts/verify-packaged-runtime.mjs --expected-version 1.0.3
+        run: node scripts/verify-packaged-runtime.mjs --expected-version 1.0.4
 
       - name: Build NSIS installer
         run: pnpm exec electron-builder --win nsis --x64
 
       - name: Test NSIS archive integrity
         shell: pwsh
-        run: 7z t ./dist/AnjuJianye-PPT-Assistant-1.0.3-x64-setup.exe
+        run: 7z t ./dist/AnjuJianye-PPT-Assistant-1.0.4-x64-setup.exe
 
       - name: Smoke install, launch twice, and uninstall
         shell: pwsh
         run: |
           ./scripts/windows-package-smoke.ps1 `
-            -InstallerPath ./dist/AnjuJianye-PPT-Assistant-1.0.3-x64-setup.exe `
-            -ExpectedVersion 1.0.3
+            -InstallerPath ./dist/AnjuJianye-PPT-Assistant-1.0.4-x64-setup.exe `
+            -ExpectedVersion 1.0.4
 
       - name: Record installer SHA-256
         shell: pwsh
         run: |
           Get-FileHash `
-            ./dist/AnjuJianye-PPT-Assistant-1.0.3-x64-setup.exe `
+            ./dist/AnjuJianye-PPT-Assistant-1.0.4-x64-setup.exe `
             -Algorithm SHA256 |
             Format-List |
-            Out-File ./dist/AnjuJianye-PPT-Assistant-1.0.3-x64-setup.sha256.txt
+            Out-File ./dist/AnjuJianye-PPT-Assistant-1.0.4-x64-setup.sha256.txt
 
       - name: Upload test-only candidate
         uses: actions/upload-artifact@v4
         with:
-          name: AnjuJianye-PPT-Assistant-1.0.3-windows-smoke
+          name: AnjuJianye-PPT-Assistant-1.0.4-windows-smoke
           if-no-files-found: error
           path: |
-            dist/AnjuJianye-PPT-Assistant-1.0.3-x64-setup.exe
-            dist/AnjuJianye-PPT-Assistant-1.0.3-x64-setup.sha256.txt
+            dist/AnjuJianye-PPT-Assistant-1.0.4-x64-setup.exe
+            dist/AnjuJianye-PPT-Assistant-1.0.4-x64-setup.sha256.txt
           retention-days: 7

@@ -1,6 +1,6 @@
 # 安居建业 PPT 助手 Windows / WPS 试点验收清单
 
-> 适用版本：v1.0.3 Windows x64 内部候选版
+> 适用版本：v1.0.4 Windows x64 内部候选版
 > 验收状态：待在公司 Windows 电脑和正式 WPS 版本上执行
 > Windows 版本：__________
 > WPS 版本：__________
@@ -15,7 +15,7 @@
 - 准备一个仅用于试点、可控制额度的阿里云百炼、腾讯 TokenHub 或 DeepSeek 开发者 API Key，以及对应模型 ID。
 - 安装包、仓库和测试材料中没有 API Key、Token、密码或其他个人密钥。
 - 使用干净的 Windows x64 电脑；电脑不要求安装 Node.js、pnpm、Python 或开发工具。
-- 准备文本型 PDF、1–5 页扫描型 PDF、DOCX、员工以前制作的 PPTX，以及 1 页和 50 页测试要求。
+- 准备原两份 PDF、原两份 DOCX、含多个非空工作表的 XLSX、员工以前制作的 PPTX，以及 1 页和 50 页测试要求。
 
 ## 2. 构建与安装包校验
 
@@ -28,20 +28,20 @@ pnpm exec tsc --noEmit -p tsconfig.node.json --composite false
 pnpm exec tsc --noEmit -p tsconfig.web.json --composite false
 pnpm exec electron-vite build
 pnpm exec electron-builder --win --x64 --dir
-node scripts/verify-packaged-runtime.mjs --expected-version 1.0.3
+node scripts/verify-packaged-runtime.mjs --expected-version 1.0.4
 pnpm exec electron-builder --win nsis --x64
 ```
 
 预期安装包名称：
 
 ```text
-AnjuJianye-PPT-Assistant-1.0.3-x64-setup.exe
+AnjuJianye-PPT-Assistant-1.0.4-x64-setup.exe
 ```
 
 试点版允许未签名，但分发前必须生成 SHA-256：
 
 ```powershell
-Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.3-x64-setup.exe -Algorithm SHA256
+Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.4-x64-setup.exe -Algorithm SHA256
 ```
 
 分发通知必须同时写明版本、唯一内部下载位置和 SHA-256。员工只在三者一致时安装。
@@ -55,7 +55,7 @@ Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.3-x64-setup.exe -Algorithm SHA256
 
 ## 3. 安装、升级和卸载
 
-- [ ] 已先卸载 v1.0.2，并确认旧应用安装目录已清除。
+- [ ] 已先卸载 v1.0.3，并确认旧应用安装目录已清除。
 - [ ] 卸载旧版后，员工自己选择的项目目录和项目文件仍存在。
 - [ ] 安装程序显示“安居建业PPT助手”和公司图标。
 - [ ] 可安装到含中文的自定义目录并正常完成安装。
@@ -63,7 +63,7 @@ Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.3-x64-setup.exe -Algorithm SHA256
 - [ ] 首次启动不出现 Oh My PPT、模板市场或公共更新提示。
 - [ ] 卸载应用后，员工自己选择的项目目录不被删除。
 
-## 4. 启动与 v1.0.2 缺包回归
+## 4. 启动与打包缺包回归
 
 - [ ] 首次启动 30 秒内显示首页，未出现 “A JavaScript error occurred in the main process”。
 - [ ] 关闭应用后再次启动，第二次仍在 30 秒内显示首页。
@@ -71,7 +71,8 @@ Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.3-x64-setup.exe -Algorithm SHA256
 - [ ] 日志中没有 `Cannot find module`、`Uncaught Exception` 或主进程崩溃。
 - [ ] 从 DOCX 创建演示，正文和图片可读取。
 - [ ] 在对话或思考流程中附加 DOCX，资料可进入上下文。
-- [ ] 导入 XLSX 图表数据，字段和数值可读取。
+- [ ] 在首页上传 XLSX/XLS 参考资料，所有非空工作表按原顺序读取，中文名称、文本、数字和日期可见。
+- [ ] 空工作簿显示明确中文错误，不生成空资料。
 - [ ] 导入 CSV 图表数据，字段和数值可读取。
 - [ ] 读取文本型 PDF，可提取页面文字并形成提纲。
 
@@ -99,6 +100,8 @@ Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.3-x64-setup.exe -Algorithm SHA256
 - [ ] 封面、目录、章节、内容和结束页能按内容正常复用。
 - [ ] 固定四页测试演示包含封面、目录、正文和原样结束页。
 - [ ] 四页测试演示的楷体、Logo、波浪、页脚、标题边界和加载动画正确。
+- [ ] 正文页左上角输入“安恒二号基本情况 / 与注销方案”等较长标题时，主标题和副标题各自保持单行，没有单个汉字独占一行、溢出或裁切。
+- [ ] 正文页顶部约 347×128px 的橙色标题块没有被扩展成整页侧栏；顶部以下的正文左右留白基本对称，主体视觉中心没有明显偏左或偏右。
 
 ## 7. 创建与参考资料
 
@@ -106,9 +109,14 @@ Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.3-x64-setup.exe -Algorithm SHA256
 - [ ] 输入“制作 1 页……”时生成计划为 1 页。
 - [ ] 输入超过 50 页的要求时被限制为 50 页。
 - [ ] 对话创作可形成结构并转入公司模板生成。
-- [ ] DOCX、Markdown、TXT、CSV 和常见图片可读取。
+- [ ] DOCX、XLSX、XLS、Markdown、TXT、CSV 和常见图片可读取。
 - [ ] 文本型 PDF 能提取页面文字并形成提纲。
 - [ ] 扫描型 PDF 在员工选择具备视觉能力的模型时能逐页识别。
+- [ ] 原两份 PDF 均不再出现 `Invalid factory url`。
+- [ ] 原两份 DOCX 的建议正文页数均大于 1，每个正文页包含 2–4 条资料要点。
+- [ ] 默认总页数等于正文页加封面、结束页和明确要求的目录页；用户明确填写总页数时仍按用户数字。
+- [ ] 生成后的资料正文只进入正文模板页，封面使用资料主题，目录来自正文标题，结束页保持原样。
+- [ ] 日志中的正文生成上下文包含参考资料路径或逐页来源范围。
 - [ ] 模糊内容被标为无法辨认，没有补写不存在的数字。
 - [ ] PDF 超过 10MB、超过 200 页或扫描页超过 50 页时给出明确限制。
 

@@ -25,9 +25,14 @@ import { convertPdfToMarkdown } from '../../utils/pdf-reference'
 import { convertDocxToMarkdown } from '../../utils/docx-to-markdown'
 import { normalizeGeneratedPlan as normalizeDocumentPlan } from './document-plan-normalizer'
 import { convertCsvTextToMarkdown } from './document-csv-to-markdown'
+import { convertExcelFileToMarkdown } from './document-xlsx-to-markdown'
+import {
+  assertDocumentPlanQuality,
+  DocumentPlanQualityError
+} from './document-plan-quality'
 import {
   deriveOutlinePageCandidates,
-  estimateOutlinePageCount,
+  estimateDocumentContentPageCount,
   formatDocumentOutlineScanForPrompt,
   scanDocumentOutline,
   scanHasMultipleSlideCandidates,
@@ -65,9 +70,18 @@ const PAGE_SUMMARY_BATCH_START_DELAY_MS = 200
 const PAGE_SUMMARY_BATCH_MAX_ATTEMPTS = 3
 const MAX_PAGE_SUMMARY_PASSAGE_CHARS = 1_600
 const MAX_PAGE_SUMMARY_TOTAL_PAGES = 300
-const MAX_PAGE_SUMMARY_CHARS = 80
+const MAX_PAGE_SUMMARY_CHARS = 240
 
-const SUPPORTED_EXTENSIONS = new Set(['.md', '.txt', '.text', '.csv', '.docx', '.pdf'])
+const SUPPORTED_EXTENSIONS = new Set([
+  '.md',
+  '.txt',
+  '.text',
+  '.csv',
+  '.docx',
+  '.pdf',
+  '.xlsx',
+  '.xls'
+])
 const SUPPORTED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp'])
 const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
   '.png': 'image/png',
@@ -186,7 +200,9 @@ const prepareSourceFile = async (
   const ext = path.extname(filePath).toLowerCase()
   const isImage = SUPPORTED_IMAGE_EXTENSIONS.has(ext)
   if (!SUPPORTED_EXTENSIONS.has(ext) && !isImage) {
-    throw new Error('暂只支持 pdf、docx、md、txt、csv 文档，以及 png、jpg、jpeg、webp 图片')
+    throw new Error(
+      '暂只支持 pdf、docx、xlsx、xls、md、txt、csv 文档，以及 png、jpg、jpeg、webp 图片'
+    )
   }
   log.info('[documents:parsePlan] read source file', {
     fileName: path.basename(filePath),
@@ -214,7 +230,7 @@ const prepareSourceFile = async (
   const stamp = Date.now()
   const uniqueId = nanoid(8)
   const workspaceName =
-    ext === '.docx' || ext === '.csv' || ext === '.pdf'
+    ext === '.docx' || ext === '.csv' || ext === '.pdf' || ext === '.xlsx' || ext === '.xls'
       ? `${stamp}-${uniqueId}-${safeBaseName || 'source'}.md`
       : `${stamp}-${uniqueId}-${safeBaseName}${ext}`
   const workspacePath = path.join(workspaceDir, workspaceName)
@@ -259,6 +275,16 @@ const prepareSourceFile = async (
     type = 'markdown'
     characterCount = markdown.length
     log.info('[documents:parsePlan] csv converted for reading', {
+      originalName: name,
+      workspaceName,
+      characterCount
+    })
+  } else if (ext === '.xlsx' || ext === '.xls') {
+    const markdown = convertExcelFileToMarkdown(filePath, path.basename(name, ext))
+    await fs.promises.writeFile(workspacePath, markdown, 'utf-8')
+    type = 'markdown'
+    characterCount = markdown.length
+    log.info('[documents:parsePlan] excel workbook converted for reading', {
       originalName: name,
       workspaceName,
       characterCount
@@ -375,14 +401,24 @@ const assertPlanMatchesDocumentOutline = (args: {
   scan: DocumentOutlineScan | null
   pageCandidates: DocumentOutlinePageCandidate[]
   plan: Pick<ParsedDocumentPlanResult, 'pageCount' | 'briefText'>
+  pageCountEstimate: ReturnType<typeof estimateDocumentContentPageCount>
+  enforceDocumentEstimate: boolean
 }): void => {
-  if (!args.scan || !scanHasMultipleSlideCandidates(args.scan)) return
-  if (args.plan.pageCount <= 1) {
-    throw new RetryableDocumentPlanQualityError(
-      'The source document has multiple Markdown/source sections, but the plan collapsed it to one slide. Rebuild the outline from the document heading structure and infer a multi-slide pageCount.'
-    )
+  if (!args.enforceDocumentEstimate) return
+  try {
+    assertDocumentPlanQuality({
+      plan: args.plan,
+      estimate: args.pageCountEstimate,
+      requireDetailedBrief: args.pageCandidates.length === 0
+    })
+  } catch (error) {
+    if (error instanceof DocumentPlanQualityError) {
+      throw new RetryableDocumentPlanQualityError(error.message)
+    }
+    throw error
   }
-  const pageCountEstimate = estimateOutlinePageCount(args.scan, args.pageCandidates)
+  if (!args.scan || !scanHasMultipleSlideCandidates(args.scan)) return
+  const pageCountEstimate = args.pageCountEstimate
   if (
     args.pageCandidates.length > 0 &&
     pageCountEstimate &&
@@ -418,7 +454,7 @@ const assertPlanMatchesDocumentOutline = (args: {
 
 const isDocumentOutlineQualityError = (error: unknown): boolean =>
   error instanceof RetryableDocumentPlanQualityError &&
-  /multiple Markdown\/source sections|heading structure|source-structure page-count estimate|page candidate skeleton/i.test(
+  /multiple Markdown\/source sections|heading structure|source-structure page-count estimate|page candidate skeleton|合理下限|合理上限|逐页提纲|总结过短/i.test(
     error.message
   )
 
@@ -542,7 +578,7 @@ const buildSingleShotDocumentPlanPrompt = (args: {
       : '- Infer pageCount from source structure, information density, paragraphs, lists, tables, and semantic transitions. Do not return 1 for ordinary multi-section documents.',
     useLightweightSourcePlan
       ? '- Per-page summaries are generated by a later batch pass using source line ranges. Do not write any outline or page summaries now.'
-      : '- briefText: a compact page skeleton, not a detailed fact summary.',
+      : '- briefText: a detailed, source-grounded compact page skeleton suitable for creating the slides.',
     useLightweightSourcePlan
       ? ''
       : '- briefText must include source document structure, recommended outline, and per-page points.',
@@ -554,8 +590,10 @@ const buildSingleShotDocumentPlanPrompt = (args: {
       : '- Per-page points must contain exactly pageCount page entries.',
     useLightweightSourcePlan
       ? ''
-      : '- Each page entry should include: page title, page role, source anchor when available, and one short page purpose.',
-    '- Do not write detailed facts, metrics, scripts, examples, risks, or per-page summaries during parsing. Later slide generation will inspect source passages again.',
+      : '- Each page entry must include: page title and 2–4 factual, source-grounded bullet points. Preserve important facts, metrics, names, dates, and terms.',
+    useLightweightSourcePlan
+      ? '- Do not write detailed facts during this pass. A later batch pass will summarize exact source passages.'
+      : '- The per-page plan must be detailed enough to drive slide creation. Do not replace source facts with generic purposes or slogans.',
     '- Preserve source order and hierarchy. Do not rewrite the source into a generic storyline, marketing narrative, consulting framework, or inspirational theme.',
     '- Keep chapter divider slides as standalone section-divider pages and include a role marker such as 页面角色：章节页 or Page role: chapter divider.',
     '- Do not add agenda/background/outlook/summary/next-step pages unless present in the source skeleton or requested by the user.',
@@ -594,10 +632,10 @@ const buildSingleShotDocumentPlanPrompt = (args: {
       : '',
     useLightweightSourcePlan
       ? ''
-      : 'For Chinese source: {"topic":"直播与短视频自然流增长——汽车经销商新媒体实战指南","pageCount":65,"briefText":"演示目标：...\\n源文档结构：...\\n建议大纲：\\n1. 手册结构导航\\n2. 阅读角色指引\\n每页要点：\\n第 1 页：手册结构导航\\n页面角色：内容页\\n来源标题：### 手册结构导航\\n来源范围：lines 17-32\\n页面目的：说明本手册的结构导航。"}',
+      : 'For Chinese source: {"topic":"项目议案汇报","pageCount":2,"briefText":"建议大纲：\\n1. 项目背景\\n2. 实施计划\\n每页要点：\\n第 1 页：项目背景\\n- 原文事实一\\n- 原文事实二\\n第 2 页：实施计划\\n- 原文行动一\\n- 原文行动二"}',
     useLightweightSourcePlan
       ? ''
-      : 'For English source: {"topic":"Product Launch Readiness Review","pageCount":8,"briefText":"Presentation goal: ...\\nSource document structure: ...\\nRecommended outline:\\n1. Launch Readiness\\nPer-page points:\\nPage 1: Launch Readiness\\nPage role: content\\nSource heading: ## Launch Readiness\\nSource range: lines 10-32\\nPage purpose: Anchor the launch readiness section."}'
+      : 'For English source: {"topic":"Product Launch Readiness Review","pageCount":2,"briefText":"Recommended outline:\\n1. Market signal\\n2. Delivery readiness\\nPer-page points:\\nPage 1: Market signal\\n- Source fact one\\n- Source fact two\\nPage 2: Delivery readiness\\n- Source action one\\n- Source action two"}'
   ].join('\n')
 }
 
@@ -710,11 +748,11 @@ const buildPageSummaryBatchPrompt = (args: {
     'Rules:',
     '- Return exactly one non-empty summary for every page listed.',
     '- Preserve each page ID exactly as provided. Do not renumber pages within this batch.',
-    '- Write a very brief factual summary for each page, grounded in its source passage when body text is available.',
-    `- Each summary must be very concise and at most ${MAX_PAGE_SUMMARY_CHARS} characters.`,
+    '- Write 2–4 concise, verifiable key points for each page, grounded in its source passage when body text is available. Join the points with semicolons.',
+    `- Each summary must be at most ${MAX_PAGE_SUMMARY_CHARS} characters.`,
     '- Preserve important facts, metrics, terms, names, and source language.',
     '- Do not invent missing facts. If the passage has no body text beyond a heading, summarize the page role or section based on the page title and source heading instead of returning an empty summary.',
-    '- Keep each summary short enough for an editable PPT creation dialog.',
+    '- Keep each summary concise but sufficiently detailed for an editable PPT creation dialog.',
     args.retryHint
       ? `Retry requirement: the previous response was invalid because: ${args.retryHint}. Return all listed IDs exactly once in this attempt.`
       : '',
@@ -775,6 +813,25 @@ const missingPageSummaryIds = (
 ): string[] =>
   batch.filter((target) => !summaries.get(target.item.pageNumber)).map((target) => target.id)
 
+const hasSufficientPageSummaryDetail = (summary: string, passage: string): boolean => {
+  if (passage.trim().length < 40) return summary.trim().length > 0
+  const pointCount = summary.split(/[；;。.!！?？]+/).filter((item) => item.trim()).length
+  return summary.trim().length >= 20 && pointCount >= 2
+}
+
+const buildConservativeLocalPageSummary = (target: PageSummaryTarget): string => {
+  let fragments = target.passage
+    .split(/[。！？!?；;，,\n]+/)
+    .map((item) => item.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .slice(0, 4)
+  if (fragments.length === 1 && fragments[0].length > 80) {
+    fragments = fragments[0].match(/.{1,60}/g)?.slice(0, 4) ?? fragments
+  }
+  const summary = fragments.join('；').slice(0, MAX_PAGE_SUMMARY_CHARS).trim()
+  return summary || target.item.reason || target.item.title
+}
+
 const summarizePageSummaryBatch = async (args: {
   batch: PageSummaryTarget[]
   batchIndex: number
@@ -827,6 +884,12 @@ const summarizePageSummaryBatch = async (args: {
         extractModelText(result),
         new Map(args.batch.map((target) => [target.id, target.item.pageNumber]))
       )
+      args.batch.forEach((target) => {
+        const summary = batchSummaries.get(target.item.pageNumber)
+        if (summary && !hasSufficientPageSummaryDetail(summary, target.passage)) {
+          batchSummaries.delete(target.item.pageNumber)
+        }
+      })
       const missingIds = missingPageSummaryIds(args.batch, batchSummaries)
       if (missingIds.length === 0) return batchSummaries
       throw new Error(`模型摘要返回缺少页面 ID: ${missingIds.join(', ')}`)
@@ -910,7 +973,10 @@ const summarizePageSkeletonContentInBatches = async (args: {
           })
           batchSummaries.forEach((summary, pageNumber) => summaries.set(pageNumber, summary))
         } catch (error) {
-          log.warn('[documents:parsePlan] page summary batch failed, keeping existing summaries', {
+          batch.forEach((target) => {
+            summaries.set(target.item.pageNumber, buildConservativeLocalPageSummary(target))
+          })
+          log.warn('[documents:parsePlan] page summary batch failed, using local summaries', {
             sourceVirtualPath: args.file.virtualPath,
             batchIndex: batchIndex + 1,
             maxAttempts: PAGE_SUMMARY_BATCH_MAX_ATTEMPTS,
@@ -1284,7 +1350,15 @@ export function registerDocumentParseHandlers(ctx: IpcContext): void {
       const outlineResult = await scanPreparedSourceOutline(sourceFile)
       const outlineScan = outlineResult?.scan ?? null
       const pageCandidates = outlineResult?.pageCandidates ?? []
-      const pageCountEstimate = estimateOutlinePageCount(outlineScan, pageCandidates)
+      const sourceTextForEstimate =
+        sourceFile.type === 'image'
+          ? ''
+          : await fs.promises.readFile(sourceFile.workspacePath, 'utf-8')
+      const pageCountEstimate = estimateDocumentContentPageCount(
+        sourceTextForEstimate,
+        outlineScan,
+        pageCandidates
+      )
       if (pageCountEstimate) {
         log.info('[documents:parsePlan] document outline page-count estimate', {
           preferredPageCount: pageCountEstimate.preferredPageCount,
@@ -1376,33 +1450,14 @@ export function registerDocumentParseHandlers(ctx: IpcContext): void {
           assertPlanMatchesDocumentOutline({
             scan: outlineScan,
             pageCandidates,
-            plan: candidatePlan
+            plan: candidatePlan,
+            pageCountEstimate,
+            enforceDocumentEstimate: sourceFile.type !== 'image'
           })
           plan = candidatePlan
           break
         } catch (error) {
           lastError = error
-          if (
-            error instanceof RetryableDocumentPlanQualityError &&
-            attempt >= MAX_ATTEMPTS &&
-            !isDocumentOutlineQualityError(error)
-          ) {
-            plan = useLightweightSourcePlan
-              ? normalizeLightweightGeneratedPlan(responseText, {
-                  topic: fallbackPlan.topic,
-                  pageCount: pageCandidates.length
-                })
-              : normalizeDocumentPlan(responseText, fallbackPlan)
-            log.warn(
-              '[documents:parsePlan] quality check failed after retry, returning editable plan',
-              {
-                attempt,
-                message: error.message,
-                responsePreview: responseText.slice(0, 400)
-              }
-            )
-            break
-          }
           if (isDocumentOutlineQualityError(error) && attempt >= MAX_ATTEMPTS) {
             log.warn(
               '[documents:parsePlan] outline quality check failed after retry, rejecting plan',

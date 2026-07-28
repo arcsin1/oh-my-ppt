@@ -19,7 +19,8 @@ import { useTemplateStore, useToastStore } from '@renderer/store'
 import {
   buildCorporatePrompt,
   clampCorporatePageCount,
-  resolveRequestedPageCount,
+  resolveCorporateCreationPageCount,
+  resolveCorporateDocumentTotalPageCount,
   shouldIncludeCorporateAgenda
 } from './home-utils'
 
@@ -27,11 +28,11 @@ const MAX_PPTX_SIZE_MB = 500
 const MAX_PPTX_SIZE_BYTES = MAX_PPTX_SIZE_MB * 1024 * 1024
 const MAX_DOCUMENT_SIZE_MB = 10
 const MAX_DOCUMENT_SIZE_BYTES = MAX_DOCUMENT_SIZE_MB * 1024 * 1024
-const SUPPORTED_DOCUMENT_NAME = /\.(pdf|docx|md|txt|text|csv|png|jpe?g|webp)$/i
+const SUPPORTED_DOCUMENT_NAME = /\.(pdf|docx|xlsx|xls|md|txt|text|csv|png|jpe?g|webp)$/i
 
 type CorporateReferencePlan = {
   topic: string
-  pageCount: number
+  contentPageCount: number
   referenceDocumentPath: string
   sourcePlan?: SourceDocumentPlan
   fileName: string
@@ -59,10 +60,14 @@ export function HomePage(): ReactElement {
     }
     const modelConfigId = await ensureModelActive()
     if (!modelConfigId) return
-    const pageCount = resolveRequestedPageCount(request, referencePlan?.pageCount)
     const includeAgenda = shouldIncludeCorporateAgenda({
       brief: request,
       sourcePlan: referencePlan?.sourcePlan
+    })
+    const pageCount = resolveCorporateCreationPageCount({
+      brief: request,
+      contentPageCount: referencePlan?.contentPageCount,
+      includeAgenda
     })
     setCreating(true)
     try {
@@ -143,7 +148,7 @@ export function HomePage(): ReactElement {
       if (!selectedFile) return
       if (!SUPPORTED_DOCUMENT_NAME.test(selectedFile.name)) {
         error('暂不支持此文件', {
-          description: '请选择 PDF、Word、Markdown、TXT、CSV 或常见图片。'
+          description: '请选择 PDF、Word、Excel、Markdown、TXT、CSV 或常见图片。'
         })
         return
       }
@@ -168,17 +173,25 @@ export function HomePage(): ReactElement {
         })
         const referenceFile = result.files[0]
         if (!referenceFile?.path) throw new Error('参考资料解析完成，但未返回可读取的资料文件')
-        const pageCount = clampCorporatePageCount(result.pageCount)
+        const contentPageCount = clampCorporatePageCount(result.pageCount)
+        const includeAgenda = shouldIncludeCorporateAgenda({
+          brief: result.briefText,
+          sourcePlan: result.sourcePlan
+        })
+        const totalPageCount = resolveCorporateDocumentTotalPageCount({
+          contentPageCount,
+          includeAgenda
+        })
         setBrief(result.briefText)
         setReferencePlan({
           topic: result.topic,
-          pageCount,
+          contentPageCount,
           referenceDocumentPath: referenceFile.path,
           sourcePlan: result.sourcePlan,
           fileName: selectedFile.name
         })
         success('参考资料解析完成', {
-          description: `已形成“${result.topic}”的 ${pageCount} 页建议结构，可继续修改要求。`
+          description: `已形成“${result.topic}”的 ${contentPageCount} 个正文页建议，默认生成 ${totalPageCount} 页演示。`
         })
       } catch (parseError) {
         error('参考资料解析失败', {
@@ -268,7 +281,8 @@ export function HomePage(): ReactElement {
                   {referencePlan.fileName}
                 </span>
                 <span className="mt-0.5 block text-[11px] text-[#8c7e73]">
-                  已读取资料 · 建议 {referencePlan.pageCount} 页 · 可继续编辑上方要求
+                  已读取资料 · 建议 {referencePlan.contentPageCount} 个正文页 ·
+                  可继续编辑上方要求
                 </span>
               </span>
               <button
@@ -384,7 +398,7 @@ export function HomePage(): ReactElement {
       <input
         ref={documentInputRef}
         type="file"
-        accept=".pdf,.docx,.md,.txt,.text,.csv,.png,.jpg,.jpeg,.webp"
+        accept=".pdf,.docx,.xlsx,.xls,.md,.txt,.text,.csv,.png,.jpg,.jpeg,.webp"
         className="hidden"
         onChange={(event) => void handleDocumentSelected(event.target.files)}
       />
