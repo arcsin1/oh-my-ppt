@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   collectRuntimeSpecifiers,
+  normalizeArchivePath,
   validateDependencyClosure,
   validateDynamicLoads,
   validateRequiredArchivePaths,
@@ -15,6 +16,13 @@ type Manifest = {
 }
 
 describe('最终安装包运行时验证器', () => {
+  it('将 Windows ASAR 路径统一为 POSIX 路径', () => {
+    expect(normalizeArchivePath('out\\main\\index.js')).toBe('/out/main/index.js')
+    expect(normalizeArchivePath('\\resources\\styles\\anjian-corporate\\style.json')).toBe(
+      '/resources/styles/anjian-corporate/style.json'
+    )
+  })
+
   it('跨 Node 版本接受 node: 协议的 Electron 内建模块', () => {
     const scan = collectRuntimeSpecifiers(
       "import { DatabaseSync } from 'node:sqlite'",

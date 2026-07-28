@@ -50,7 +50,10 @@ export const REQUIRED_ARCHIVE_PATHS = [
   '/resources/styles/anjian-corporate/style.json'
 ]
 
-const normalizeArchivePath = (value) => (value.startsWith('/') ? value : `/${value}`)
+export const normalizeArchivePath = (value) => {
+  const normalized = value.replace(/\\/g, '/')
+  return normalized.startsWith('/') ? normalized : `/${normalized}`
+}
 
 export const packageRootFromSpecifier = (specifier) => {
   if (!specifier || specifier.startsWith('.') || specifier.startsWith('/')) return ''
