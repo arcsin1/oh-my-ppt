@@ -78,6 +78,6 @@ export const shouldIncludeCorporateAgenda = (args: {
   sourcePlan?: SourceDocumentPlan
 }): boolean =>
   resolveCorporateAgendaPreference({
-    brief: args.brief,
+    brief: args.sourcePlan ? `${args.brief}\n需要目录页` : args.brief,
     sourceTitles: args.sourcePlan?.pageSkeleton.map((page) => page.title)
   })

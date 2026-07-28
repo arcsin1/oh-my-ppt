@@ -20,4 +20,16 @@ describe('公司模板生成页型保护', () => {
     expect(source).toContain('Never leave a single CJK character on its own line')
     expect(source).toContain('validateCorporateTemplateBodyPageLayout(html)')
   })
+
+  it('优先使用用户确认计划且不再改写其标题和要点', () => {
+    const source = readSource('src/main/ipc/generation/template-deck-flow.ts')
+    const templateService = readSource('src/main/ipc/templates/template-service.ts')
+    expect(source).toContain('const shouldUseConfirmedPlan = !context.templateRetry')
+    expect(source).toContain('mapConfirmedCorporatePlanToOutlineItems(confirmedPlan)')
+    expect(source).toContain('const groundedPlannedOutlineItems = shouldUseConfirmedPlan')
+    expect(source).toContain("planSource: 'confirmed-user-plan'")
+    expect(source).toContain('contentLength: item.contentOutline.length')
+    expect(templateService).toContain('validateConfirmedCorporatePagePlan')
+    expect(templateService).toContain('confirmedCorporatePagePlan: confirmedPlan')
+  })
 })

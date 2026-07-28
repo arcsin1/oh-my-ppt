@@ -12,10 +12,19 @@ import {
 } from 'lucide-react'
 import { CORPORATE_TEMPLATE_ID } from '@shared/brand.js'
 import type { SourceDocumentPlan } from '@shared/generation'
+import {
+  buildConfirmedCorporatePagePlan,
+  sourcePlanFromConfirmedCorporatePagePlan,
+  updateConfirmedCorporatePagePlanItem,
+  validateConfirmedCorporatePagePlan,
+  type ConfirmedCorporatePagePlan
+} from '@shared/confirmed-corporate-plan'
+import { resolveCorporateTemplatePageRoles } from '@shared/corporate-template'
 import templatePreviewUrl from '@renderer/assets/images/corporate-template-preview.png'
 import { ipc } from '@renderer/lib/ipc'
 import { useModelAction } from '@renderer/hooks/useModelAction'
 import { useTemplateStore, useToastStore } from '@renderer/store'
+import { CorporatePagePlanDialog } from '@renderer/components/session-create/CorporatePagePlanDialog'
 import {
   buildCorporatePrompt,
   clampCorporatePageCount,
@@ -35,6 +44,8 @@ type CorporateReferencePlan = {
   contentPageCount: number
   referenceDocumentPath: string
   sourcePlan?: SourceDocumentPlan
+  confirmedPlan: ConfirmedCorporatePagePlan
+  planConfirmed: boolean
   fileName: string
 }
 
@@ -47,38 +58,70 @@ export function HomePage(): ReactElement {
   const [creating, setCreating] = useState(false)
   const [parsingDocument, setParsingDocument] = useState(false)
   const [referencePlan, setReferencePlan] = useState<CorporateReferencePlan | null>(null)
+  const [pagePlanDialogOpen, setPagePlanDialogOpen] = useState(false)
   const [importingPptx, setImportingPptx] = useState(false)
   const [pptxImportProgress, setPptxImportProgress] = useState<string | null>(null)
   const documentInputRef = useRef<HTMLInputElement | null>(null)
   const pptxInputRef = useRef<HTMLInputElement | null>(null)
 
   const handleCreate = useCallback(async (): Promise<void> => {
-    const request = brief.trim()
+    const confirmedCover = referencePlan?.confirmedPlan.items.find((item) => item.role === 'cover')
+    const request = (confirmedCover?.content || brief).trim()
     if (!request) {
       warning('请输入汇报主题或粘贴提纲')
       return
     }
+    if (referencePlan) {
+      const expectedRoles = resolveCorporateTemplatePageRoles(
+        referencePlan.confirmedPlan.totalPages,
+        referencePlan.confirmedPlan.includeAgenda
+      )
+      const planErrors = validateConfirmedCorporatePagePlan(
+        referencePlan.confirmedPlan,
+        expectedRoles
+      )
+      if (!referencePlan.planConfirmed || planErrors.length > 0) {
+        warning('请先确认逐页生成计划', {
+          description: planErrors[0] || '封面、目录、正文和结束页需在生成前确认。'
+        })
+        setPagePlanDialogOpen(true)
+        return
+      }
+    }
     const modelConfigId = await ensureModelActive()
     if (!modelConfigId) return
-    const includeAgenda = shouldIncludeCorporateAgenda({
-      brief: request,
-      sourcePlan: referencePlan?.sourcePlan
-    })
-    const pageCount = resolveCorporateCreationPageCount({
-      brief: request,
-      contentPageCount: referencePlan?.contentPageCount,
-      includeAgenda
-    })
+    const includeAgenda =
+      referencePlan?.confirmedPlan.includeAgenda ??
+      shouldIncludeCorporateAgenda({
+        brief: request,
+        sourcePlan: referencePlan?.sourcePlan
+      })
+    const pageCount =
+      referencePlan?.confirmedPlan.totalPages ??
+      resolveCorporateCreationPageCount({
+        brief: request,
+        contentPageCount: referencePlan?.contentPageCount,
+        includeAgenda
+      })
+    const confirmedSourcePlan = referencePlan
+      ? sourcePlanFromConfirmedCorporatePagePlan(
+          referencePlan.confirmedPlan,
+          referencePlan.sourcePlan
+        )
+      : undefined
     setCreating(true)
     try {
       const sessionId = await createSessionFromTemplate({
         templateId: CORPORATE_TEMPLATE_ID,
-        title: (referencePlan?.topic || request).replace(/\s+/g, ' ').slice(0, 56),
+        title: (confirmedCover?.title || referencePlan?.topic || request)
+          .replace(/\s+/g, ' ')
+          .slice(0, 56),
         modelConfigId,
         pageCount,
         includeAgenda,
         referenceDocumentPath: referencePlan?.referenceDocumentPath,
-        sourcePlan: referencePlan?.sourcePlan
+        sourcePlan: confirmedSourcePlan || referencePlan?.sourcePlan,
+        confirmedPlan: referencePlan?.confirmedPlan
       })
       success('已创建安居建业演示', {
         description: `正在按公司模板生成 ${pageCount} 页内容。`
@@ -182,16 +225,30 @@ export function HomePage(): ReactElement {
           contentPageCount,
           includeAgenda
         })
-        setBrief(result.briefText)
+        const requirements =
+          result.briefText.trim() ||
+          brief.trim() ||
+          '严格依据上传资料生成，保留可核验事实、数字和专有名词，不补写资料中不存在的内容。'
+        const confirmedPlan = buildConfirmedCorporatePagePlan({
+          topic: result.topic,
+          requirements,
+          sourcePlan: result.sourcePlan,
+          contentPageCount,
+          includeAgenda
+        })
+        setBrief(requirements)
         setReferencePlan({
           topic: result.topic,
           contentPageCount,
           referenceDocumentPath: referenceFile.path,
           sourcePlan: result.sourcePlan,
+          confirmedPlan,
+          planConfirmed: false,
           fileName: selectedFile.name
         })
+        setPagePlanDialogOpen(true)
         success('参考资料解析完成', {
-          description: `已形成“${result.topic}”的 ${contentPageCount} 个正文页建议，默认生成 ${totalPageCount} 页演示。`
+          description: `已形成“${result.topic}”的 ${contentPageCount} 个正文页建议，请确认完整 ${confirmedPlan.totalPages || totalPageCount} 页计划。`
         })
       } catch (parseError) {
         error('参考资料解析失败', {
@@ -203,6 +260,51 @@ export function HomePage(): ReactElement {
     },
     [brief, ensureModelActive, error, success, validateUploadReady]
   )
+
+  const handleConfirmedPlanChange = useCallback((plan: ConfirmedCorporatePagePlan): void => {
+    setReferencePlan((current) => {
+      if (!current) return current
+      return {
+        ...current,
+        confirmedPlan: plan,
+        sourcePlan:
+          sourcePlanFromConfirmedCorporatePagePlan(plan, current.sourcePlan) || current.sourcePlan,
+        planConfirmed: false
+      }
+    })
+  }, [])
+
+  const handleConfirmPagePlan = useCallback((): void => {
+    if (!referencePlan) return
+    const expectedRoles = resolveCorporateTemplatePageRoles(
+      referencePlan.confirmedPlan.totalPages,
+      referencePlan.confirmedPlan.includeAgenda
+    )
+    const planErrors = validateConfirmedCorporatePagePlan(
+      referencePlan.confirmedPlan,
+      expectedRoles
+    )
+    if (planErrors.length > 0) {
+      error('逐页计划尚未完成', { description: planErrors[0] })
+      return
+    }
+    const cover = referencePlan.confirmedPlan.items.find((item) => item.role === 'cover')
+    const syncedSourcePlan = sourcePlanFromConfirmedCorporatePagePlan(
+      referencePlan.confirmedPlan,
+      referencePlan.sourcePlan
+    )
+    setReferencePlan({
+      ...referencePlan,
+      topic: cover?.title || referencePlan.topic,
+      sourcePlan: syncedSourcePlan || referencePlan.sourcePlan,
+      planConfirmed: true
+    })
+    if (cover?.content) setBrief(cover.content)
+    setPagePlanDialogOpen(false)
+    success('逐页生成计划已确认', {
+      description: `将按确认后的 ${referencePlan.confirmedPlan.totalPages} 页结构生成。`
+    })
+  }, [error, referencePlan, success])
 
   const handleImportPptxClick = useCallback(async (): Promise<void> => {
     if (importingPptx) return
@@ -269,7 +371,23 @@ export function HomePage(): ReactElement {
         <div className="mt-7 rounded-xl border border-[#e4dcd0] bg-white p-4 shadow-[0_12px_30px_rgba(76,76,76,0.07)]">
           <textarea
             value={brief}
-            onChange={(event) => setBrief(event.target.value)}
+            onChange={(event) => {
+              const nextBrief = event.target.value
+              setBrief(nextBrief)
+              setReferencePlan((current) =>
+                current
+                  ? {
+                      ...current,
+                      confirmedPlan: updateConfirmedCorporatePagePlanItem(
+                        current.confirmedPlan,
+                        1,
+                        { content: nextBrief }
+                      ),
+                      planConfirmed: false
+                    }
+                  : current
+              )
+            }}
             placeholder="输入汇报主题或粘贴提纲，也可以上传参考资料由 AI 梳理"
             className="h-[112px] w-full resize-none border-0 bg-transparent px-2 py-1 text-[15px] leading-6 text-[#3e3a36] outline-none placeholder:text-[#aaa39a]"
           />
@@ -281,14 +399,24 @@ export function HomePage(): ReactElement {
                   {referencePlan.fileName}
                 </span>
                 <span className="mt-0.5 block text-[11px] text-[#8c7e73]">
-                  已读取资料 · 建议 {referencePlan.contentPageCount} 个正文页 ·
-                  可继续编辑上方要求
+                  已读取资料 · {referencePlan.confirmedPlan.totalPages} 页完整计划 ·
+                  {referencePlan.planConfirmed ? ' 已确认' : ' 待确认'}
                 </span>
               </span>
               <button
                 type="button"
+                onClick={() => setPagePlanDialogOpen(true)}
+                className="shrink-0 rounded-md border border-[#efc8a8] bg-white px-2 py-1 text-[11px] font-medium text-[#a85127] hover:bg-[#fff3e9]"
+              >
+                查看/编辑
+              </button>
+              <button
+                type="button"
                 aria-label="移除参考资料"
-                onClick={() => setReferencePlan(null)}
+                onClick={() => {
+                  setReferencePlan(null)
+                  setPagePlanDialogOpen(false)
+                }}
                 className="rounded p-1 text-[#9a8f86] hover:bg-white hover:text-[#e21b22]"
               >
                 <X className="h-4 w-4" />
@@ -408,6 +536,14 @@ export function HomePage(): ReactElement {
         accept=".pptx"
         className="hidden"
         onChange={(event) => void handlePptxFilesSelected(event.target.files)}
+      />
+      <CorporatePagePlanDialog
+        open={pagePlanDialogOpen}
+        plan={referencePlan?.confirmedPlan || null}
+        fileName={referencePlan?.fileName || '参考资料'}
+        onOpenChange={setPagePlanDialogOpen}
+        onPlanChange={handleConfirmedPlanChange}
+        onConfirm={handleConfirmPagePlan}
       />
     </main>
   )

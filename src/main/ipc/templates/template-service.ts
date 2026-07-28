@@ -47,6 +47,10 @@ import {
   resolveCorporateTemplatePageRoles,
   type CorporateTemplatePageRole
 } from '@shared/corporate-template'
+import {
+  normalizeConfirmedCorporatePagePlan,
+  validateConfirmedCorporatePagePlan
+} from '@shared/confirmed-corporate-plan'
 import { applyTemplateDefaultFonts } from './template-default-fonts'
 
 type CacheValue = { manifest: TemplateManifest; templateDir: string }
@@ -709,6 +713,10 @@ export async function createSessionFromTemplate(
   const referenceDocumentPath =
     typeof record.referenceDocumentPath === 'string' ? record.referenceDocumentPath.trim() : ''
   const sourcePlan = normalizeSourcePlan(record.sourcePlan)
+  const confirmedPlan = normalizeConfirmedCorporatePagePlan(record.confirmedPlan)
+  if (record.confirmedPlan !== undefined && !confirmedPlan) {
+    throw new Error('已确认逐页计划格式无效，请返回首页重新确认。')
+  }
   const includeAgenda = record.includeAgenda === true
 
   const templatesRoot = await ensureTemplatesRoot()
@@ -735,6 +743,15 @@ export async function createSessionFromTemplate(
   const projectDir = path.join(storagePath, sessionId)
   const deckTitle = title || manifest.name || '从模板创建的演示'
   const resolvedPageCount = pageCount || manifest.pageCount || manifest.pages.length
+  if (confirmedPlan) {
+    const expectedRoles = resolveCorporateTemplatePageRoles(resolvedPageCount, includeAgenda)
+    const planErrors = validateConfirmedCorporatePagePlan(confirmedPlan, expectedRoles)
+    if (planErrors.length > 0) {
+      throw new Error(
+        `已确认逐页计划与模板页型不一致，请返回首页重新确认：${planErrors.join('；')}`
+      )
+    }
+  }
   await fs.promises.mkdir(projectDir, { recursive: true })
   await copyDirExcluding(templateDir, projectDir, { exclude: ['manifest.json'] })
   await ctx.ensureSessionAssets(projectDir)
@@ -812,6 +829,7 @@ export async function createSessionFromTemplate(
     templatePageRoles: Object.fromEntries(
       preparedPages.map((page) => [page.pageId, page.templateRole || 'body'])
     ),
+    ...(confirmedPlan ? { confirmedCorporatePagePlan: confirmedPlan } : {}),
     createdFromTemplateAt: Date.now(),
     indexPath,
     projectId

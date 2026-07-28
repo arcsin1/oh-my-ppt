@@ -44,6 +44,48 @@ describe('安居建业首页创建约束', () => {
         brief: '制作10页年度汇报，需要目录页'
       })
     ).toBe(true)
+    expect(
+      shouldIncludeCorporateAgenda({
+        brief: '根据资料生成汇报',
+        sourcePlan: {
+          version: 1,
+          confidence: 'high',
+          pageSkeleton: [
+            {
+              pageNumber: 1,
+              title: '正文',
+              role: 'content',
+              sourceHeading: '## 正文',
+              headingLevel: 2,
+              lineStart: 1,
+              lineEnd: 8,
+              reason: '资料事实'
+            }
+          ]
+        }
+      })
+    ).toBe(true)
+    expect(
+      shouldIncludeCorporateAgenda({
+        brief: '根据资料生成汇报，不要目录页',
+        sourcePlan: {
+          version: 1,
+          confidence: 'high',
+          pageSkeleton: [
+            {
+              pageNumber: 1,
+              title: '正文',
+              role: 'content',
+              sourceHeading: '## 正文',
+              headingLevel: 2,
+              lineStart: 1,
+              lineEnd: 8,
+              reason: '资料事实'
+            }
+          ]
+        }
+      })
+    ).toBe(false)
   })
 
   it('将资料正文页与封面、结束页、可选目录分别计算', () => {

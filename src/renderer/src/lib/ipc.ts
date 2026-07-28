@@ -631,6 +631,7 @@ export const ipc = {
     includeAgenda?: boolean
     referenceDocumentPath?: string
     sourcePlan?: SourceDocumentPlan
+    confirmedPlan?: import('@shared/confirmed-corporate-plan').ConfirmedCorporatePagePlan
   }) =>
     getIpc().invoke('templates:createSession', payload) as Promise<{
       success: true

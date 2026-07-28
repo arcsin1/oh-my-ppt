@@ -4,6 +4,7 @@ import {
   extractImpliedPageCount,
   normalizeGeneratedPlan
 } from '../../../src/main/ipc/io/document-plan-normalizer'
+import { buildRecoverableLocalDocumentPlan } from '../../../src/main/ipc/io/document-plan-fallback'
 
 describe('document parse plan page count normalization', () => {
   it('uses English per-page entries when the model collapses pageCount to one', () => {
@@ -52,5 +53,51 @@ describe('document parse plan page count normalization', () => {
     expect(
       extractImpliedPageCount(['Per-page points:', 'Page 1: A', 'Page 2: B', 'Page 3: C'].join('\n'))
     ).toBe(3)
+  })
+
+  it('uses the deterministic preferred page count after two model underestimates', () => {
+    const modelAttempts = [
+      { topic: 'WorkBuddy 表格数据清洗', pageCount: 1, briefText: '' },
+      { topic: 'WorkBuddy 表格数据清洗工具', pageCount: 1, briefText: '' }
+    ]
+
+    const fallback = buildRecoverableLocalDocumentPlan({
+      lastCandidatePlan: modelAttempts[1],
+      failureMessage: '模型返回 1 个正文页，低于资料合理下限 2 页',
+      fallbackTopic: 'WorkBuddy太神了！表格数据1分钟清洗完，从此告别加班！',
+      existingBrief: '',
+      estimate: {
+        preferredPageCount: 3,
+        minPageCount: 2,
+        maxPageCount: 4,
+        basis: 'density'
+      }
+    })
+
+    expect(modelAttempts).toHaveLength(2)
+    expect(fallback).toMatchObject({
+      plan: {
+        topic: 'WorkBuddy 表格数据清洗工具',
+        pageCount: 3
+      },
+      originalModelPageCount: 1
+    })
+  })
+
+  it('does not locally accept an overlong model plan', () => {
+    expect(
+      buildRecoverableLocalDocumentPlan({
+        lastCandidatePlan: { topic: '议案', pageCount: 7, briefText: '逐页内容' },
+        failureMessage: '模型返回 7 个正文页，超过资料合理上限 5 页',
+        fallbackTopic: '议案',
+        existingBrief: '',
+        estimate: {
+          preferredPageCount: 4,
+          minPageCount: 3,
+          maxPageCount: 5,
+          basis: 'density'
+        }
+      })
+    ).toBeNull()
   })
 })

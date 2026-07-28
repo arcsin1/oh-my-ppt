@@ -42,8 +42,10 @@ import {
 } from './document-outline-scan'
 import {
   buildDocumentPlanPageSkeleton,
+  buildDeterministicDocumentPlanPageSkeleton,
   sanitizeDocumentPlanPageSkeletonContent
 } from './document-plan-page-skeleton'
+import { buildRecoverableLocalDocumentPlan } from './document-plan-fallback'
 
 type PreparedSourceFile = ParsedDocumentPlanResult['files'][number] & {
   originalPath: string
@@ -280,7 +282,7 @@ const prepareSourceFile = async (
       characterCount
     })
   } else if (ext === '.xlsx' || ext === '.xls') {
-    const markdown = convertExcelFileToMarkdown(filePath, path.basename(name, ext))
+    const markdown = await convertExcelFileToMarkdown(filePath, path.basename(name, ext))
     await fs.promises.writeFile(workspacePath, markdown, 'utf-8')
     type = 'markdown'
     characterCount = markdown.length
@@ -1379,7 +1381,12 @@ export function registerDocumentParseHandlers(ctx: IpcContext): void {
       }
       const MAX_ATTEMPTS = 2
       let plan: Pick<ParsedDocumentPlanResult, 'topic' | 'pageCount' | 'briefText'> | null = null
+      let lastCandidatePlan: Pick<
+        ParsedDocumentPlanResult,
+        'topic' | 'pageCount' | 'briefText'
+      > | null = null
       let lastError: unknown = null
+      let localFallbackUsed = false
       const useLightweightSourcePlan =
         sourceFile.type !== 'image' && hasOutlinePageCandidateSkeleton(pageCandidates)
 
@@ -1431,6 +1438,7 @@ export function registerDocumentParseHandlers(ctx: IpcContext): void {
                 pageCount: pageCandidates.length
               })
             : normalizeDocumentPlan(responseText, fallbackPlan)
+          lastCandidatePlan = candidatePlan
           log.info('[documents:parsePlan] normalized candidate plan', {
             attempt,
             pageCount: candidatePlan.pageCount,
@@ -1480,6 +1488,25 @@ export function registerDocumentParseHandlers(ctx: IpcContext): void {
           )
         }
       }
+      if (!plan && sourceFile.type !== 'image' && pageCountEstimate && lastError instanceof Error) {
+        const fallback = buildRecoverableLocalDocumentPlan({
+          lastCandidatePlan,
+          failureMessage: lastError.message,
+          fallbackTopic: fallbackPlan.topic,
+          existingBrief,
+          estimate: pageCountEstimate
+        })
+        if (fallback) {
+          plan = fallback.plan
+          localFallbackUsed = true
+          log.warn('[documents:parsePlan] using deterministic local page plan fallback', {
+            sourceVirtualPath: sourceFile.virtualPath,
+            originalModelPageCount: fallback.originalModelPageCount,
+            targetPageCount: fallback.plan.pageCount,
+            fallbackReason: fallback.fallbackReason
+          })
+        }
+      }
       if (!plan) throw lastError || new Error('文档解析完成，但模型未返回可用解析结果')
       const resultFiles =
         sourceFile.type === 'image'
@@ -1487,11 +1514,19 @@ export function registerDocumentParseHandlers(ctx: IpcContext): void {
           : preparedFiles
 
       const pageSkeletonBase = sanitizeDocumentPlanPageSkeletonContent({
-        pageSkeleton: buildDocumentPlanPageSkeleton({
-          scan: outlineScan,
-          pageCandidates,
-          pageCount: plan.pageCount
-        })
+        pageSkeleton:
+          sourceFile.type === 'image'
+            ? buildDocumentPlanPageSkeleton({
+                scan: outlineScan,
+                pageCandidates,
+                pageCount: plan.pageCount
+              })
+            : buildDeterministicDocumentPlanPageSkeleton({
+                scan: outlineScan,
+                pageCandidates,
+                sourceText: sourceTextForEstimate,
+                pageCount: plan.pageCount
+              })
       })
       const pageSkeleton = await summarizePageSkeletonContentInBatches({
         provider,
@@ -1515,7 +1550,8 @@ export function registerDocumentParseHandlers(ctx: IpcContext): void {
             }
           : undefined
       const resultPlan =
-        useLightweightSourcePlan && pageSkeleton.length > 0
+        (useLightweightSourcePlan || localFallbackUsed || !plan.briefText.trim()) &&
+        pageSkeleton.length > 0
           ? {
               ...plan,
               briefText: formatPageSkeletonBriefText({

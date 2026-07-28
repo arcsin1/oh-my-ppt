@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import log from 'electron-log/main.js'
 import { progressText } from '@shared/progress'
 import { normalizeLayoutIntent, type LayoutIntent } from '@shared/layout-intent'
 import type { IpcContext } from '../context'
@@ -17,6 +18,11 @@ import {
   resolveCorporateTemplatePageRoles,
   type CorporateTemplatePageRole
 } from '@shared/corporate-template'
+import {
+  normalizeConfirmedCorporatePagePlan,
+  validateConfirmedCorporatePagePlan
+} from '@shared/confirmed-corporate-plan'
+import { mapConfirmedCorporatePlanToOutlineItems } from './confirmed-corporate-plan'
 import { sanitizeTemplateOutlineItem } from './template-outline-grounding'
 import {
   normalizeCorporateTemplatePageChrome,
@@ -264,7 +270,29 @@ export async function executeTemplateDeckGeneration(
     (page) => page.templateRole === 'cover' || page.templateRole === 'body'
   )
   const bodyPlanningPageRefs = pageRefs.filter((page) => page.templateRole === 'body')
+  const confirmedPlan = normalizeConfirmedCorporatePagePlan(
+    templateMetadata.confirmedCorporatePagePlan
+  )
+  if (templateMetadata.confirmedCorporatePagePlan !== undefined && !confirmedPlan) {
+    throw new Error('已确认逐页计划格式无效，请返回首页重新确认。')
+  }
+  if (confirmedPlan && !context.templateRetry) {
+    const confirmedPlanErrors = validateConfirmedCorporatePagePlan(
+      confirmedPlan,
+      pageRefs.map((page) => page.templateRole)
+    )
+    if (confirmedPlanErrors.length > 0) {
+      throw new Error(
+        `已确认逐页计划与当前模板页型不一致，请返回首页重新确认：${confirmedPlanErrors.join('；')}`
+      )
+    }
+  }
+  const shouldUseConfirmedPlan = !context.templateRetry && Boolean(confirmedPlan)
+  const confirmedOutlineItems = confirmedPlan
+    ? mapConfirmedCorporatePlanToOutlineItems(confirmedPlan)
+    : []
   const shouldUseSourcePlan =
+    !shouldUseConfirmedPlan &&
     !context.templateRetry &&
     canUseSourcePlanForTemplateBodyPages({
       sourcePlan: context.sourcePlan,
@@ -273,9 +301,11 @@ export async function executeTemplateDeckGeneration(
     })
   const shouldPlanReferenceDocumentOnBodyPages =
     !context.templateRetry && (shouldUseSourcePlan || context.sourceDocumentPaths.length > 0)
-  const planningPageRefs = shouldPlanReferenceDocumentOnBodyPages
-    ? bodyPlanningPageRefs
-    : contentPlanningPageRefs
+  const planningPageRefs = shouldUseConfirmedPlan
+    ? contentPlanningPageRefs
+    : shouldPlanReferenceDocumentOnBodyPages
+      ? bodyPlanningPageRefs
+      : contentPlanningPageRefs
   const plannedOutlineItems = context.templateRetry
     ? contentPlanningPageRefs.map((page) => {
         const snapshot = latestPageSnapshot.find((item) => item.page_id === page.pageId)
@@ -287,34 +317,39 @@ export async function executeTemplateDeckGeneration(
             : undefined
         }
       })
-    : shouldUseSourcePlan && context.sourcePlan
-      ? mapSourcePlanToOutlineItems(context.sourcePlan)
-      : await planDeckWithLLM({
-          provider: context.provider,
-          apiKey: context.apiKey,
-          model: context.model,
-          baseUrl: context.providerBaseUrl,
-          maxTokens: context.maxTokens,
-          modelTimeoutMs: context.modelTimeouts.planning,
-          temperature: PLANNER_TEMPERATURE,
-          styleId: context.styleId,
-          totalPages: planningPageRefs.length,
-          appLocale: context.appLocale,
-          topic: context.topic,
-          userMessage: context.userMessage,
-          sourceDocumentPaths: context.sourceDocumentPaths,
-          emit: (chunk) => emitDeckChunk(chunk),
-          runId: context.runId,
-          signal: context.entry.abortController.signal
-        })
+    : shouldUseConfirmedPlan
+      ? planningPageRefs.map((page) => confirmedOutlineItems[page.pageNumber - 1])
+      : shouldUseSourcePlan && context.sourcePlan
+        ? mapSourcePlanToOutlineItems(context.sourcePlan)
+        : await planDeckWithLLM({
+            provider: context.provider,
+            apiKey: context.apiKey,
+            model: context.model,
+            baseUrl: context.providerBaseUrl,
+            maxTokens: context.maxTokens,
+            modelTimeoutMs: context.modelTimeouts.planning,
+            temperature: PLANNER_TEMPERATURE,
+            styleId: context.styleId,
+            totalPages: planningPageRefs.length,
+            appLocale: context.appLocale,
+            topic: context.topic,
+            userMessage: context.userMessage,
+            sourceDocumentPaths: context.sourceDocumentPaths,
+            emit: (chunk) => emitDeckChunk(chunk),
+            runId: context.runId,
+            signal: context.entry.abortController.signal
+          })
 
-  const groundedPlannedOutlineItems = plannedOutlineItems.map((item) =>
-    sanitizeTemplateOutlineItem(item, {
-      userMessage: context.userMessage,
-      hasSourceDocuments:
-        context.sourceDocumentPaths.length > 0 || Boolean(context.sourcePlan?.pageSkeleton.length)
-    })
-  )
+  const groundedPlannedOutlineItems = shouldUseConfirmedPlan
+    ? plannedOutlineItems
+    : plannedOutlineItems.map((item) =>
+        sanitizeTemplateOutlineItem(item, {
+          userMessage: context.userMessage,
+          hasSourceDocuments:
+            context.sourceDocumentPaths.length > 0 ||
+            Boolean(context.sourcePlan?.pageSkeleton.length)
+        })
+      )
   const plannedByPageId = new Map(
     planningPageRefs.map((page, index) => [page.pageId, groundedPlannedOutlineItems[index]])
   )
@@ -336,7 +371,11 @@ export async function executeTemplateDeckGeneration(
         layoutIntent: 'summary' as const
       }
     }
-    if (page.templateRole === 'cover' && shouldPlanReferenceDocumentOnBodyPages) {
+    if (
+      page.templateRole === 'cover' &&
+      shouldPlanReferenceDocumentOnBodyPages &&
+      !shouldUseConfirmedPlan
+    ) {
       return {
         title: context.topic,
         contentOutline: '',
@@ -350,6 +389,16 @@ export async function executeTemplateDeckGeneration(
       layoutIntent: page.templateRole === 'cover' ? ('cover' as const) : planned?.layoutIntent
     }
   })
+  if (shouldUseConfirmedPlan) {
+    log.info('[generate:template] resolved page plan', {
+      planSource: 'confirmed-user-plan',
+      pages: outlineItems.map((item, index) => ({
+        pageNumber: index + 1,
+        title: item.title,
+        contentLength: item.contentOutline.length
+      }))
+    })
+  }
   const outlineTitles = outlineItems.map((item) => item.title)
   const existingSessionPages = await db.listSessionPages(context.sessionId, {
     includeDeleted: true

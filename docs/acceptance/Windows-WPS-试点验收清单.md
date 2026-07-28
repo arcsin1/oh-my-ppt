@@ -1,6 +1,6 @@
 # 安居建业 PPT 助手 Windows / WPS 试点验收清单
 
-> 适用版本：v1.0.4 Windows x64 内部候选版
+> 适用版本：v1.0.5 Windows x64 内部候选版
 > 验收状态：待在公司 Windows 电脑和正式 WPS 版本上执行
 > Windows 版本：__________
 > WPS 版本：__________
@@ -28,20 +28,20 @@ pnpm exec tsc --noEmit -p tsconfig.node.json --composite false
 pnpm exec tsc --noEmit -p tsconfig.web.json --composite false
 pnpm exec electron-vite build
 pnpm exec electron-builder --win --x64 --dir
-node scripts/verify-packaged-runtime.mjs --expected-version 1.0.4
+node scripts/verify-packaged-runtime.mjs --expected-version 1.0.5
 pnpm exec electron-builder --win nsis --x64
 ```
 
 预期安装包名称：
 
 ```text
-AnjuJianye-PPT-Assistant-1.0.4-x64-setup.exe
+AnjuJianye-PPT-Assistant-1.0.5-x64-setup.exe
 ```
 
 试点版允许未签名，但分发前必须生成 SHA-256：
 
 ```powershell
-Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.4-x64-setup.exe -Algorithm SHA256
+Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.5-x64-setup.exe -Algorithm SHA256
 ```
 
 分发通知必须同时写明版本、唯一内部下载位置和 SHA-256。员工只在三者一致时安装。
@@ -55,7 +55,7 @@ Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.4-x64-setup.exe -Algorithm SHA256
 
 ## 3. 安装、升级和卸载
 
-- [ ] 已先卸载 v1.0.3，并确认旧应用安装目录已清除。
+- [ ] 已先卸载 v1.0.4，并确认旧应用安装目录已清除。
 - [ ] 卸载旧版后，员工自己选择的项目目录和项目文件仍存在。
 - [ ] 安装程序显示“安居建业PPT助手”和公司图标。
 - [ ] 可安装到含中文的自定义目录并正常完成安装。
@@ -72,6 +72,8 @@ Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.4-x64-setup.exe -Algorithm SHA256
 - [ ] 从 DOCX 创建演示，正文和图片可读取。
 - [ ] 在对话或思考流程中附加 DOCX，资料可进入上下文。
 - [ ] 在首页上传 XLSX/XLS 参考资料，所有非空工作表按原顺序读取，中文名称、文本、数字和日期可见。
+- [ ] 在首页上传带长中文文件名、`【】` 和括号的 XLSX/XLS，能够读取且不出现 `Cannot access file`。
+- [ ] Excel 文件不存在、被占用/无权限、损坏/加密时分别显示明确中文原因。
 - [ ] 空工作簿显示明确中文错误，不生成空资料。
 - [ ] 导入 CSV 图表数据，字段和数值可读取。
 - [ ] 读取文本型 PDF，可提取页面文字并形成提纲。
@@ -113,9 +115,13 @@ Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.4-x64-setup.exe -Algorithm SHA256
 - [ ] 文本型 PDF 能提取页面文字并形成提纲。
 - [ ] 扫描型 PDF 在员工选择具备视觉能力的模型时能逐页识别。
 - [ ] 原两份 PDF 均不再出现 `Invalid factory url`。
+- [ ] 对正文密集但模型连续返回 1 页的 PDF/DOCX，解析在两次尝试后使用本地页数下限和连续来源范围，不再直接失败。
 - [ ] 原两份 DOCX 的建议正文页数均大于 1，每个正文页包含 2–4 条资料要点。
 - [ ] 默认总页数等于正文页加封面、结束页和明确要求的目录页；用户明确填写总页数时仍按用户数字。
 - [ ] 生成后的资料正文只进入正文模板页，封面使用资料主题，目录来自正文标题，结束页保持原样。
+- [ ] 上传资料解析后，生成前显示完整逐页计划；封面和正文可编辑，目录随正文标题同步，结束页锁定。
+- [ ] 未确认或页型不匹配的逐页计划不能开始生成；确认后的标题和事实要点原样进入生成规划。
+- [ ] 日志记录最终页计划来源、页码、标题和内容长度，不记录资料正文。
 - [ ] 日志中的正文生成上下文包含参考资料路径或逐页来源范围。
 - [ ] 模糊内容被标为无法辨认，没有补写不存在的数字。
 - [ ] PDF 超过 10MB、超过 200 页或扫描页超过 50 页时给出明确限制。

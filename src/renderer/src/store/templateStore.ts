@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { ipc, type TemplateListItem } from '@renderer/lib/ipc'
+import type { ConfirmedCorporatePagePlan } from '@shared/confirmed-corporate-plan'
 import type { SourceDocumentPlan } from '@shared/generation'
 
 interface TemplateStore {
@@ -21,6 +22,7 @@ interface TemplateStore {
     includeAgenda?: boolean
     referenceDocumentPath?: string
     sourcePlan?: SourceDocumentPlan
+    confirmedPlan?: ConfirmedCorporatePagePlan
   }) => Promise<string>
   createEditableSessionFromTemplate: (payload: {
     templateId: string

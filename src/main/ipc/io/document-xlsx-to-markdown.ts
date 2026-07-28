@@ -1,3 +1,4 @@
+import fs from 'fs/promises'
 import path from 'path'
 import * as XLSX from 'xlsx'
 
@@ -64,11 +65,43 @@ export const convertWorkbookToMarkdown = (workbook: XLSX.WorkBook, title: string
   return [`# ${title}`, '', ...sections].join('\n').trim()
 }
 
-export const convertExcelFileToMarkdown = (filePath: string, title?: string): string => {
-  const workbook = XLSX.readFile(filePath, {
-    cellDates: true,
-    raw: false
-  })
+const readErrorCode = (error: unknown): string =>
+  error && typeof error === 'object' && 'code' in error
+    ? String((error as { code?: unknown }).code || '').toUpperCase()
+    : ''
+
+export const describeExcelReadError = (filePath: string, error: unknown): string => {
+  const fileName = path.basename(filePath) || 'Excel 文件'
+  const code = readErrorCode(error)
+  if (code === 'ENOENT') return `Excel 文件不存在或已移动：${fileName}`
+  if (code === 'EACCES' || code === 'EPERM' || code === 'EBUSY') {
+    return `无法读取 Excel 文件，请关闭占用该文件的程序并检查访问权限：${fileName}`
+  }
+  return `Excel 文件可能已损坏、加密或格式不受支持：${fileName}`
+}
+
+export const convertExcelFileToMarkdown = async (
+  filePath: string,
+  title?: string
+): Promise<string> => {
+  let fileBuffer: Buffer
+  try {
+    fileBuffer = await fs.readFile(filePath)
+  } catch (error) {
+    throw new Error(describeExcelReadError(filePath, error))
+  }
+
+  let workbook: XLSX.WorkBook
+  try {
+    workbook = XLSX.read(fileBuffer, {
+      type: 'buffer',
+      cellDates: true,
+      raw: false
+    })
+  } catch (error) {
+    throw new Error(describeExcelReadError(filePath, error))
+  }
+
   return convertWorkbookToMarkdown(
     workbook,
     title?.trim() || path.basename(filePath, path.extname(filePath)) || 'Excel 参考资料'
