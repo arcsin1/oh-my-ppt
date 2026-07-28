@@ -1,6 +1,5 @@
 import { ipcMain } from 'electron'
 import fs from 'fs'
-import { createRequire } from 'module'
 import path from 'path'
 import log from 'electron-log/main.js'
 import { nanoid } from 'nanoid'
@@ -23,6 +22,7 @@ import { resolveGlobalModelTimeouts, resolveModelConfigForTask } from '../config
 import { assertImageWasRead, isImageUnsupportedError } from '../../utils/style-image-import'
 import { invokeVisionModelText } from '../../utils/vision-model'
 import { convertPdfToMarkdown } from '../../utils/pdf-reference'
+import { convertDocxToMarkdown } from '../../utils/docx-to-markdown'
 import { normalizeGeneratedPlan as normalizeDocumentPlan } from './document-plan-normalizer'
 import { convertCsvTextToMarkdown } from './document-csv-to-markdown'
 import {
@@ -92,14 +92,6 @@ type PageSummaryTarget = {
   passage: string
 }
 
-const require = createRequire(import.meta.url)
-const mammoth = require('mammoth') as typeof import('mammoth')
-const TurndownService = require('turndown') as new (options?: Record<string, unknown>) => {
-  use: (plugin: unknown) => void
-  turndown: (html: string) => string
-}
-const { gfm } = require('@joplin/turndown-plugin-gfm') as { gfm: unknown }
-
 const stripControlChars = (value: string): string =>
   value.replace(NULL_CHAR_PATTERN, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
 
@@ -157,34 +149,6 @@ const assertPlanLanguageMatchesSource = async (args: {
       '源文档主要是中文，但 briefText 使用了英文结构标签。请用中文结构标签返回，例如：演示目标、受众/场景、核心观点、建议大纲、每页要点、必须保留的事实/指标/术语、风格/表达要求。不要使用 Presentation goal、Audience/context、Core argument、Recommended outline、Per-page points、Page 1 等英文模板标签。'
     )
   }
-}
-
-const stripInlineImagesFromHtml = (html: string): string =>
-  html.replace(/<img\b[^>]*>/gi, (tag) => {
-    const alt = tag.match(/\balt=(["'])(.*?)\1/i)?.[2]?.trim()
-    return alt ? `<p>[图片：${alt}]</p>` : ''
-  })
-
-const stripMarkdownDataImages = (markdown: string): string =>
-  markdown.replace(/!\[[^\]]*]\(data:[^)]+\)/gi, '').replace(/!\[[^\]]*]\(\s*\)/g, '')
-
-const convertDocxToMarkdown = async (filePath: string): Promise<string> => {
-  const result = await mammoth.convertToHtml({ path: filePath })
-  if (result.messages.length > 0) {
-    log.info('[documents:parsePlan] mammoth warnings', {
-      filePath,
-      messages: result.messages.map((message) => message.message)
-    })
-  }
-  const turndown = new TurndownService({
-    headingStyle: 'atx',
-    bulletListMarker: '-',
-    codeBlockStyle: 'fenced'
-  })
-  turndown.use(gfm)
-  return compactText(
-    stripMarkdownDataImages(turndown.turndown(stripInlineImagesFromHtml(result.value)))
-  )
 }
 
 const buildPdfPageOcrPrompt = (args: {
@@ -1214,7 +1178,9 @@ export function registerDocumentParseHandlers(ctx: IpcContext): void {
 
       const docsDir = path.join(await resolveStoragePath(), 'docs')
       await fs.promises.mkdir(docsDir, { recursive: true })
-      const preparedFiles = await Promise.all(files.map((file) => prepareSourceFile(file, docsDir)))
+      const preparedFiles = await Promise.all(
+        files.map((file) => prepareSourceFile(file, docsDir))
+      )
 
       return {
         files: preparedFiles.map(({ name, type, characterCount, workspacePath }) => ({

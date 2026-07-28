@@ -1,18 +1,27 @@
 import fs from 'fs'
 import path from 'path'
 import { createRequire } from 'module'
+import { pathToFileURL } from 'url'
 import { createCanvas, type Canvas } from '@napi-rs/canvas'
-import { getDocument, type PDFPageProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
+import {
+  getDocument,
+  GlobalWorkerOptions,
+  type PDFPageProxy
+} from 'pdfjs-dist/legacy/build/pdf.mjs'
 
 const MAX_PDF_TEXT_PAGES = 200
 const MAX_PDF_OCR_PAGES = 50
 const MIN_LOCAL_TEXT_CHARS = 12
 const OCR_RENDER_WIDTH = 1600
 const require = createRequire(import.meta.url)
+const PDFJS_PACKAGE_DIR = path.dirname(require.resolve('pdfjs-dist/package.json'))
 const PDFJS_STANDARD_FONT_DATA_URL = `${path.join(
-  path.dirname(require.resolve('pdfjs-dist/package.json')),
+  PDFJS_PACKAGE_DIR,
   'standard_fonts'
 )}${path.sep}`
+GlobalWorkerOptions.workerSrc = pathToFileURL(
+  path.join(PDFJS_PACKAGE_DIR, 'legacy', 'build', 'pdf.worker.mjs')
+).href
 
 type CanvasAndContext = {
   canvas: Canvas

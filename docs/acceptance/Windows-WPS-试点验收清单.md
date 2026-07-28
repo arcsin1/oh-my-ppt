@@ -1,10 +1,13 @@
 # 安居建业 PPT 助手 Windows / WPS 试点验收清单
 
-> 适用版本：v1.0 Windows x64 内部试用版  
-> 验收状态：待在公司 Windows 电脑和正式 WPS 版本上执行  
-> WPS 版本：__________  
-> PowerPoint 版本（如有）：__________  
-> 验收人：__________  
+> 适用版本：v1.0.3 Windows x64 内部候选版
+> 验收状态：待在公司 Windows 电脑和正式 WPS 版本上执行
+> Windows 版本：__________
+> WPS 版本：__________
+> PowerPoint 版本（如有）：__________
+> 安装路径：__________
+> 安装包 SHA-256：__________
+> 验收人：__________
 > 验收日期：__________
 
 ## 1. 验收前必须准备
@@ -20,21 +23,25 @@
 
 ```powershell
 pnpm install --frozen-lockfile
-pnpm typecheck
-pnpm test
-pnpm build:win
+pnpm exec vitest run
+pnpm exec tsc --noEmit -p tsconfig.node.json --composite false
+pnpm exec tsc --noEmit -p tsconfig.web.json --composite false
+pnpm exec electron-vite build
+pnpm exec electron-builder --win --x64 --dir
+node scripts/verify-packaged-runtime.mjs --expected-version 1.0.3
+pnpm exec electron-builder --win nsis --x64
 ```
 
 预期安装包名称：
 
 ```text
-AnjuJianye-PPT-Assistant-1.0.0-x64-setup.exe
+AnjuJianye-PPT-Assistant-1.0.3-x64-setup.exe
 ```
 
 试点版允许未签名，但分发前必须生成 SHA-256：
 
 ```powershell
-Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.0-x64-setup.exe -Algorithm SHA256
+Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.3-x64-setup.exe -Algorithm SHA256
 ```
 
 分发通知必须同时写明版本、唯一内部下载位置和 SHA-256。员工只在三者一致时安装。
@@ -48,14 +55,27 @@ Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.0-x64-setup.exe -Algorithm SHA256
 
 ## 3. 安装、升级和卸载
 
+- [ ] 已先卸载 v1.0.2，并确认旧应用安装目录已清除。
+- [ ] 卸载旧版后，员工自己选择的项目目录和项目文件仍存在。
 - [ ] 安装程序显示“安居建业PPT助手”和公司图标。
-- [ ] 可选择安装目录并正常完成安装。
+- [ ] 可安装到含中文的自定义目录并正常完成安装。
 - [ ] 桌面、开始菜单和卸载列表名称正确。
 - [ ] 首次启动不出现 Oh My PPT、模板市场或公共更新提示。
-- [ ] 覆盖安装或升级后，本地项目目录仍存在。
 - [ ] 卸载应用后，员工自己选择的项目目录不被删除。
 
-## 4. 首次配置与安全
+## 4. 启动与 v1.0.2 缺包回归
+
+- [ ] 首次启动 30 秒内显示首页，未出现 “A JavaScript error occurred in the main process”。
+- [ ] 关闭应用后再次启动，第二次仍在 30 秒内显示首页。
+- [ ] 两次启动日志都包含 `[app] logger initialized`、`[app] database initialized` 和 `[app] main window ready-to-show`。
+- [ ] 日志中没有 `Cannot find module`、`Uncaught Exception` 或主进程崩溃。
+- [ ] 从 DOCX 创建演示，正文和图片可读取。
+- [ ] 在对话或思考流程中附加 DOCX，资料可进入上下文。
+- [ ] 导入 XLSX 图表数据，字段和数值可读取。
+- [ ] 导入 CSV 图表数据，字段和数值可读取。
+- [ ] 读取文本型 PDF，可提取页面文字并形成提纲。
+
+## 5. 首次配置与安全
 
 - [ ] 软件启动后可先浏览、导入旧 PPTX、编辑和导出，不强制弹出 AI 配置。
 - [ ] 第一次执行生成、AI 修改或扫描件识别时，未配置状态会引导员工进入设置。
@@ -69,7 +89,7 @@ Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.0-x64-setup.exe -Algorithm SHA256
 - [ ] 网页会员账号不会被误认为开发者 API Key。
 - [ ] AI 生图默认关闭。
 
-## 5. 品牌与公司模板
+## 6. 品牌与公司模板
 
 - [ ] 首页、侧栏、编辑器、设置、安装图标均为安居建业风格。
 - [ ] 官网 Logo 与应用 Logo 一致。
@@ -77,8 +97,10 @@ Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.0-x64-setup.exe -Algorithm SHA256
 - [ ] 不出现模板选择、风格选择、字体管理或语言切换。
 - [ ] 新演示保留公司 Logo、红橙黄波浪、页码和“内部文件 请勿外传”。
 - [ ] 封面、目录、章节、内容和结束页能按内容正常复用。
+- [ ] 固定四页测试演示包含封面、目录、正文和原样结束页。
+- [ ] 四页测试演示的楷体、Logo、波浪、页脚、标题边界和加载动画正确。
 
-## 6. 创建与参考资料
+## 7. 创建与参考资料
 
 - [ ] 输入主题可按公司模板生成。
 - [ ] 输入“制作 1 页……”时生成计划为 1 页。
@@ -90,7 +112,7 @@ Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.0-x64-setup.exe -Algorithm SHA256
 - [ ] 模糊内容被标为无法辨认，没有补写不存在的数字。
 - [ ] PDF 超过 10MB、超过 200 页或扫描页超过 50 页时给出明确限制。
 
-## 7. 旧 PPTX 导入
+## 8. 旧 PPTX 导入
 
 - [ ] 导入前说明“保留原有颜色和版式”。
 - [ ] 导入后不自动套用安居建业模板或公司配色。
@@ -98,7 +120,7 @@ Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.0-x64-setup.exe -Algorithm SHA256
 - [ ] 原 PPTX 文件不被覆盖；导出时生成新文件。
 - [ ] 不支持的宏、嵌入对象或复杂动画给出兼容性说明。
 
-## 8. 编辑、历史和演讲稿
+## 9. 编辑、历史和演讲稿
 
 - [ ] 页面可增加、复制、删除、重命名和排序。
 - [ ] 文字、图片、基础图形、表格和图表可常规编辑。
@@ -107,19 +129,35 @@ Get-FileHash .\AnjuJianye-PPT-Assistant-1.0.0-x64-setup.exe -Algorithm SHA256
 - [ ] 中文演讲稿可以生成、编辑和重新生成。
 - [ ] 主要修改有历史记录，撤销和恢复后页面文件与列表一致。
 
-## 9. PPTX / PDF / PNG 导出
+## 10. PPTX / PDF / PNG 导出
 
 - [ ] 导出菜单只包含 PPTX、PDF 和 PNG。
 - [ ] 长图、MP4、HTML、演示包、会话包和提纲文件没有入口。
 - [ ] PPTX 在公司 WPS 中能打开，页面数量、顺序和画布正确。
 - [ ] PPTX 的常规文字、图片和基础图形可编辑。
+- [ ] 在 WPS 中修改一处文字并另存后，重新打开仍可编辑且版式正确。
 - [ ] PDF 与软件预览的视觉结果基本一致。
 - [ ] PNG 每页输出一张图，文件名顺序正确。
 - [ ] 导出动画时提示 WPS / PowerPoint 兼容性。
 - [ ] 支持的动画可播放；不支持时所有最终内容仍可见。
 - [ ] 不存在因动画初始隐藏而丢失正文或关键结论的页面。
 
-## 10. 通过标准
+## 11. 证据记录
+
+- 安装包文件名：__________
+- 安装包字节数：__________
+- 安装包 SHA-256：__________
+- 首次启动时间：__________
+- 第二次启动时间：__________
+- 应用日志路径：__________
+- 固定四页测试演示路径：__________
+- 导出 PPTX / PDF / PNG 路径：__________
+- WPS 修改另存文件路径：__________
+- 截图路径：__________
+
+截图、日志、测试材料和本清单中不得记录完整 API Key。若发生 P0，保留错误原文、发生时间、复现步骤和原始日志，不继续发布。
+
+## 12. 通过标准
 
 P0 项全部通过，且没有以下阻断问题，才可向试点员工分发：
 

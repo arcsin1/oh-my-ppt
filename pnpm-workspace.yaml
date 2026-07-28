@@ -1,0 +1,25 @@
+packages:
+  - .
+
+nodeLinker: hoisted
+
+supportedArchitectures:
+  os:
+    - current
+    - darwin
+    - win32
+  cpu:
+    - current
+    - arm64
+    - x64
+
+onlyBuiltDependencies:
+  - '@google/genai'
+  - electron
+  - electron-winstaller
+  - esbuild
+  - protobufjs
+
+overrides:
+  '@langchain/core': ^1.1.47
+  '@langchain/langgraph': ^1.3.0
