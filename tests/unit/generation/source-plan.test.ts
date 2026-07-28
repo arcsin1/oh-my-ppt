@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   canUseSourcePlanDirectly,
+  canUseSourcePlanForTemplateBodyPages,
   mapSourcePlanToOutlineItems,
   sourcePlanFromSkeletonRows
 } from '../../../src/main/ipc/generation/source-plan'
@@ -58,6 +59,41 @@ describe('source page skeleton planning', () => {
     expect(canUseSourcePlanDirectly({ sourcePlan, totalPages: 1, userMessage: '按文档生成' })).toBe(true)
     expect(canUseSourcePlanDirectly({ sourcePlan, totalPages: 2, userMessage: '按文档生成' })).toBe(false)
     expect(canUseSourcePlanDirectly({ sourcePlan, totalPages: 1, userMessage: '压缩成 1 页' })).toBe(false)
+  })
+
+  it('matches a source plan against template body pages instead of cover and closing pages', () => {
+    const sourcePlan = sourcePlanFromSkeletonRows([
+      {
+        page_number: 1,
+        title: 'Market',
+        role: 'content',
+        source_document_path: '/docs/source.md',
+        source_heading: '## Market',
+        heading_level: 2,
+        line_start: 3,
+        line_end: 20,
+        confidence: 'high'
+      },
+      {
+        page_number: 2,
+        title: 'Delivery',
+        role: 'content',
+        source_document_path: '/docs/source.md',
+        source_heading: '## Delivery',
+        heading_level: 2,
+        line_start: 21,
+        line_end: 40,
+        confidence: 'high'
+      }
+    ])
+
+    expect(
+      canUseSourcePlanForTemplateBodyPages({
+        sourcePlan,
+        templateRoles: ['cover', 'body', 'body', 'closing'],
+        userMessage: '按文档生成'
+      })
+    ).toBe(true)
   })
 
   it('maps skeleton rows into range-bound outline items', () => {

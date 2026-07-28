@@ -50,7 +50,13 @@ export const REQUIRED_ARCHIVE_PATHS = [
   '/resources/styles/anjian-corporate/style.json'
 ]
 
-const normalizeArchivePath = (value) => (value.startsWith('/') ? value : `/${value}`)
+export const normalizeArchivePath = (value) => {
+  const normalized = value.replace(/\\/g, '/')
+  return normalized.startsWith('/') ? normalized : `/${normalized}`
+}
+
+export const toNativeArchiveEntryPath = (archiveFilePath, separator = path.sep) =>
+  archiveFilePath.replace(/^[/\\]+/, '').replaceAll('/', separator)
 
 export const packageRootFromSpecifier = (specifier) => {
   if (!specifier || specifier.startsWith('.') || specifier.startsWith('/')) return ''
@@ -337,7 +343,7 @@ export const validateRequiredArchivePaths = (
     .map((requiredPath) => `missing required packaged runtime file ${requiredPath}`)
 
 const readArchiveText = (archivePath, archiveFilePath) =>
-  extractFile(archivePath, archiveFilePath.replace(/^\//, '')).toString('utf8')
+  extractFile(archivePath, toNativeArchiveEntryPath(archiveFilePath)).toString('utf8')
 
 export const verifyPackagedRuntime = ({
   archivePath,

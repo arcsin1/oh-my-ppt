@@ -1,4 +1,5 @@
 import type { OutlineItem } from '../../tools/types'
+import type { CorporateTemplatePageRole } from '../../../shared/corporate-template'
 import {
   SECTION_AGENDA_OUTLINE_MARKER,
   isInternalDocumentPlanPageReason,
@@ -135,6 +136,17 @@ export const canUseSourcePlanDirectly = (args: {
     args.sourcePlan.pageSkeleton.length === args.totalPages &&
     !userMessageRequestsOutlineRestructure(args.userMessage)
   )
+
+export const canUseSourcePlanForTemplateBodyPages = (args: {
+  sourcePlan: SourceDocumentPlan | null | undefined
+  templateRoles: CorporateTemplatePageRole[]
+  userMessage: string
+}): boolean =>
+  canUseSourcePlanDirectly({
+    sourcePlan: args.sourcePlan,
+    totalPages: args.templateRoles.filter((role) => role === 'body').length,
+    userMessage: args.userMessage
+  })
 
 const inferLayoutIntentFromSkeletonTitle = (
   item: SourceDocumentPlan['pageSkeleton'][number]

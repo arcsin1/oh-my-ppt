@@ -4,7 +4,10 @@ import path from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { PNG } from 'pngjs'
-import { convertPdfToMarkdown } from '../../../src/main/utils/pdf-reference'
+import {
+  convertPdfToMarkdown,
+  normalizePdfJsFactoryDirectory
+} from '../../../src/main/utils/pdf-reference'
 
 const tempDirs: string[] = []
 
@@ -21,6 +24,16 @@ afterEach(async () => {
 })
 
 describe('PDF reference conversion', () => {
+  it('normalizes Windows PDF.js factory directories to a trailing forward slash', () => {
+    expect(
+      normalizePdfJsFactoryDirectory(
+        'D:\\APP\\安居建业PPT助手\\AnjuJianyePPT\\resources\\app.asar\\node_modules\\pdfjs-dist\\standard_fonts\\'
+      )
+    ).toBe(
+      'D:/APP/安居建业PPT助手/AnjuJianyePPT/resources/app.asar/node_modules/pdfjs-dist/standard_fonts/'
+    )
+  })
+
   it('extracts text PDF pages locally without calling OCR', async () => {
     const dir = await makeTempDir()
     const filePath = path.join(dir, 'text.pdf')

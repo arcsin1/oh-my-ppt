@@ -12,13 +12,16 @@ import type { DeckContext, EmitAssistantFn } from './types'
 import { resolveDeckContext } from './deck-flow'
 import { parseJsonObject } from '../utils'
 import { resolveTemplateDesignContract } from '../templates/template-design-contract'
-import { canUseSourcePlanDirectly, mapSourcePlanToOutlineItems } from './source-plan'
+import { canUseSourcePlanForTemplateBodyPages, mapSourcePlanToOutlineItems } from './source-plan'
 import {
   resolveCorporateTemplatePageRoles,
   type CorporateTemplatePageRole
 } from '@shared/corporate-template'
 import { sanitizeTemplateOutlineItem } from './template-outline-grounding'
-import { normalizeCorporateTemplatePageChrome } from './template-page-chrome'
+import {
+  normalizeCorporateTemplatePageChrome,
+  validateCorporateTemplateBodyPageLayout
+} from './template-page-chrome'
 
 type TemplateSeedPage = {
   id: string
@@ -77,19 +80,18 @@ export async function resolveTemplateDeckContext(
     sortedSeedPages.length,
     sessionMetadata.includeAgenda === true
   )
-  const allSeedPages = sortedSeedPages
-    .map((page) => ({
-      id: page.id,
-      pageNumber: page.page_number,
-      pageId: page.file_slug,
-      title: page.title || `第 ${page.page_number} 页`,
-      htmlPath: page.html_path,
-      status: page.status,
-      templateRole: normalizeTemplateRole(
-        persistedRoleMap[page.file_slug],
-        fallbackRolePlan[page.page_number - 1] || 'body'
-      )
-    }))
+  const allSeedPages = sortedSeedPages.map((page) => ({
+    id: page.id,
+    pageNumber: page.page_number,
+    pageId: page.file_slug,
+    title: page.title || `第 ${page.page_number} 页`,
+    htmlPath: page.html_path,
+    status: page.status,
+    templateRole: normalizeTemplateRole(
+      persistedRoleMap[page.file_slug],
+      fallbackRolePlan[page.page_number - 1] || 'body'
+    )
+  }))
   if (allSeedPages.length === 0) {
     throw new Error('模板会话缺少已清洗的页面基底')
   }
@@ -175,7 +177,9 @@ export async function executeTemplateDeckGeneration(
     '- 用户 brief 是无附件场景下的事实边界；未提供的部门、日期、姓名、数据、状态、反馈、决策和结论必须省略，不能补示例值或把验收目标写成已达成结果。',
     '- 页面角色只有四类：封面、可选目录、正文、固定结束页。所有非封面、非目录、非结束页必须使用正文页模板，不使用章节分隔页。',
     '- 固定结束页不参与模型生成，必须保持原模板的文字、图片、位置和样式完全不变。',
-    '- 新增/复用的中间页统一沿用正文页模板，不得自行改用其他模板页型。'
+    '- 新增/复用的中间页统一沿用正文页模板，不得自行改用其他模板页型。',
+    '- 公司正文页左上角约 347×128px 的橙色区域只是一块顶部标题区，不是贯穿整页的侧栏；正文从顶部约 150px 以下开始时必须使用全页宽度，并让正文视觉中心与 1600px 画布中心基本重合。',
+    '- 左上角主标题和副标题各自保持单行，不得把一个汉字孤立在单独一行；标题较长时优先提炼短标题或缩小字号，完整长标题放到右侧结论区。'
   ].join('\n')
   const templateSinglePagePromptAddendum = [
     'Template design system for this slide:',
@@ -185,6 +189,8 @@ export async function executeTemplateDeckGeneration(
     '- Keep those template assets and their local paths in the written page unless the user explicitly asks to remove them; text/data changes must not strip the visual shell.',
     '- Keep color language, typography scale, spacing rhythm, component shapes, and chart/table styling unless a local adjustment is needed to avoid overlap.',
     '- Keep every title and visible text block fully inside the 1600x900 canvas. Do not use negative top offsets or clipping; preserve a visible top safe area and verify the first line is fully readable.',
+    '- On a corporate body slide, the approximately 347x128 orange block at the top-left is a header title block only, never a full-height sidebar. Below y=150, use the full slide width with balanced left/right margins; keep the body visual center within 80px of x=800.',
+    '- Keep each top-left header title row on one line. Never leave a single CJK character on its own line. Shorten the header label or reduce its font size when needed, and place the complete long-form title in the right conclusion header.',
     `- This deck has ${fullDeckPageCount} pages. Replace any sample footer total with ${fullDeckPageCount}; never retain a template example such as 20 pages.`,
     '- The user brief is the factual boundary when no source document is attached. Omit missing departments, dates, names, metrics, status claims, feedback, decisions, and conclusions instead of inventing them.',
     '- Without a source document, do not introduce user-feedback items, survey findings, acceptance conclusions, or unverified product capabilities even as generic examples.',
@@ -257,13 +263,19 @@ export async function executeTemplateDeckGeneration(
   const contentPlanningPageRefs = pageRefs.filter(
     (page) => page.templateRole === 'cover' || page.templateRole === 'body'
   )
+  const bodyPlanningPageRefs = pageRefs.filter((page) => page.templateRole === 'body')
   const shouldUseSourcePlan =
     !context.templateRetry &&
-    canUseSourcePlanDirectly({
+    canUseSourcePlanForTemplateBodyPages({
       sourcePlan: context.sourcePlan,
-      totalPages: contentPlanningPageRefs.length,
+      templateRoles: pageRefs.map((page) => page.templateRole),
       userMessage: context.userMessage
     })
+  const shouldPlanReferenceDocumentOnBodyPages =
+    !context.templateRetry && (shouldUseSourcePlan || context.sourceDocumentPaths.length > 0)
+  const planningPageRefs = shouldPlanReferenceDocumentOnBodyPages
+    ? bodyPlanningPageRefs
+    : contentPlanningPageRefs
   const plannedOutlineItems = context.templateRetry
     ? contentPlanningPageRefs.map((page) => {
         const snapshot = latestPageSnapshot.find((item) => item.page_id === page.pageId)
@@ -286,7 +298,7 @@ export async function executeTemplateDeckGeneration(
           modelTimeoutMs: context.modelTimeouts.planning,
           temperature: PLANNER_TEMPERATURE,
           styleId: context.styleId,
-          totalPages: contentPlanningPageRefs.length,
+          totalPages: planningPageRefs.length,
           appLocale: context.appLocale,
           topic: context.topic,
           userMessage: context.userMessage,
@@ -304,14 +316,11 @@ export async function executeTemplateDeckGeneration(
     })
   )
   const plannedByPageId = new Map(
-    contentPlanningPageRefs.map((page, index) => [
-      page.pageId,
-      groundedPlannedOutlineItems[index]
-    ])
+    planningPageRefs.map((page, index) => [page.pageId, groundedPlannedOutlineItems[index]])
   )
-  const bodyTitles = contentPlanningPageRefs
-    .filter((page) => page.templateRole === 'body')
-    .map((page) => plannedByPageId.get(page.pageId)?.title?.trim() || page.title)
+  const bodyTitles = bodyPlanningPageRefs.map(
+    (page) => plannedByPageId.get(page.pageId)?.title?.trim() || page.title
+  )
   const outlineItems = pageRefs.map((page) => {
     if (page.templateRole === 'closing') {
       return {
@@ -327,12 +336,18 @@ export async function executeTemplateDeckGeneration(
         layoutIntent: 'summary' as const
       }
     }
+    if (page.templateRole === 'cover' && shouldPlanReferenceDocumentOnBodyPages) {
+      return {
+        title: context.topic,
+        contentOutline: '',
+        layoutIntent: 'cover' as const
+      }
+    }
     const planned = plannedByPageId.get(page.pageId)
     return {
       title: planned?.title?.trim() || page.title,
       contentOutline: planned?.contentOutline?.trim() || '',
-      layoutIntent:
-        page.templateRole === 'cover' ? ('cover' as const) : planned?.layoutIntent
+      layoutIntent: page.templateRole === 'cover' ? ('cover' as const) : planned?.layoutIntent
     }
   })
   const outlineTitles = outlineItems.map((item) => item.title)
@@ -469,6 +484,14 @@ export async function executeTemplateDeckGeneration(
     if (!validation.valid) {
       throw new Error(`HTML 验证失败 (${page.pageId}): ${validation.errors.join('; ')}`)
     }
+    if (pageRef?.templateRole === 'body') {
+      const bodyLayoutValidation = validateCorporateTemplateBodyPageLayout(html)
+      if (!bodyLayoutValidation.valid) {
+        throw new Error(
+          `模板正文布局验证失败 (${page.pageId}): ${bodyLayoutValidation.errors.join('; ')}`
+        )
+      }
+    }
     await db.upsertGenerationPage({
       runId: context.runId,
       sessionId: context.sessionId,
@@ -557,9 +580,9 @@ export async function executeTemplateDeckGeneration(
       const outlineIndex = pageRefs.findIndex((item) => item.pageId === page.pageId)
       const outlineItem = outlineItems[outlineIndex]
       return {
-      pageNumber: page.pageNumber,
-      pageId: page.pageId,
-      title: page.title,
+        pageNumber: page.pageNumber,
+        pageId: page.pageId,
+        title: page.title,
         contentOutline: outlineItem?.contentOutline || '',
         layoutIntent: outlineItem?.layoutIntent
       }
@@ -629,6 +652,17 @@ export async function executeTemplateDeckGeneration(
         reason: validation.errors.join('; ')
       })
       continue
+    }
+    if (pageRef.templateRole === 'body') {
+      const bodyLayoutValidation = validateCorporateTemplateBodyPageLayout(html)
+      if (!bodyLayoutValidation.valid) {
+        postValidationFailures.push({
+          pageId: pageRef.pageId,
+          title: pageRef.title,
+          reason: bodyLayoutValidation.errors.join('; ')
+        })
+        continue
+      }
     }
     if (isPlaceholderPageHtml(html)) {
       placeholderPages.push(pageRef.pageId)

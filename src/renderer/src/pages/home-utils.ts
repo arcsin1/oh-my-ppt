@@ -17,8 +17,39 @@ export const resolveRequestedPageCount = (
   brief: string,
   fallback = DEFAULT_CORPORATE_PAGE_COUNT
 ): number => {
-  const match = brief.match(/(?:制作|生成|共|约)?\s*(\d{1,3})\s*页/)
-  return clampCorporatePageCount(match?.[1], fallback)
+  return clampCorporatePageCount(extractExplicitCorporateTotalPageCount(brief), fallback)
+}
+
+export const extractExplicitCorporateTotalPageCount = (brief: string): number | null => {
+  const match = brief.match(
+    /(?:制作|生成|做成|整理成|共|总共|合计|控制在|约)\s*(\d{1,3})\s*页/i
+  )
+  return match ? clampCorporatePageCount(match[1]) : null
+}
+
+export const resolveCorporateDocumentTotalPageCount = (args: {
+  contentPageCount: number
+  includeAgenda: boolean
+}): number =>
+  clampCorporatePageCount(
+    clampCorporatePageCount(args.contentPageCount) + 2 + (args.includeAgenda ? 1 : 0)
+  )
+
+export const resolveCorporateCreationPageCount = (args: {
+  brief: string
+  contentPageCount?: number
+  includeAgenda: boolean
+  fallback?: number
+}): number => {
+  const explicitPageCount = extractExplicitCorporateTotalPageCount(args.brief)
+  if (explicitPageCount) return explicitPageCount
+  if (args.contentPageCount !== undefined) {
+    return resolveCorporateDocumentTotalPageCount({
+      contentPageCount: args.contentPageCount,
+      includeAgenda: args.includeAgenda
+    })
+  }
+  return clampCorporatePageCount(args.fallback)
 }
 
 export const buildCorporatePrompt = (args: {
