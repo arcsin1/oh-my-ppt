@@ -78,3 +78,34 @@ export const buildOpenAIModelOptions = ({
 export const isOpenAIResponsesProvider = (provider: string): boolean => {
   return provider === 'openai-responses'
 }
+
+export const ORCAROUTER_BASE_URL = 'https://api.orcarouter.ai/v1'
+export const ORCAROUTER_DEFAULT_MODEL = 'orcarouter/auto'
+
+export const isOrcaRouterProvider = (provider: string): boolean => {
+  return provider === 'orcarouter'
+}
+
+export const buildOrcaRouterModelOptions = ({
+  model,
+  apiKey,
+  baseUrl,
+  temperatureOptions,
+  maxTokens,
+  thinkingParameterMode = DEFAULT_THINKING_PARAMETER_MODE
+}: {
+  model: string
+  apiKey: string
+  baseUrl?: string
+  temperatureOptions: { temperature?: number }
+  maxTokens: number
+  thinkingParameterMode?: ThinkingParameterMode
+}): ReturnType<typeof buildOpenAIModelOptions> =>
+  buildOpenAIModelOptions({
+    model,
+    apiKey,
+    baseUrl: baseUrl?.trim() || ORCAROUTER_BASE_URL,
+    temperatureOptions,
+    maxTokens,
+    thinkingParameterMode
+  })

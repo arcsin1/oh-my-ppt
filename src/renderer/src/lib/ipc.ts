@@ -429,7 +429,7 @@ export interface SaveSessionAsNewResult {
 export interface ModelConfig {
   id: string
   name: string
-  provider: 'anthropic' | 'openai' | 'openai-responses' | 'google'
+  provider: 'anthropic' | 'openai' | 'openai-responses' | 'orcarouter' | 'google'
   model: string
   apiKey: string
   baseUrl: string
@@ -1119,7 +1119,7 @@ export const ipc = {
   upsertModelConfig: (payload: {
     id?: string
     name: string
-    provider: 'anthropic' | 'openai' | 'openai-responses' | 'google'
+    provider: 'anthropic' | 'openai' | 'openai-responses' | 'orcarouter' | 'google'
     model: string
     apiKey: string
     baseUrl: string

@@ -229,6 +229,20 @@ Notes:
 - Official OpenAI endpoints do not receive the non-standard `thinking` parameter, avoiding `400 Unknown parameter` responses. Other OpenAI-compatible `base_url` values still request disabled thinking so multi-turn tool flows do not lose `reasoning_content`.
 - The Ollama setup is for text generation, document parsing, and chat editing. Configure an image-capable provider separately under **Settings → Image Models** for image generation or automatic visuals.
 
+<a id="orcarouter"></a>
+## 🐋 OrcaRouter Gateway Support
+
+[OrcaRouter](https://www.orcarouter.ai) is an OpenAI-compatible AI gateway that routes to 160+ models from leading providers through one endpoint and one key. It also runs gateway-level, zero-trust security for AI agents on the same endpoint — screening every prompt/response and governing every tool call on a default-deny basis, with no application code changes.
+
+In **Settings → Text Models**, add a model with:
+
+- `provider`: `orcarouter`
+- `base_url`: `https://api.orcarouter.ai/v1`
+- `model`: any gateway model, for example `orcarouter/auto` (auto-routes to the best model for the request)
+- `api_key`: your OrcaRouter key (prefix `sk-orca-`)
+
+The OrcaRouter preset pre-fills the gateway endpoint and the `orcarouter/auto` model alias, and verification runs a real request against `https://api.orcarouter.ai/v1`. Like other OpenAI-compatible `base_url` values, the gateway endpoint is treated as a custom endpoint so compatibility thinking parameters are handled automatically.
+
 <a id="usage-notes"></a>
 ## Usage Notes
 
