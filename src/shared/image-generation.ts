@@ -4,6 +4,7 @@ export type ImageModelProvider =
   | 'agnes'
   | 'siliconflow'
   | 'openaiCompatible'
+  | 'openaiImages'
   | 'gemini'
   | 'seedream'
 

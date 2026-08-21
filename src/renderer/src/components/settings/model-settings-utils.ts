@@ -9,6 +9,7 @@ export const IMAGE_PROVIDER_OPTIONS: Array<{ value: ImageModelProvider; label: s
   { value: 'seedream', label: 'Seedream' },
   { value: 'siliconflow', label: '硅基流动' },
   { value: 'openaiCompatible', label: 'OpenAI 兼容' },
+  { value: 'openaiImages', label: 'OpenAI Images API' },
   { value: 'gemini', label: 'Gemini' }
 ]
 
@@ -73,6 +74,15 @@ export const createDefaultImageModelConfig = (provider: ImageModelProvider): str
       baseUrl: 'https://api.openai.com',
       apiKey: '',
       model: 'gpt-image-1'
+    })
+  }
+  if (provider === 'openaiImages') {
+    return stringifyJsonObject({
+      baseUrl: 'https://api.openai.com',
+      apiKey: '',
+      model: 'gpt-image-1.5',
+      quality: 'medium',
+      output_format: 'png'
     })
   }
   if (provider === 'gemini') {

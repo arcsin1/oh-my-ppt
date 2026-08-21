@@ -43,6 +43,10 @@ const PROVIDER_DOCS: Record<ImageModelForm['provider'], { label: string; url: st
     label: 'OpenAI 兼容',
     url: 'https://platform.openai.com/docs/api-reference/chat/create'
   },
+  openaiImages: {
+    label: 'OpenAI Images API',
+    url: 'https://developers.openai.com/api/docs/guides/image-generation'
+  },
   gemini: {
     label: 'Gemini',
     url: 'https://ai.google.dev/gemini-api/docs/image-generation?hl=zh-cn'
@@ -55,6 +59,7 @@ const PROVIDER_HINT_KEYS: Record<ImageModelForm['provider'], Parameters<Settings
   jimeng4: 'settings.imageModelConfigHintJimeng4',
   siliconflow: 'settings.imageModelConfigHintSiliconflow',
   openaiCompatible: 'settings.imageModelConfigHintOpenAICompatible',
+  openaiImages: 'settings.imageModelConfigHintOpenAIImages',
   gemini: 'settings.imageModelConfigHintGemini',
   seedream: 'settings.imageModelConfigHintSeedream'
 }

@@ -34,6 +34,12 @@ const PROVIDER_SIZE_OPTIONS: Record<ImageModelProvider, ImageSizeOption[]> = {
     { value: '1024x1536', label: '2:3 · 1024x1536' },
     { value: 'auto', label: 'auto' }
   ],
+  openaiImages: [
+    { value: '1024x1024', label: '1:1 · 1024x1024' },
+    { value: '1536x1024', label: '3:2 · 1536x1024' },
+    { value: '1024x1536', label: '2:3 · 1024x1536' },
+    { value: 'auto', label: 'auto' }
+  ],
   gemini: [
     { value: '1:1|1K', label: '1:1 · 1K' },
     { value: '16:9|1K', label: '16:9 · 1K' },

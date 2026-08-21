@@ -10,6 +10,7 @@ const VALID_IMAGE_PROVIDERS = [
   'agnes',
   'siliconflow',
   'openaiCompatible',
+  'openaiImages',
   'gemini',
   'seedream'
 ] as const

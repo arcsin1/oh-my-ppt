@@ -437,6 +437,8 @@ export const en = {
       'Connect SiliconFlow image models and choose a model name for the style and speed you need. Example: {"model":"Tongyi-MAI/Z-Image-Turbo","apiKey":"..."}',
     imageModelConfigHintOpenAICompatible:
       'Connect a service with OpenAI Chat Completions image capability and generate slide visuals in the same workflow. Example: {"baseUrl":"https://api.openai.com","apiKey":"...","model":"gpt-image-1"}',
+    imageModelConfigHintOpenAIImages:
+      'Use the OpenAI Images API (/v1/images/generations) for slide visuals. Example: {"baseUrl":"https://api.openai.com","apiKey":"...","model":"gpt-image-1.5","quality":"medium","output_format":"png"}',
     imageModelConfigHintGemini:
       'Connect Gemini image generation for illustrations, backgrounds, and visual concepts based on slide content. Uses Google by default, with baseUrl available for a team service endpoint. Example: {"model":"gemini-3.1-flash-image","apiKey":"..."}',
     imageModelConfigHintSeedream:
@@ -475,12 +477,12 @@ export const en = {
       'Image verification only checks basic fields. The real endpoint is verified on first generation to avoid unnecessary cost.',
     modelPlaceholder: 'Example: deepseek-v4-flash',
     imageModelPlaceholder:
-      'Example: Jimeng 3.0 / Jimeng 4.0 / Agnes AI / SiliconFlow / OpenAI compatible / Gemini',
+      'Example: Jimeng 3.0 / Jimeng 4.0 / Agnes AI / SiliconFlow / OpenAI Images API / Gemini',
     imageModelNamePlaceholder: 'Model alias, anything you like',
     baseUrlPlaceholder: 'Example: https://api.deepseek.com',
     imageBaseUrlPlaceholder: 'Leave empty for built-in defaults, or enter a compatible service URL',
     imageBaseUrlHint:
-      'Jimeng 3.0, Jimeng 4.0, Agnes AI, SiliconFlow, OpenAI-compatible image APIs, and Gemini are available.',
+      'Jimeng 3.0, Jimeng 4.0, Agnes AI, SiliconFlow, OpenAI-compatible APIs, OpenAI Images API, and Gemini are available.',
     defaultImageSize: 'Default size',
     defaultImageQuality: 'Default quality',
     defaultImageCount: 'Default count',
