@@ -1,5 +1,67 @@
 # 更新日志 / Changelog
 
+## 2026-08-22 · v2.4.0
+
+### 中文
+
+- 新增全新创作流程：上传文档自动生成可视化大纲，可逐页查看和编辑内容，确认无误后再生成整套演示。
+- 新增整套一键美化（全页）：一次操作优化全部页面，逐页处理、逐页保存，进度实时可见。
+- 新增全元素旋转：所有元素都可拖动旋转，也可在属性面板输入精确角度。
+- 新增对话创作网页链接支持：粘贴网址即可轻量抓取网页内容并自动整理为大纲，网页文章、博客也能直接用来创作演示。
+- 优化所有生成和修改效率：初次生成速度大幅提升 30% 以上，更多环节接入多模态视觉能力，让 AI 能"看懂"页面与图片。
+- 优化生成忠实度：从大纲生成时完整保留原文内容（不自己胡编乱造），长资料不再丢内容。
+- 优化 AI 修改的内容保护：对话修改、一键美化与换风格更严格保留原有文字和数据，避免内容被改丢。
+- 优化失败重试：失败页面带着失败原因重试，能定点修复的不整页重做，成功率更高。
+- 优化 PPTX 导入编辑：修复文字与矢量图片丢失的问题，图表、文本换行与艺术字还原更好，导入后更接近原稿。
+- 优化导入风格抽取：更准更快，并直接以原稿封面作为风格预览图。
+- 优化模板与创意创建，内置风格全部自带真实预览图，挑选更直观。
+- 修复 Windows 下部分预览图无法显示的问题。
+- 修复会话卡片生成用时显示异常的问题。
+- 修复编辑页 AI 模式的异常处理问题。
+- 修复重试过程中加载状态重叠等若干问题。
+
+### English
+
+- Added a rebuilt creation flow: upload a document to get a visual outline, review and edit it page by page, then generate the full presentation once it looks right.
+- Added whole-deck beautification: improve every slide in one action, processed and saved page by page with live progress.
+- Added element rotation: rotate any element by dragging or enter an exact angle in the inspector.
+- Added web link support in Chat to Create: paste a URL to lightly fetch the page content and have it organized into an outline, so web articles and blog posts can feed your presentation directly.
+- Improved generation speed: first-time generation is over 30% faster, with multimodal vision added in more places so the AI can actually "see" pages and images.
+- Improved source fidelity: slides generated from the outline keep the original text in full, so long documents no longer lose content.
+- Improved content protection in AI edits: chat edits, beautification, and style switching preserve the original text and data more strictly.
+- Improved failure retries: failed slides retry with their failure context, applying targeted fixes instead of full regeneration where possible.
+- Improved PPTX import: fixed lost text and vector images, with better restoration of charts, text wrapping, and WordArt, so imported decks stay closer to the original.
+- Improved style extraction on import: faster and more accurate, reusing the original cover as the style preview.
+- Improved template and creative creation; all built-in styles now include real preview images for easier picking.
+- Fixed preview images failing to display on Windows.
+- Fixed incorrect generation durations shown on session cards.
+- Fixed an exception-handling issue in the editor's AI mode.
+- Fixed overlapping loading states during retries and other issues.
+
+## 2026-08-09 · v2.3.0
+
+### 中文
+
+- 新增AI模式支持当前页参考文件上传，可将常用文档作为本次修改的参考（比如生成图表等等）。
+- 新增一键配图：可为页面快速补充更合适的图片内容。
+- 优化图片生成与配图体验，生成效果和使用流程更稳定。
+- 优化编辑体验：拖拽、缩放与元素位置、尺寸调整更顺手。
+- 优化 AI 创作与修改能力，预览和编辑过程更流畅。
+- 优化一键美化效果，页面布局与视觉表现进一步提升。
+- 优化生图模型的配置简单化，官网也新增完整的模型配置教程
+- 优化可编辑 PPTX 导出效果。
+- 修复ai模式的对话响应问题。
+
+### English
+
+- Added reference-file uploads for AI current-page edits, so common documents can guide the requested change.
+- Added one-click image matching to quickly enrich slides with suitable visuals.
+- Improved image generation and illustration workflows for more reliable results and a smoother experience.
+- Improved editing: dragging, resizing, and adjusting element position and size are more intuitive.
+- Improved AI creation and editing, with smoother preview and editing workflows.
+- Improved one-click beautification for stronger slide layouts and visual presentation.
+- Improved editable PPTX export results.
+
 ## 2026-08-03 · v2.2.0
 
 ### 中文
