@@ -231,6 +231,21 @@ Oh My PPT 的页面是 HTML 幻灯片，支持 16+ 种页面切换动画，并�
 - Ollama 配置用于文本生成、文档解析和编辑对话；需要生图或自动配图时，请在「设置 → 生图模型」另行配置支持图片生成的 Provider。
 
 
+<a id="orcarouter"></a>
+## 🐋 接入 OrcaRouter 网关
+
+[OrcaRouter](https://www.orcarouter.ai) 是一个 OpenAI 兼容的 AI 网关，通过一个端点、一把 Key 即可路由 160+ 款来自各大厂商的模型。它在同一端点上还提供面向 AI Agent 的网关级零信任安全防护——默认拒绝地筛查每条 prompt/response、管控每一次工具调用，无需改动应用代码。
+
+在「设置 → 文本模型」添加模型时这样填写：
+
+- `provider`: `orcarouter`
+- `base_url`: `https://api.orcarouter.ai/v1`
+- `model`: 任意网关模型名，例如 `orcarouter/auto`（自动为请求路由到最优模型）
+- `api_key`: 你的 OrcaRouter Key（前缀 `sk-orca-`）
+
+选择 OrcaRouter 预设会自动填入网关端点与 `orcarouter/auto` 模型别名；点击「验证」会真实请求一次 `https://api.orcarouter.ai/v1`。与其他 OpenAI 兼容 `base_url` 一样，网关端点按自定义端点处理，兼容性 thinking 参数会自动处理。
+
+
 <a id="usage-notes"></a>
 ## 关于使用问题汇总
 

@@ -28,7 +28,13 @@ const readGlobalTimeouts = (
     ])
   ) as Record<ConfigurableModelTimeoutProfile, number>
 
-const VALID_PROVIDERS = ['anthropic', 'openai', 'openai-responses', 'google'] as const
+const VALID_PROVIDERS = [
+  'anthropic',
+  'openai',
+  'openai-responses',
+  'orcarouter',
+  'google'
+] as const
 type Provider = (typeof VALID_PROVIDERS)[number]
 const normalizeProvider = (provider: unknown): Provider =>
   VALID_PROVIDERS.includes(provider as Provider) ? (provider as Provider) : 'openai'

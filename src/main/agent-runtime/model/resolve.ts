@@ -5,6 +5,7 @@ import { ChatOpenAICompletions } from '@langchain/openai'
 import log from 'electron-log/main.js'
 import {
   buildOpenAIModelOptions,
+  buildOrcaRouterModelOptions,
   isOpenAIResponsesProvider,
   normalizeOpenAIBaseUrl,
   resolveOpenAIThinkingModelKwargs
@@ -40,9 +41,15 @@ export function resolveModel(
   const resolvedMaxTokens = maxTokens && maxTokens > 0 ? maxTokens : 4096
   const useOpenAIResponsesApi = isOpenAIResponsesProvider(provider)
   const openAIProtocol =
-    provider === 'openai' ? 'chat-completions' : useOpenAIResponsesApi ? 'responses' : undefined
+    provider === 'openai' || provider === 'orcarouter'
+      ? 'chat-completions'
+      : useOpenAIResponsesApi
+        ? 'responses'
+        : undefined
   const openAIThinkingModelKwargs =
-    provider === 'openai' || provider === 'openai-responses'
+    provider === 'openai' ||
+    provider === 'openai-responses' ||
+    provider === 'orcarouter'
       ? resolveOpenAIThinkingModelKwargs({
           baseUrl: normalizeOpenAIBaseUrl(resolvedBaseUrl, useOpenAIResponsesApi),
           useResponsesApi: useOpenAIResponsesApi,
@@ -91,6 +98,18 @@ export function resolveModel(
           temperatureOptions,
           maxTokens: resolvedMaxTokens,
           useResponsesApi: true,
+          thinkingParameterMode
+        }),
+        callbacks: [usageCallback]
+      })
+    case 'orcarouter':
+      return new ChatOpenAICompletions({
+        ...buildOrcaRouterModelOptions({
+          model: resolvedModel,
+          apiKey,
+          baseUrl: resolvedBaseUrl,
+          temperatureOptions,
+          maxTokens: resolvedMaxTokens,
           thinkingParameterMode
         }),
         callbacks: [usageCallback]

@@ -15,7 +15,8 @@ const MODEL_PROVIDER_LINKS = [
   { label: 'MiniMax', url: 'https://www.minimaxi.com/' },
   { label: 'OpenAI', url: 'https://platform.openai.com' },
   { label: 'Claude (Anthropic)', url: 'https://console.anthropic.com' },
-  { label: 'Google Gemini', url: 'https://ai.google.dev' }
+  { label: 'Google Gemini', url: 'https://ai.google.dev' },
+  { label: 'OrcaRouter', url: 'https://www.orcarouter.ai' }
 ]
 
 interface ModelSettingsTabProps {

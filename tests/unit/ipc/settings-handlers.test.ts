@@ -286,6 +286,30 @@ describe('registerSettingsHandlers model temperature settings', () => {
     )
   })
 
+  it('accepts the OrcaRouter provider when saving a model config', async () => {
+    const upsertModelConfig = vi.fn(async () => 'model-1')
+    const { getHandler } = await registerWithDb({ upsertModelConfig })
+
+    const saveModelConfig = getHandler('settings:upsertModelConfig')
+    await saveModelConfig?.(undefined, {
+      name: 'OrcaRouter model',
+      provider: 'orcarouter',
+      model: 'orcarouter/auto',
+      apiKey: 'sk-orca-',
+      baseUrl: 'https://api.orcarouter.ai/v1',
+      maxTokens: 4096,
+      disableTemperature: false,
+      thinkingParameterMode: 'not-valid'
+    })
+
+    expect(upsertModelConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'orcarouter',
+        thinkingParameterMode: 'auto'
+      })
+    )
+  })
+
   it('explains invalid Responses API payloads during model verification', async () => {
     settingsHandlersState.localeMock.readAppLocale.mockResolvedValue('zh')
     settingsHandlersState.resolveModelMock.mockReturnValue({

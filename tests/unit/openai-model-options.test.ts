@@ -1,9 +1,55 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildOpenAIModelOptions,
+  buildOrcaRouterModelOptions,
   normalizeOpenAIBaseUrl,
+  ORCAROUTER_BASE_URL,
+  ORCAROUTER_DEFAULT_MODEL,
   resolveOpenAIThinkingModelKwargs
 } from '../../src/main/agent-runtime/model'
+
+describe('buildOrcaRouterModelOptions', () => {
+  it('defaults to the OrcaRouter gateway endpoint and model alias', () => {
+    expect(
+      buildOrcaRouterModelOptions({
+        model: ORCAROUTER_DEFAULT_MODEL,
+        apiKey: 'secret',
+        temperatureOptions: { temperature: 0.7 },
+        maxTokens: 4096
+      })
+    ).toEqual({
+      model: 'orcarouter/auto',
+      apiKey: 'secret',
+      temperature: 0.7,
+      maxTokens: 4096,
+      configuration: { baseURL: 'https://api.orcarouter.ai/v1' },
+      modelKwargs: { thinking: { type: 'disabled' } }
+    })
+  })
+
+  it('honors an explicit base_url override', () => {
+    expect(
+      buildOrcaRouterModelOptions({
+        model: 'orcarouter/auto',
+        apiKey: 'secret',
+        baseUrl: 'https://gateway.example.com/v1/',
+        temperatureOptions: {},
+        maxTokens: 2048
+      })
+    ).toEqual({
+      model: 'orcarouter/auto',
+      apiKey: 'secret',
+      maxTokens: 2048,
+      configuration: { baseURL: 'https://gateway.example.com/v1' },
+      modelKwargs: { thinking: { type: 'disabled' } }
+    })
+  })
+
+  it('exposes the official gateway constant', () => {
+    expect(ORCAROUTER_BASE_URL).toBe('https://api.orcarouter.ai/v1')
+    expect(ORCAROUTER_DEFAULT_MODEL).toBe('orcarouter/auto')
+  })
+})
 
 describe('buildOpenAIModelOptions', () => {
   it.each(['', 'https://api.openai.com', 'https://api.openai.com/v1', 'https://API.OPENAI.COM/v1/'])(

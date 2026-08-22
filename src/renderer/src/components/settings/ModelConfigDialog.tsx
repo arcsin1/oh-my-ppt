@@ -15,7 +15,8 @@ const MODEL_PROVIDER_LINKS = [
   { label: 'MiniMax', url: 'https://www.minimaxi.com/' },
   { label: 'OpenAI', url: 'https://platform.openai.com' },
   { label: 'Claude (Anthropic)', url: 'https://console.anthropic.com' },
-  { label: 'Google Gemini', url: 'https://ai.google.dev' }
+  { label: 'Google Gemini', url: 'https://ai.google.dev' },
+  { label: 'OrcaRouter', url: 'https://www.orcarouter.ai' }
 ]
 
 interface ModelConfigDialogProps {
@@ -101,9 +102,16 @@ export function ModelConfigDialog({
                     provider:
                       value === 'anthropic' ||
                       value === 'google' ||
-                      value === 'openai-responses'
+                      value === 'openai-responses' ||
+                      value === 'orcarouter'
                         ? value
-                        : 'openai'
+                        : 'openai',
+                    ...(value === 'orcarouter'
+                      ? {
+                          baseUrl: 'https://api.orcarouter.ai/v1',
+                          model: 'orcarouter/auto'
+                        }
+                      : {})
                   })
                 }
               >
@@ -118,6 +126,7 @@ export function ModelConfigDialog({
                   <SelectItem value="openai-responses">
                     {t('settings.providerOpenAIResponses')}
                   </SelectItem>
+                  <SelectItem value="orcarouter">OrcaRouter</SelectItem>
                   <SelectItem value="google">Google Gemini</SelectItem>
                 </SelectContent>
               </Select>
@@ -170,9 +179,11 @@ export function ModelConfigDialog({
                 provider:
                   form.provider === 'openai' || form.provider === 'openai-responses'
                     ? 'OpenAI'
-                    : form.provider === 'google'
-                      ? 'Google'
-                      : 'Claude'
+                    : form.provider === 'orcarouter'
+                      ? 'OrcaRouter'
+                      : form.provider === 'google'
+                        ? 'Google'
+                        : 'Claude'
               })}
               value={form.apiKey}
               onChange={(e) => onFormChange({ apiKey: e.target.value })}
@@ -215,7 +226,7 @@ export function ModelConfigDialog({
             />
           </div>
 
-          {form.provider === 'openai' && (
+          {form.provider === 'openai' || form.provider === 'orcarouter' ? (
             <div className="rounded-lg border border-[#e3d8c5] bg-[#fffdf8]/70 p-3">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <span className="min-w-0">
@@ -248,7 +259,7 @@ export function ModelConfigDialog({
                 </Select>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
 
         <div className="flex justify-end gap-2 border-t border-[#e3d8c5] px-5 py-3.5">
