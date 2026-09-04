@@ -1,0 +1,19 @@
+{
+  "style": "blue-orange-analytics",
+  "name": {
+    "zh": "蓝橙经营图谱",
+    "en": "Blue Orange Analytics"
+  },
+  "description": "白底藏蓝与赭红点睛的数据经营分析风",
+  "category": "数据 · 商务",
+  "aliases": [
+    "数据可视化",
+    "经营分析",
+    "蓝橙",
+    "KPI",
+    "仪表盘"
+  ],
+  "styleCase": "经营数据汇报、年度总结、KPI绩效、市场运营分析、项目进度",
+  "version": "1.0.0",
+  "source": "builtin"
+}

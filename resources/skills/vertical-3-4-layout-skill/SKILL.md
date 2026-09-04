@@ -9,7 +9,7 @@ This skill is the layout source of truth for `vertical-3-4` pages, usually 1200x
 
 A 3:4 page is a vertical poster-card canvas. It has enough width for rich information cards and compact two-column pockets, but its reading path is still vertical. The layout should feel like a poster with one strong anchor and grouped evidence, not a long feed of equal blocks.
 
-**This canvas is a poster card, not a compressed slide.** When the source content is dense or "needs to be summarized", the model MUST summarize harder here, not cram the full outline into one page. A 3:4 poster that tries to hold a 16:9 deck's worth of content will overflow no matter how the fonts are tuned.
+**This canvas is a poster card, not a compressed slide.** When the source content is dense or "needs to be summarized", summarize or regroup it for this reading format instead of cramming a 16:9 deck's worth of outline into one page.
 
 Deep details live in the references:
 
@@ -22,10 +22,10 @@ Before writing HTML, decide:
 
 1. **Message** - the one sentence this card should make the viewer remember.
 2. **Focal anchor** - title block, hero metric, chart, image/diagram, framework, or conclusion.
-3. **Support groups** - hard cap **3-4 support bands** (or **5-6 compact rows/chips** for grouped facts). Anything beyond MUST be cut, merged, or repackaged as one hero object — never squeezed in by shrinking fonts.
+3. **Support groups** - start with **3-4 support bands** (or **5-6 compact rows/chips** for grouped facts), then regroup or choose a denser pattern when the content genuinely needs it; do not squeeze extra material in by making it unreadable.
 4. **Reading path** - top claim -> main proof/value -> bottom synthesis/source.
 5. **Density** - low-medium for poster claims, medium for most information cards, high only for compact lists or matrices. Never use "high density" as a reason to exceed the 4-band cap.
-6. **Pattern** - choose one structure from `references/catalog.md` before writing HTML.
+6. **Pattern** - use a structure from `references/catalog.md` as a starting point when it helps the reading path; it is not a closed template menu, and a fresh composition is welcome when it serves the page thesis.
 7. **Budget** - estimate hero zone, main proof zone, bottom synthesis, gaps, and reserve.
 
 Use the canvas dimensions from the prompt. If custom dimensions are supplied, preserve the same vertical poster relationships.
@@ -36,10 +36,10 @@ Use the canvas dimensions from the prompt. If custom dimensions are supplied, pr
 - Use vertical sections, but group small facts into bands, rows, or chips so the card does not become a long list.
 - A compact two-column pocket is allowed inside one section when each item remains readable.
 - Let the bottom carry synthesis, implication, source, or a final evidence band.
-- Use grid/flex document flow for text-bearing modules. Absolute positioning is only for background accents, connector lines, and non-text decoration.
-- **Capacity ceiling (hard)**: per page = 1 focal anchor + up to 4 support bands (or 6 compact rows/chips) + 1 bottom synthesis. A "band" is a labeled section, a comparison row group, an evidence cluster, or a step group — not a single bullet. If the outline gives you more points than this ceiling, the page agent resolves overload IN-PAGE by compressing/merging/rewriting into fewer denser bands; never by shrinking font below the floors, never by splitting into multiple pages.
-- **Vertical fill (hard)**: the page must use the full canvas height with no accidental top-stack or bottom gap. The main content wrapper MUST be `flex flex-col` with at least one `flex-1` / `flex-grow` child absorbing leftover height (typically the support group or the bottom synthesis), OR use `justify-between` to spread focal / support / synthesis across the canvas. Never set fixed top padding (`pt-[NNpx]`) and let content stack from the top while the bottom is empty. If content is shorter than the canvas, the `flex-1` block expands; if longer, you have exceeded the capacity ceiling — compress.
-- Body copy, ordinary labels, and card descriptions must be at least **32px** (Tailwind `text-3xl` is 30px — too small, use `text-[32px]` or `style="font-size:32px"`); headings must be at least **43px** (`text-[43px]` or larger, `text-4xl`/`text-5xl`); auxiliary source/footer text must be at least **21px** (`text-[21px]` or `text-xl`). These floors compensate for the much smaller fit-scale a 1600h canvas gets on a landscape presentation screen — default `text-lg`/`text-xl` (18px/20px) will be unreadable, do not use them on this canvas.
+- Use grid/flex document flow for text-bearing modules. Independent text/content modules occupy their own cells and must not overlap or escape the canvas. Absolute positioning is only for background accents, connector lines, non-text decoration, and intentional image/video background composition; text or transparent panels may intentionally sit over media.
+- **Composition starting point**: a focal anchor, 3-4 support bands (or 6 compact rows/chips), and a bottom synthesis usually create a clear poster. A "band" is a labeled section, a comparison row group, an evidence cluster, or a step group — not a single bullet. Treat this as a guide, not a closed composition: regroup, compress, or choose a denser pattern when the source needs it while keeping the page readable and inside the canvas.
+- **Vertical rhythm (guidance)**: avoid an accidental top-stack or unused lower band. Use `flex flex-col` with `flex-1` / `flex-grow` or `justify-between` only when it distributes actual focal / support / synthesis modules; do not stretch empty containers merely to fill height. When content is sparse, enlarge or reposition the focal and support modules so the middle or bottom carries the page. Independent content modules must retain an actual nonzero gap. If content is longer than the canvas, compress or regroup it before writing.
+- Body copy, ordinary labels, and card descriptions default to at least **32px** (`text-[32px]` or `style="font-size:32px"`). Only a genuinely high-density bounded module may use **28px** after restructuring; mark it `data-ppt-density="high"` and compensate its grid/flex footprint if it is scaled. Headings are at least **43px** (`text-[43px]` or larger) with no upper cap; auxiliary source/footer text is at least **21px**. These floors preserve the same displayed 18px / 16px / 24px / 12px semantic minimums on this 1600px-high canvas.
 
 ## Pattern Quick Lookup
 
@@ -73,7 +73,7 @@ For charts, reserve a specific frame height and keep the `@ppt-chart-height=N` m
 - If the card is just a stack of cards, introduce a hero/focal block.
 - If the bottom is empty, add synthesis, implication, source, or a final evidence band.
 - If there are too many small facts, group them into bands or chips under shared labels.
-- **If the outline oversupply exceeds the 4-band ceiling, resolve overload in this priority: (1) summarize and compress — say the same information in fewer words (long descriptions become short phrases, sentences become single data points; remove water, not information), (2) merge related points into one band with a shared label, (3) rewrite a long list as one hero metric + one-line interpretation, (4) switch pattern to a denser format (e.g. comparison rows, ranked chips). Never resolve overload by going below the font floors or by exceeding the canvas height.**
+- **If the outline goes beyond the starting point, resolve the density in this priority: (1) summarize and compress — say the same information in fewer words (long descriptions become short phrases, sentences become single data points; remove water, not information), (2) merge related points into one band with a shared label, (3) rewrite a long list as one hero metric + one-line interpretation, (4) switch pattern to a denser format (e.g. comparison rows, ranked chips). Preserve readability and keep the result inside the canvas.**
 - If a two-column pocket feels cramped, return to full-width rows.
 - If a chart/table is hard to read, convert it to a hero metric, rank list, compact bars, or grouped rows.
 - Before delivery, run `references/checklist.md`.

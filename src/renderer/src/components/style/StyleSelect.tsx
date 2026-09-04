@@ -1,8 +1,8 @@
 import * as React from 'react'
-import { ChevronDown, Search, Star, X } from 'lucide-react'
+import { ChevronDown, LoaderCircle, Search, Sparkles, Star, X } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useThumbnailUpdates } from '../../hooks/useThumbnailUpdates'
-import type { HtmlThumbnailTask } from '../../lib/ipc'
+import { ipc, type HtmlThumbnailTask } from '../../lib/ipc'
 import { filterByStyleKeyword, parseStyleCases } from '../../lib/style-case'
 import { useT } from '../../i18n'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/Popover'
@@ -11,9 +11,11 @@ import { localAssetUrl } from '@shared/local-asset'
 
 export type StyleSelectOption = {
   id: string
+  styleKey?: string
   label: string
   description?: string
   styleCase?: string
+  imageGenerationPrompt?: string
   thumbnailPath?: string | null
   favoriteAt?: number | null
 }
@@ -28,6 +30,11 @@ export type StyleSelectProps = {
   className?: string
   dropdownAlign?: 'start' | 'center' | 'end'
   dropdownClassName?: string
+  recommendation?: {
+    topic: string
+    brief?: string
+    modelConfigId?: string
+  }
 }
 
 const thumbnailUrl = (filePath: string): string =>
@@ -52,12 +59,16 @@ export function StyleSelect({
   disabled,
   className,
   dropdownAlign = 'start',
-  dropdownClassName
+  dropdownClassName,
+  recommendation
 }: StyleSelectProps): React.JSX.Element {
   const t = useT()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [thumbnailOverrides, setThumbnailOverrides] = useState<Record<string, string>>({})
+  const [recommendedStyleKeys, setRecommendedStyleKeys] = useState<string[]>([])
+  const [recommendationLoading, setRecommendationLoading] = useState(false)
+  const [recommendationError, setRecommendationError] = useState('')
 
   const applyThumbnail = useCallback((task: HtmlThumbnailTask): void => {
     const path = task.thumbnailPath
@@ -74,18 +85,32 @@ export function StyleSelect({
     [options]
   )
 
+  const recommendedOptions = useMemo(() => {
+    if (recommendedStyleKeys.length === 0) return options
+    const order = new Map(recommendedStyleKeys.map((styleKey, index) => [styleKey, index]))
+    return options
+      .filter((option) => option.styleKey && order.has(option.styleKey))
+      .sort((a, b) => (order.get(a.styleKey || '') || 0) - (order.get(b.styleKey || '') || 0))
+  }, [options, recommendedStyleKeys])
+
   // 搜索框按名称/描述/用途过滤（用途也命中，所以不再需要单独的 tag 栏）。
   const filtered = useMemo(
     () =>
-      [...filterByStyleKeyword(options, query)].sort((a, b) =>
-        compareFavoriteOptions(a, b, optionOrder)
-      ),
-    [optionOrder, options, query]
+      recommendedStyleKeys.length > 0
+        ? filterByStyleKeyword(recommendedOptions, query)
+        : [...filterByStyleKeyword(recommendedOptions, query)].sort((a, b) =>
+            compareFavoriteOptions(a, b, optionOrder)
+          ),
+    [optionOrder, query, recommendedOptions, recommendedStyleKeys.length]
   )
 
   const handleOpenChange = useCallback((next: boolean) => {
     setOpen(next)
-    if (!next) setQuery('')
+    if (!next) {
+      setQuery('')
+      setRecommendedStyleKeys([])
+      setRecommendationError('')
+    }
   }, [])
 
   const handlePick = useCallback(
@@ -95,6 +120,32 @@ export function StyleSelect({
     },
     [onChange]
   )
+
+  const handleRecommend = useCallback(async () => {
+    const topic = recommendation?.topic.trim() || ''
+    if (!topic || recommendationLoading) return
+    setRecommendationLoading(true)
+    setRecommendationError('')
+    try {
+      const result = await ipc.recommendStyles({
+        topic,
+        brief: recommendation?.brief,
+        modelConfigId: recommendation?.modelConfigId
+      })
+      const knownStyleKeys = new Set(options.map((option) => option.styleKey).filter(Boolean))
+      const styleKeys = result.styleKeys.filter((styleKey) => knownStyleKeys.has(styleKey))
+      if (styleKeys.length === 0) throw new Error(t('styles.aiRecommendationFailed'))
+      setRecommendedStyleKeys(styleKeys)
+      setQuery('')
+    } catch (error) {
+      setRecommendedStyleKeys([])
+      setRecommendationError(
+        error instanceof Error && error.message ? error.message : t('styles.aiRecommendationFailed')
+      )
+    } finally {
+      setRecommendationLoading(false)
+    }
+  }, [options, recommendation, recommendationLoading, t])
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -115,6 +166,19 @@ export function StyleSelect({
                 {selected.favoriteAt != null && (
                   <Star className="h-3.5 w-3.5 shrink-0 fill-[#d6a942] text-[#d6a942]" />
                 )}
+                {selected.imageGenerationPrompt ? (
+                  compact ? (
+                    <Sparkles
+                      className="h-3.5 w-3.5 shrink-0 text-[#39724a]"
+                      aria-label={t('styles.supportsImageGeneration')}
+                    />
+                  ) : (
+                    <span className="hidden shrink-0 items-center gap-1 rounded-md border border-[#8fc49a]/70 bg-[#ecf8ee] px-1.5 py-px text-[10px] font-medium leading-tight text-[#39724a] sm:inline-flex">
+                      <Sparkles className="h-3 w-3" />
+                      {t('styles.supportsImageGeneration')}
+                    </span>
+                  )
+                ) : null}
                 {selected.styleCase && !compact && (
                   <span className="hidden shrink-0 truncate rounded-md border border-[#d6c08d]/80 bg-[#fff7e8] px-1.5 py-px text-[10px] font-medium leading-tight text-[#7c6a4c] sm:inline-block">
                     {parseStyleCases(selected.styleCase)[0]}
@@ -138,12 +202,17 @@ export function StyleSelect({
         )}
       >
         <div className="border-b border-[#e5ddc8]/80 p-2">
-          <div className="flex items-center gap-1.5 rounded-md border border-[#d8ccb5]/80 bg-white/80 px-2 py-1">
+          <div className="flex items-center gap-1.5">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md border border-[#d8ccb5]/80 bg-white/80 px-2 py-1">
             <Search className="h-3.5 w-3.5 shrink-0 text-[#7c6a4c]/60" />
             <input
               type="text"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value)
+                setRecommendedStyleKeys([])
+                setRecommendationError('')
+              }}
               placeholder={t('styles.searchPlaceholder')}
               className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
             />
@@ -157,7 +226,45 @@ export function StyleSelect({
                 <X className="h-3.5 w-3.5" />
               </button>
             ) : null}
+            </div>
+            {recommendation ? (
+              <button
+                type="button"
+                onClick={() => void handleRecommend()}
+                disabled={!recommendation.topic.trim() || recommendationLoading}
+                className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-[#8fc49a]/70 bg-[#ecf8ee] px-2 text-xs font-medium text-[#39724a] transition-colors hover:bg-[#dff2e2] disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label={t('styles.aiRecommend')}
+                title={
+                  recommendation.topic.trim()
+                    ? t('styles.aiRecommend')
+                    : t('styles.aiRecommendationTopicRequired')
+                }
+              >
+                {recommendationLoading ? (
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                {t(recommendationLoading ? 'styles.aiRecommending' : 'styles.aiRecommend')}
+              </button>
+            ) : null}
+            {recommendedStyleKeys.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setRecommendedStyleKeys([])}
+                className="shrink-0 text-[#7c6a4c]/60 transition-colors hover:text-[#7c6a4c]"
+                aria-label={t('styles.clearRecommendation')}
+                title={t('styles.clearRecommendation')}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
           </div>
+          {recommendationError ? (
+            <p role="alert" className="px-1 pt-1.5 text-[11px] leading-tight text-destructive">
+              {recommendationError}
+            </p>
+          ) : null}
         </div>
         <div className="max-h-[min(300px,40vh)] overflow-y-auto p-1">
           {filtered.length === 0 ? (
@@ -194,6 +301,12 @@ export function StyleSelect({
                       <span className={cn('truncate font-medium', compact ? 'text-xs' : 'text-sm')}>
                         {option.label}
                       </span>
+                      {option.imageGenerationPrompt ? (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-[#8fc49a]/70 bg-[#ecf8ee] px-1.5 py-px text-[10px] font-medium leading-tight text-[#39724a]">
+                          <Sparkles className="h-3 w-3" />
+                          {t('styles.supportsImageGeneration')}
+                        </span>
+                      ) : null}
                       {option.styleCase && (
                         <span className="shrink-0 truncate rounded-md border border-[#d6c08d]/80 bg-[#fff7e8] px-1.5 py-px text-[10px] font-medium leading-tight text-[#7c6a4c]">
                           {option.styleCase}

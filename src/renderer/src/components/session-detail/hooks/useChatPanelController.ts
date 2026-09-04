@@ -29,7 +29,6 @@ export function useChatPanelController(sessionId: string): ChatPanelController {
   const isGenerating = useGenerateStore((state) => state.isGenerating)
   const progress = useGenerateStore((state) => state.progress)
   const pageEditJob = useGenerateStore((state) => state.pageEditJobs[sessionId] || null)
-  const pageBeautifyJob = useGenerateStore((state) => state.pageBeautifyJobs[sessionId] || null)
   const deckEditJob = useGenerateStore((state) => state.deckEditJobs[sessionId] || null)
   const styleSwitchJob = useGenerateStore((state) => state.styleSwitchJobs[sessionId] || null)
   const deckEditRetry = useGenerateStore((state) => state.deckEditRetries[sessionId] || null)
@@ -57,7 +56,6 @@ export function useChatPanelController(sessionId: string): ChatPanelController {
       ? pageEditPlanning.pendingPlan
       : null
   const hasActivePageEditJob = Boolean(pageEditJob)
-  const hasActivePageBeautifyJob = Boolean(pageBeautifyJob)
   const isDeckEditing = Boolean(deckEditJob)
   const isStyleSwitching =
     styleSwitchJob?.status === 'starting' ||
@@ -68,7 +66,6 @@ export function useChatPanelController(sessionId: string): ChatPanelController {
     isPlanningCurrentPage ||
     isPageEditing ||
     Boolean(pendingPageEditPlanForCurrentPage) ||
-    hasActivePageBeautifyJob ||
     isDeckEditing ||
     isStyleSwitching
 
@@ -83,7 +80,6 @@ export function useChatPanelController(sessionId: string): ChatPanelController {
       !sessionId ||
       files.length === 0 ||
       generateState.isGenerating ||
-      Boolean(generateState.pageBeautifyJobs[sessionId]) ||
       isStyleSwitching ||
       isAssessingSelectedPage
     )
@@ -615,53 +611,6 @@ export function useChatPanelController(sessionId: string): ChatPanelController {
       } catch (cancelError) {
         toastError(cancelError instanceof Error ? cancelError.message : t('generating.failed'))
         await reconcilePageEditState({ clearOnFailure: true })
-      }
-      return
-    }
-    if (useGenerateStore.getState().pageBeautifyJobs[sessionId]) {
-      if (useGenerateStore.getState().pageBeautifyJobs[sessionId]?.status === 'cancelling') return
-      useGenerateStore.getState().updatePageBeautify(sessionId, {
-        status: 'cancelling',
-        label: t('sessionDetail.activityCancelling')
-      })
-      try {
-        const result = await ipc.cancelPageBeautify(sessionId)
-        if (!result.success) {
-          // Cancel was rejected (stale or already-finished job). No terminal chunk will ever
-          // arrive, so the optimistic `pageBeautifyJobs` entry would lock the chat input
-          // forever. Reconcile from the authoritative backend state; if reconciliation itself
-          // fails, clear the job rather than restoring `running` — there is no terminal in
-          // flight to remove it later.
-          try {
-            const snapshot = await ipc.getPageBeautifyState(sessionId)
-            if (snapshot.hasActiveRun && snapshot.status !== 'cancelled') {
-              useGenerateStore.getState().updatePageBeautify(sessionId, {
-                status: snapshot.status === 'queued' ? 'queued' : 'running',
-                label: t('sessionDetail.pageBeautifying')
-              })
-            } else {
-              useGenerateStore.getState().finishPageBeautify(sessionId)
-            }
-          } catch {
-            useGenerateStore.getState().finishPageBeautify(sessionId)
-          }
-        }
-      } catch (cancelError) {
-        toastError(cancelError instanceof Error ? cancelError.message : t('generating.failed'))
-        try {
-          const snapshot = await ipc.getPageBeautifyState(sessionId)
-          if (snapshot.hasActiveRun && snapshot.status !== 'cancelled') {
-            useGenerateStore.getState().updatePageBeautify(sessionId, {
-              runId: snapshot.runId || undefined,
-              status: snapshot.status === 'queued' ? 'queued' : 'running',
-              progress: snapshot.progress ?? 0
-            })
-          } else {
-            useGenerateStore.getState().finishPageBeautify(sessionId)
-          }
-        } catch {
-          useGenerateStore.getState().finishPageBeautify(sessionId)
-        }
       }
       return
     }

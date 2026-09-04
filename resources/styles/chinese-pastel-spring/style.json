@@ -15,6 +15,9 @@
     "spring"
   ],
   "styleCase": "传统文化、品牌营销、产品发布",
+  "imageGeneration": {
+    "prompt": "Gentle early-spring Jiangnan illustration with willow branches, peach blossoms, swallows, butterflies and a paper kite when relevant. Use pastel willow green and peach-pink ink washes on warm rice paper with a light, airy composition. Do not render text, logos, UI, watermarks, harsh outlines, photorealism, or crowded scenes."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

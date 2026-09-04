@@ -61,7 +61,6 @@ describe('JobCoordinator', () => {
       { name: 'add-page', domain: 'generation' as const },
       { name: 'single-page-retry', domain: 'generation' as const },
       { name: 'page-edit', domain: 'edit' as const },
-      { name: 'page-beautify', domain: 'edit' as const },
       { name: 'deck-edit', domain: 'edit' as const },
       { name: 'style-switch', domain: 'style' as const }
     ]

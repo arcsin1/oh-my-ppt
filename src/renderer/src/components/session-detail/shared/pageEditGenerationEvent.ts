@@ -28,13 +28,6 @@ export function isDeckEditGenerationEvent(
   return matchesActiveJobRun(payload, activeDeckEditJob, 'deck-edit')
 }
 
-export function isPageBeautifyGenerationEvent(
-  payload: Pick<GenerateChunkEvent['payload'], 'activityKind' | 'runId'>,
-  activePageBeautifyJob: ActiveScopedJob
-): boolean {
-  return matchesActiveJobRun(payload, activePageBeautifyJob, 'page-beautify')
-}
-
 export function isStyleSwitchGenerationEvent(
   payload: Pick<GenerateChunkEvent['payload'], 'activityKind' | 'runId'>,
   activeStyleSwitchJob: ActiveScopedJob

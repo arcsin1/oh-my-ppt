@@ -12,14 +12,18 @@ import {
 } from './generation-utils'
 import {
   resolveCommonContext,
+  resolveSessionReferenceDocumentPath,
   resolveSourceDocuments,
   type GenerationContext,
   type RuntimeJobExecutionContext
 } from './context'
-import type { DesignContract } from '@shared/generation'
+import type { DesignContract, SourceDocumentPlan } from '@shared/generation'
 import type { ModelTimeoutProfile } from '@shared/model-timeout'
+import type { ModelRuntimeConfig } from '../agent-runtime/model'
 import { normalizeLayoutIntent, type LayoutIntent } from '@shared/layout-intent'
 import { CHART_SKILL_NAME, formatSkillUsageRequirement } from '../product-skills/contract'
+import { createPageImageFinalizer } from './page-image-finalizer'
+import { capturePageHtmlSnapshot } from './page-html-snapshot'
 
 // ── Independent RetrySinglePage context ──
 
@@ -31,6 +35,8 @@ export type RetrySinglePageContext = {
   title: string
   contentOutline: string
   layoutIntent: LayoutIntent
+  layoutId?: string | null
+  layoutContractVersion?: number | null
   htmlPath: string
   provider: string
   apiKey: string
@@ -39,11 +45,14 @@ export type RetrySinglePageContext = {
   modelConfigName?: string
   runModel?: string
   providerBaseUrl: string
+  maxTokens: number
+  modelRuntime: ModelRuntimeConfig
   modelTimeouts: Record<ModelTimeoutProfile, number>
   projectDir: string
   abortSignal: AbortSignal
   styleId: string
   styleSkillPrompt: string
+  imageGenerationPrompt: string
   styleKey: string
   styleName: string
   styleVersion: string
@@ -58,6 +67,10 @@ export type RetrySinglePageContext = {
   projectId: string
   effectiveMode: 'retrySinglePage'
   sourceDocumentPaths: string[]
+  referenceDocumentPath?: string
+  sourcePlan: SourceDocumentPlan | null
+  visualEnabled: boolean
+  imageModelConfigId?: string
 }
 
 export async function resolveRetrySinglePageContext(
@@ -80,6 +93,8 @@ export async function resolveRetrySinglePageContext(
     mode: 'retrySinglePage',
     sessionRecord
   })
+  const referenceDocumentPath =
+    resolveSessionReferenceDocumentPath(common.projectDir, sessionRecord) ?? undefined
 
   const sessionPages = await db.listSessionPages(sessionId)
   const sessionPage = sessionPages.find((page) => page.file_slug === pageId || page.id === pageId)
@@ -95,7 +110,12 @@ export async function resolveRetrySinglePageContext(
   const pageNumber = sessionPage.page_number
   const title = sessionPage.title || pageSnapshot?.title || `Page ${pageNumber}`
   const contentOutline = pageSnapshot?.content_outline || title
-  const layoutIntent = normalizeLayoutIntent(pageSnapshot?.layout_intent)
+  const layoutIntent = normalizeLayoutIntent(
+    sessionPage.layout_intent || pageSnapshot?.layout_intent
+  )
+  const layoutId = sessionPage.layout_id || pageSnapshot?.layout_id || null
+  const layoutContractVersion =
+    sessionPage.layout_contract_version ?? pageSnapshot?.layout_contract_version ?? null
   const htmlPath = resolvePageHtmlPath({
     projectDir: common.projectDir,
     fileSlug,
@@ -118,12 +138,16 @@ export async function resolveRetrySinglePageContext(
     title,
     contentOutline,
     layoutIntent,
+    layoutId,
+    layoutContractVersion,
     htmlPath,
     sessionRecord,
     messageScope: 'page' as const,
     messagePageId: sessionPage.id,
     effectiveMode: 'retrySinglePage' as const,
-    sourceDocumentPaths
+    sourceDocumentPaths,
+    referenceDocumentPath,
+    sourcePlan: common.sourcePlan
   }
 }
 
@@ -182,131 +206,180 @@ export async function executeRetrySinglePageGeneration(
     }
   })
 
-  // Write scaffold before generation
-  await fs.promises.writeFile(
-    context.htmlPath,
-    `<section data-page-scaffold="${context.pageId}" data-page-number="${context.pageNumber}">
+  const pageHtmlSnapshot = await capturePageHtmlSnapshot(context.htmlPath)
+  let generationResult: Awaited<ReturnType<typeof generatePagesWithRetry>>
+  let newHtml: string
+
+  try {
+    // Write scaffold before generation
+    await fs.promises.writeFile(
+      context.htmlPath,
+      `<section data-page-scaffold="${context.pageId}" data-page-number="${context.pageNumber}">
 <main data-role="content"><p>Regenerating...</p></main>
 </section>`,
-    'utf-8'
-  )
+      'utf-8'
+    )
 
-  // Create run + page records
-  await db.createGenerationRun({
-    id: context.runId,
-    sessionId: context.sessionId,
-    mode: 'retrySinglePage',
-    totalPages: 1,
-    modelConfigId: context.modelConfigId,
-    metadata: {
-      retrySinglePage: true,
-      pageId: context.pageId,
-      modelConfigId: context.modelConfigId,
-      modelConfigName: context.modelConfigName,
-      provider: context.provider,
-      model: context.model
-    }
-  })
-  await db.upsertGenerationPage({
-    runId: context.runId,
-    sessionId: context.sessionId,
-    pageId: context.pageId,
-    pageNumber: context.pageNumber,
-    title: context.title,
-    contentOutline: context.contentOutline,
-    layoutIntent: context.layoutIntent,
-    htmlPath: context.htmlPath,
-    status: 'pending'
-  })
-
-  const pageFileMap: Record<string, string> = { [context.pageId]: context.htmlPath }
-  const pageNumbers: Record<string, number> = { [context.pageId]: context.pageNumber }
-  const pageCallbacks = createGenerationPageCallbacks({
-    db,
-    runId: context.runId,
-    sessionId: context.sessionId
-  })
-  const generationResult = await generatePagesWithRetry({
-    runArgs: {
+    // Create run + page records
+    await db.createGenerationRun({
+      id: context.runId,
       sessionId: context.sessionId,
-      provider: context.provider,
-      apiKey: context.apiKey,
-      model: context.model,
-      baseUrl: context.providerBaseUrl,
-      modelTimeoutMs: context.modelTimeouts.agent,
-      temperature: PAGE_GENERATION_TEMPERATURE,
-      styleId: context.styleId,
-      styleSkillPrompt: context.styleSkillPrompt,
-      styleKey: context.styleKey,
-      styleName: context.styleName,
-      styleVersion: context.styleVersion,
-      slideSize: context.slideSize,
-      appLocale: context.appLocale,
-      topic: context.topic,
-      deckTitle: context.deckTitle,
-      userMessage: `重新生成第 ${context.pageNumber} 页「${context.title}」`,
-      outlineTitles: [context.title],
-      outlineItems: [
-        {
-          title: context.title,
-          contentOutline: context.contentOutline,
-          layoutIntent: context.layoutIntent
-        }
-      ],
-      sourceDocumentPaths: context.sourceDocumentPaths,
-      generationMode: 'generate',
-      renderingLabel: uiText(
-        context.appLocale,
-        `正在重新生成第 ${context.pageNumber} 页`,
-        `Regenerating page ${context.pageNumber}`
-      ),
-      pageTasks: [
-        {
-          pageNumber: context.pageNumber,
-          pageId: context.pageId,
-          title: context.title,
-          contentOutline: context.contentOutline,
-          layoutIntent: context.layoutIntent
-        }
-      ],
-      designContract,
-      projectDir: context.projectDir,
-      indexPath,
-      pageFileMap,
-      pageNumbers,
-      agentManager,
-      emit: (chunk) => emitChunk(chunk),
-      ...pageCallbacks,
+      mode: 'retrySinglePage',
+      totalPages: 1,
+      modelConfigId: context.modelConfigId,
+      metadata: {
+        retrySinglePage: true,
+        pageId: context.pageId,
+        modelConfigId: context.modelConfigId,
+        modelConfigName: context.modelConfigName,
+        provider: context.provider,
+        model: context.model
+      }
+    })
+    await db.upsertGenerationPage({
       runId: context.runId,
-      signal: context.abortSignal
-    },
-    emitChunk,
-    appLocale: context.appLocale,
-    runId: context.runId,
-    totalPages: 1,
-    beforeRetry: async () => {
-      await fs.promises.writeFile(
-        context.htmlPath,
-        `<section data-page-scaffold="${context.pageId}" data-page-number="${context.pageNumber}">
+      sessionId: context.sessionId,
+      pageId: context.pageId,
+      pageNumber: context.pageNumber,
+      title: context.title,
+      contentOutline: context.contentOutline,
+      layoutIntent: context.layoutIntent,
+      layoutId: context.layoutId,
+      layoutContractVersion: context.layoutContractVersion,
+      htmlPath: context.htmlPath,
+      status: 'pending'
+    })
+
+    const pageFileMap: Record<string, string> = { [context.pageId]: context.htmlPath }
+    const pageNumbers: Record<string, number> = { [context.pageId]: context.pageNumber }
+    const pageCallbacks = createGenerationPageCallbacks({
+      db,
+      runId: context.runId,
+      sessionId: context.sessionId
+    })
+    generationResult = await generatePagesWithRetry({
+      runArgs: {
+        sessionId: context.sessionId,
+        provider: context.provider,
+        apiKey: context.apiKey,
+        model: context.model,
+        baseUrl: context.providerBaseUrl,
+        modelTimeoutMs: context.modelTimeouts.agent,
+        temperature: PAGE_GENERATION_TEMPERATURE,
+        styleId: context.styleId,
+        styleSkillPrompt: context.styleSkillPrompt,
+        hasStyleImageDirection: Boolean(context.imageGenerationPrompt.trim()),
+        styleKey: context.styleKey,
+        styleName: context.styleName,
+        styleVersion: context.styleVersion,
+        slideSize: context.slideSize,
+        appLocale: context.appLocale,
+        topic: context.topic,
+        deckTitle: context.deckTitle,
+        userMessage: `重新生成第 ${context.pageNumber} 页「${context.title}」`,
+        outlineTitles: [context.title],
+        outlineItems: [
+          {
+            title: context.title,
+            contentOutline: context.contentOutline,
+            layoutIntent: context.layoutIntent
+          }
+        ],
+        sourceDocumentPaths: context.sourceDocumentPaths,
+        referenceDocumentPath: context.referenceDocumentPath,
+        sourcePlan: context.sourcePlan,
+        generationMode: 'generate',
+        visualEnabled: context.visualEnabled,
+        renderingLabel: uiText(
+          context.appLocale,
+          `正在重新生成第 ${context.pageNumber} 页`,
+          `Regenerating page ${context.pageNumber}`
+        ),
+        pageTasks: [
+          {
+            pageNumber: context.pageNumber,
+            pageId: context.pageId,
+            title: context.title,
+            contentOutline: context.contentOutline,
+            layoutIntent: context.layoutIntent,
+            layoutId: context.layoutId,
+            layoutContractVersion: context.layoutContractVersion
+          }
+        ],
+        designContract,
+        projectDir: context.projectDir,
+        indexPath,
+        pageFileMap,
+        pageNumbers,
+        agentManager,
+        emit: (chunk) => emitChunk(chunk),
+        finalizePage: createPageImageFinalizer(ctx, {
+          sessionId: context.sessionId,
+          runId: context.runId,
+          visualEnabled: context.visualEnabled,
+          imageModelConfigId: context.imageModelConfigId,
+          imageGenerationPrompt: context.imageGenerationPrompt,
+          imagePromptDirector: {
+            provider: context.provider,
+            apiKey: context.apiKey,
+            model: context.model,
+            baseUrl: context.providerBaseUrl,
+            maxTokens: context.maxTokens,
+            modelRuntime: context.modelRuntime,
+            modelTimeoutMs: context.modelTimeouts.agent,
+            locale: context.appLocale
+          },
+          abortSignal: context.abortSignal
+        }),
+        ...pageCallbacks,
+        runId: context.runId,
+        signal: context.abortSignal
+      },
+      emitChunk,
+      appLocale: context.appLocale,
+      runId: context.runId,
+      totalPages: 1,
+      beforeRetry: async () => {
+        await fs.promises.writeFile(
+          context.htmlPath,
+          `<section data-page-scaffold="${context.pageId}" data-page-number="${context.pageNumber}">
 <main data-role="content"><p>Retrying...</p></main>
 </section>`,
-        'utf-8'
-      )
-    },
-    buildRetryRunArgs: (runArgs) => ({
-      ...runArgs,
-      userMessage: `重新生成第 ${context.pageNumber} 页「${context.title}」。如果需要图表，先 ${formatSkillUsageRequirement(CHART_SKILL_NAME)}`
+          'utf-8'
+        )
+      },
+      buildRetryRunArgs: (runArgs) => ({
+        ...runArgs,
+        userMessage: `重新生成第 ${context.pageNumber} 页「${context.title}」。如果需要图表，先 ${formatSkillUsageRequirement(CHART_SKILL_NAME)}`
+      })
     })
-  })
+    if (context.abortSignal.aborted) throw new Error('生成已取消')
 
-  // Validate generated page
-  if (!fs.existsSync(context.htmlPath)) {
-    throw new Error(`${context.pageId}.html 缺失`)
-  }
-  const newHtml = await fs.promises.readFile(context.htmlPath, 'utf-8')
-  const validation = validatePersistedPageHtml(newHtml, context.pageId)
-  if (!validation.valid) {
-    throw new Error(`重试页面 HTML 验证失败: ${validation.errors.join('; ')}`)
+    // Validate generated page
+    if (!fs.existsSync(context.htmlPath)) {
+      throw new Error(`${context.pageId}.html 缺失`)
+    }
+    newHtml = await fs.promises.readFile(context.htmlPath, 'utf-8')
+    const validation = validatePersistedPageHtml(newHtml, context.pageId)
+    if (!validation.valid) {
+      throw new Error(`重试页面 HTML 验证失败: ${validation.errors.join('; ')}`)
+    }
+  } catch (error) {
+    try {
+      await pageHtmlSnapshot.restore()
+      log.warn('[generate:retrySinglePage] failed; original page restored', {
+        sessionId: context.sessionId,
+        pageId: context.pageId,
+        reason: error instanceof Error ? error.message : String(error)
+      })
+    } catch (restoreError) {
+      log.error('[generate:retrySinglePage] could not restore original page', {
+        sessionId: context.sessionId,
+        pageId: context.pageId,
+        error: restoreError instanceof Error ? restoreError.message : String(restoreError)
+      })
+    }
+    throw error
   }
 
   // Read actual generated title from DB (LLM may change it during retry)
@@ -328,6 +401,10 @@ export async function executeRetrySinglePageGeneration(
     pageNumber: context.pageNumber,
     title: actualTitle,
     htmlPath: context.htmlPath,
+    layoutIntent: latestPageRecord?.layout_intent || context.layoutIntent,
+    layoutId: latestPageRecord?.layout_id || context.layoutId,
+    layoutContractVersion:
+      latestPageRecord?.layout_contract_version || context.layoutContractVersion,
     status: 'completed',
     error: null
   })
@@ -420,6 +497,8 @@ export async function executeRetrySinglePageGeneration(
       pageId: context.pageId
     }
   })
+  if (context.abortSignal.aborted) throw new Error('生成已取消')
+  await db.updateGenerationRunStatus(context.runId, 'completed', null)
 
   log.info('[generate:retrySinglePage] completed', {
     sessionId: context.sessionId,

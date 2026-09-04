@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>青竹学术</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 1600px;
+    height: 900px;
+    overflow: hidden;
+    background: #ffffff;
+    font-family: "SF Pro Text", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  }
+  .canvas {
+    position: relative;
+    width: 1600px;
+    height: 900px;
+    background: #ffffff;
+  }
+
+  /* Decorative background shapes */
+  .deco-circle-lg {
+    position: absolute;
+    width: 520px; height: 520px;
+    right: -180px; top: -180px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #e0eded 0%, #a9d3a9 100%);
+    opacity: 0.55;
+  }
+  .deco-ring {
+    position: absolute;
+    width: 300px; height: 300px;
+    left: -120px; bottom: -110px;
+    border-radius: 50%;
+    border: 40px solid rgba(91,128,91,0.14);
+  }
+  .deco-dot {
+    position: absolute;
+    left: 220px; bottom: 60px;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #66a4a4;
+  }
+  .deco-dash {
+    position: absolute;
+    left: 68px; top: 300px;
+    width: 2px; height: 300px;
+    background: repeating-linear-gradient(to bottom, #a9c683 0 6px, transparent 6px 10px);
+  }
+
+  /* Header */
+  .kicker {
+    position: absolute;
+    left: 96px; top: 92px;
+    font-size: 20px;
+    letter-spacing: 6px;
+    color: #537e85;
+    font-weight: 600;
+  }
+  .kicker-line {
+    position: absolute;
+    left: 96px; top: 128px;
+    width: 64px; height: 4px;
+    background: #5b805b;
+  }
+  .title {
+    position: absolute;
+    left: 96px; top: 156px;
+    font-size: 53px;
+    font-weight: 700;
+    color: #000000;
+    line-height: 1.2;
+    letter-spacing: 1px;
+  }
+  .subtitle {
+    position: absolute;
+    left: 96px; top: 300px;
+    width: 560px;
+    font-size: 22px;
+    line-height: 1.5;
+    color: #5f5f5f;
+    font-weight: 400;
+  }
+  .meta {
+    position: absolute;
+    left: 96px; top: 440px;
+    font-size: 19px;
+    color: #727273;
+    line-height: 1.6;
+  }
+  .meta b { color: #3b3b3b; font-weight: 600; }
+
+  /* Hexagon quadrant matrix (right side) */
+  .matrix {
+    position: absolute;
+    right: 120px; top: 250px;
+    width: 620px; height: 520px;
+  }
+
+  .hex {
+    position: absolute;
+    width: 200px; height: 226px;
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #ffffff;
+    padding: 0 26px;
+  }
+  .hex .icon {
+    width: 46px; height: 46px;
+    margin-bottom: 12px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .hex .icon svg { width: 40px; height: 40px; }
+  .hex .h-label {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .hex .h-sub {
+    font-size: 15px;
+    line-height: 1.35;
+    opacity: 0.92;
+    font-weight: 400;
+  }
+
+  .hex-1 { left: 90px; top: 0;    background: linear-gradient(145deg, #5b805b, #6f9a6f); }
+  .hex-2 { left: 300px; top: 0;   background: linear-gradient(145deg, #66a4a4, #7fbcbc); }
+  .hex-3 { left: 90px; top: 260px; background: linear-gradient(145deg, #537e85, #6a99a1); }
+  .hex-4 { left: 300px; top: 260px; background: linear-gradient(145deg, #a9c683, #94b56d); }
+
+  .hex-center {
+    left: 195px; top: 130px;
+    width: 200px; height: 226px;
+    position: absolute;
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    background: #ffffff;
+    border: 2px dashed #a9c683;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center;
+  }
+  .hex-center span {
+    font-size: 22px;
+    font-weight: 700;
+    color: #3b3b3b;
+    line-height: 1.3;
+  }
+  .hex-center small {
+    display: block;
+    font-size: 14px;
+    color: #66a4a4;
+    letter-spacing: 3px;
+    margin-top: 6px;
+    font-weight: 600;
+  }
+
+  /* Footer */
+  .footer {
+    position: absolute;
+    left: 96px; bottom: 56px;
+    font-size: 16px;
+    color: #727273;
+    letter-spacing: 1px;
+  }
+  .footer .sep { color: #a9d3a9; margin: 0 12px; }
+  .pageno {
+    position: absolute;
+    right: 96px; bottom: 52px;
+    font-size: 16px;
+    color: #5b805b;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+  <div class="canvas">
+    <div class="deco-circle-lg"></div>
+    <div class="deco-ring"></div>
+    <div class="deco-dot"></div>
+    <div class="deco-dash"></div>
+
+    <div class="kicker">开题报告 · RESEARCH PROPOSAL</div>
+    <div class="kicker-line"></div>
+    <div class="title">面向图神经网络的<br>可解释性研究框架</div>
+
+    <div class="subtitle">
+      围绕 GNN 节点分类任务，构建从数据表征、模型推理到结果溯源的
+      闭环分析路径，探索结构化解释与量化评估的统一方法。
+    </div>
+
+    <div class="meta">
+      研究方向 &nbsp;<b>机器学习 · 图表示学习</b><br>
+      汇报人 &nbsp;&nbsp;&nbsp;&nbsp;<b>李清竹</b> &nbsp;·&nbsp; 计算机科学与技术学院<br>
+      指导教师 &nbsp;<b>王沉静 教授</b>
+    </div>
+
+    <div class="matrix">
+      <div class="hex hex-1">
+        <div class="icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.8">
+            <path d="M9 18h6M10 21h4M12 2a6 6 0 0 0-4 10.5c.6.6 1 1.4 1 2.5h6c0-1.1.4-1.9 1-2.5A6 6 0 0 0 12 2z"/>
+          </svg>
+        </div>
+        <div class="h-label">研究内容</div>
+        <div class="h-sub">界定核心问题<br>凝练关键科学假设</div>
+      </div>
+      <div class="hex hex-2">
+        <div class="icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.8">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/>
+          </svg>
+        </div>
+        <div class="h-label">理论方法</div>
+        <div class="h-sub">图卷积与注意力<br>机制建模</div>
+      </div>
+      <div class="hex hex-3">
+        <div class="icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.8">
+            <circle cx="11" cy="11" r="7"/>
+            <path d="M21 21l-4.3-4.3"/>
+          </svg>
+        </div>
+        <div class="h-label">数据分析</div>
+        <div class="h-sub">多维指标验证<br>与消融实验</div>
+      </div>
+      <div class="hex hex-4">
+        <div class="icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.8">
+            <path d="M6 3h9l5 5v13H6z"/>
+            <path d="M15 3v5h5M9 13h6M9 17h6"/>
+          </svg>
+        </div>
+        <div class="h-label">成果预期</div>
+        <div class="h-sub">形成可复现的<br>解释性工具链</div>
+      </div>
+      <div class="hex-center">
+        <span>研究框架<small>FRAMEWORK</small></span>
+      </div>
+    </div>
+
+    <div class="footer">
+      青竹学术研究汇报 <span class="sep">/</span> 2025 学年度 <span class="sep">/</span> 严谨 · 沉静 · 有序
+    </div>
+    <div class="pageno">01</div>
+  </div>
+</body>
+</html>

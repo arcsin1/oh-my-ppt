@@ -8,7 +8,7 @@ import { getStyleDetail, hasStyleSkill } from '../styles/catalog'
 import type { IpcContext } from '../ipc/context'
 import { resolveModelConfigForTask } from '../config/model-config-utils'
 import { readAppLocale, uiText } from '../config/locale-utils'
-import { normalizeFontSelection } from '@shared/generation'
+import { normalizeFontSelection, type DocumentPlanPageSkeletonItem } from '@shared/generation'
 import { requireSlideSizePreset } from '@shared/slide-size'
 import { normalizeSourcePlan } from '../generation/source-plan'
 import { ensureSessionRuntimeCompatible } from './runtime-assets'
@@ -23,6 +23,7 @@ import {
 } from './index-transition'
 import { warmSessionFirstPageThumbnails } from './session-thumbnail'
 import { createSessionMasterIfMissing } from './master-service'
+import { resolveConfiguredImageModel } from '../image-generation/model-config'
 
 const THINKING_ID_RE = /^[a-zA-Z0-9_-]{6,32}$/
 const THINKING_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp'])
@@ -173,22 +174,17 @@ const copyThinkingWorkspaceToSession = async (thinkingDir: string, projectDir: s
 }
 
 const offsetSourcePlanLineRanges = (
-  items: Array<{
-    pageNumber: number
-    title: string
-    role: 'chapter-divider' | 'content'
-    sourceHeading: string
-    headingLevel: number
-    lineStart: number
-    lineEnd: number
-    reason?: string | null
-  }>,
+  items: DocumentPlanPageSkeletonItem[],
   offset: number
-): typeof items =>
+): DocumentPlanPageSkeletonItem[] =>
   items.map((item) => ({
     ...item,
     lineStart: item.lineStart + offset,
-    lineEnd: item.lineEnd + offset
+    lineEnd: item.lineEnd + offset,
+    agendaItems: item.agendaItems?.map((agendaItem) => ({
+      ...agendaItem,
+      lineStart: agendaItem.lineStart + offset
+    }))
   }))
 
 const createThinkingReferenceDocument = async (args: {
@@ -347,6 +343,7 @@ export function registerSessionHandlers(ctx: IpcContext): void {
   })
 
   ipcMain.handle('session:create', async (_event, payload) => {
+    log.info('session:create------',JSON.stringify(payload))
     const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
     const { topic, styleId } = record
     const pageCount = normalizeRequestedPageCount(record.pageCount)
@@ -359,6 +356,9 @@ export function registerSessionHandlers(ctx: IpcContext): void {
     const storagePath = await resolveStoragePath()
     const modelConfigId =
       typeof record.modelConfigId === 'string' ? record.modelConfigId.trim() : undefined
+    const visualEnabled = record.visualEnabled === true
+    const imageModelConfigId =
+      typeof record.imageModelConfigId === 'string' ? record.imageModelConfigId.trim() : ''
     const activeModel = await resolveModelConfigForTask(ctx, {
       modelConfigId,
       purpose: 'session:create'
@@ -367,6 +367,25 @@ export function registerSessionHandlers(ctx: IpcContext): void {
     const baseUrl = activeModel.baseUrl
     const normalizedTopic = typeof topic === 'string' && topic.trim() ? topic.trim() : 'Untitled'
     const normalizedStyleId = typeof styleId === 'string' ? styleId.trim() : ''
+    if (visualEnabled) {
+      if (!imageModelConfigId) {
+        throw new Error(
+          uiText(
+            locale,
+            '开启配图生成时必须选择生图模型。',
+            'Select an image model before enabling image generation.'
+          )
+        )
+      }
+      try {
+        await resolveConfiguredImageModel(ctx, imageModelConfigId)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        throw new Error(
+          uiText(locale, `生图模型不可用：${message}`, `The selected image model is unavailable: ${message}`)
+        )
+      }
+    }
     if (!normalizedStyleId) {
       throw new Error(
         uiText(
@@ -462,6 +481,8 @@ export function registerSessionHandlers(ctx: IpcContext): void {
       slideWidth: slideSize.width,
       slideHeight: slideSize.height,
       referenceDocumentPath: sessionReferenceDocumentPath,
+      visualEnabled,
+      imageModelConfigId: visualEnabled ? imageModelConfigId : null,
       provider,
       model: model.trim()
     })

@@ -10,7 +10,6 @@ type GenerationWindowRunState = {
     | 'addPage'
     | 'retrySinglePage'
     | 'style-switch'
-    | 'page-beautify'
 }
 
 export function shouldRevealGenerationWindow(

@@ -4,7 +4,10 @@ import type { GenerateChunkEvent } from '@shared/generation'
 import { progressText } from '@shared/progress'
 import type { PPTDatabase } from '../db/database'
 import { validatePersistedPageHtml } from '../presentation/html/html-utils'
+import { hasImageIntentDrafts } from '../image-generation/visual-intent'
+import { validateLayoutSlots } from './layout-slot-validator'
 import { runDeepAgentDeckGeneration } from './agent-runner'
+import { isCancellationMessage } from './status-utils'
 import type { AnyFlowContext, EmitAssistantFn } from './types'
 import { STABLE_HTML_FRAGMENT_PROTOCOL } from '../agent-runtime/prompt'
 
@@ -58,7 +61,7 @@ export const buildEditValidationRetryMessage = (originalMessage: string, detail:
       ? '- The previous fragment had unbalanced or unfinished tags. Do not patch that broken fragment; rewrite a simpler, shallower fragment from scratch.'
       : '- Retry once and fix the validation error directly.',
     structuralRetry
-      ? '- Use one root div, no page shell (section[data-page-scaffold], main[data-role="content"], or runtime frame), grid/flex direct children, aim for 3 nesting levels and avoid exceeding 4, fewer wrappers, and fewer modules.'
+      ? '- Use a simple, self-contained fragment with balanced tags and no page shell (section[data-page-scaffold], main[data-role="content"], or runtime frame). Keep the hierarchy shallow and avoid unnecessary wrappers or modules.'
       : '- Only modify the affected page HTML. Keep the page scaffold, runtime scripts, and balanced tags valid.',
     structuralRetry ? STABLE_HTML_FRAGMENT_PROTOCOL : '',
     '- Do not modify index.html.'
@@ -149,11 +152,15 @@ export const validateChangedPages = (
   changedPageDescriptors
     .map((page) => {
       const validation = validatePersistedPageHtml(page.html, page.pageId)
-      return validation.valid
+      const errors = [...validation.errors]
+      if (hasImageIntentDrafts(page.html)) {
+        errors.push('Final page HTML must not contain image intent draft attributes or scripts.')
+      }
+      return errors.length === 0
         ? null
         : {
             page,
-            reason: validation.errors.join('; ')
+            reason: errors.join('; ')
           }
     })
     .filter((item): item is InvalidEditedPage => Boolean(item))
@@ -216,6 +223,15 @@ export function createGenerationPageCallbacks(
     if (!validation.valid) {
       throw new Error(`HTML 验证失败 (${page.pageId}): ${validation.errors.join('; ')}`)
     }
+    const slotValidation = validateLayoutSlots({
+      html,
+      layoutIntent: page.layoutIntent,
+      layoutId: page.layoutId,
+      layoutContractVersion: page.layoutContractVersion
+    })
+    if (!slotValidation.valid) {
+      throw new Error(`Layout slot validation failed (${page.pageId}): ${slotValidation.errors.join('; ')}`)
+    }
     await db.upsertGenerationPage({
       runId,
       sessionId,
@@ -224,6 +240,8 @@ export function createGenerationPageCallbacks(
       title: page.title,
       contentOutline: page.contentOutline,
       layoutIntent: page.layoutIntent,
+      layoutId: page.layoutId,
+      layoutContractVersion: page.layoutContractVersion,
       htmlPath: page.htmlPath,
       status: 'completed'
     })
@@ -238,6 +256,8 @@ export function createGenerationPageCallbacks(
       title: page.title,
       contentOutline: page.contentOutline,
       layoutIntent: page.layoutIntent,
+      layoutId: page.layoutId,
+      layoutContractVersion: page.layoutContractVersion,
       htmlPath: page.htmlPath,
       status: 'failed',
       error: page.reason
@@ -263,12 +283,14 @@ export async function generatePagesWithRetry(
 
   const firstResult = await runDeepAgentDeckGeneration(runArgs).catch((err) => {
     const reason = err instanceof Error ? err.message : String(err)
+    if (runArgs.signal?.aborted || isCancellationMessage(reason)) throw err
     return {
       summary: '',
       failedPages: buildFallbackFailedPages(runArgs, reason)
     } satisfies DeckGenerationResult
   })
 
+  if (runArgs.signal?.aborted) throw new Error('生成已取消')
   if (firstResult.failedPages.length === 0) return firstResult
 
   emitChunk({
@@ -284,9 +306,11 @@ export async function generatePagesWithRetry(
   })
 
   if (beforeRetry) {
+    if (runArgs.signal?.aborted) throw new Error('生成已取消')
     await beforeRetry()
   }
 
+  if (runArgs.signal?.aborted) throw new Error('生成已取消')
   const retryResult = await runDeepAgentDeckGeneration(
     buildRetryRunArgs ? buildRetryRunArgs(runArgs) : runArgs
   )
@@ -303,6 +327,9 @@ export function createEmitAssistantMessage(
 ): EmitAssistantFn {
   return async (context: AnyFlowContext, content: string): Promise<void> => {
     if (!content.trim()) return
+    if ((context as { abortSignal?: AbortSignal }).abortSignal?.aborted) {
+      throw new Error('生成已取消')
+    }
     const messageId = await db.addMessage(context.sessionId, {
       role: 'assistant',
       content: content.trim(),

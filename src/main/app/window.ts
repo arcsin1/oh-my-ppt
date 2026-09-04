@@ -14,7 +14,6 @@ const BASE_MIN_WIDTH = 880
 const BASE_MIN_HEIGHT = 680
 const TITLEBAR_HEIGHT = 48
 const TITLEBAR_BACKGROUND = '#f4eddf'
-const TITLEBAR_SYMBOL_COLOR = '#5d6b4d'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 // electron-vite bundles this module into out/main/index.js. Keep asset paths
 // relative to that runtime location rather than this source file's directory.
@@ -74,12 +73,7 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
           trafficLightPosition: { x: 14, y: Math.round((TITLEBAR_HEIGHT - 14) / 2) }
         }
       : {
-          titleBarStyle: 'hidden',
-          titleBarOverlay: {
-            color: TITLEBAR_BACKGROUND,
-            symbolColor: TITLEBAR_SYMBOL_COLOR,
-            height: TITLEBAR_HEIGHT
-          }
+          frame: false
         }),
     webPreferences: {
       preload: preloadPath,
@@ -111,7 +105,7 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
       minHeight: windowBounds.minHeight,
       workArea: windowBounds.workArea,
       titlebarHeight: TITLEBAR_HEIGHT,
-      titleBarStyle: isMac ? 'hidden' : 'hidden+overlay'
+      titleBarStyle: isMac ? 'hidden' : 'frameless'
     }
   })
 

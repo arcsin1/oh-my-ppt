@@ -1,0 +1,22 @@
+{
+  "style": "e-ink-editorial",
+  "name": {
+    "zh": "墨页叙事",
+    "en": "E-Ink Editorial"
+  },
+  "description": "暖纸、衬线与低调流光构成的杂志叙事风",
+  "category": "杂志 · 编辑",
+  "aliases": [
+    "电子墨水",
+    "杂志",
+    "人文",
+    "衬线",
+    "editorial"
+  ],
+  "styleCase": "人文分享、行业观察、品牌故事、生活方式、文化主题",
+  "imageGeneration": {
+    "prompt": "Refined editorial still life or documentary scene for a thoughtful magazine feature, on warm off-white paper with charcoal ink, muted indigo or forest accents. Use soft natural light, subtle grain, an uncluttered composition, and generous text-safe negative space. Match the slide subject rather than depicting generic stationery. Do not render text, logos, UI, watermarks, borders, glossy 3D, busy collage, or stock-photo posing."
+  },
+  "version": "1.0.0",
+  "source": "builtin"
+}

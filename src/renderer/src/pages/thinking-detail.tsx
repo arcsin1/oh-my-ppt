@@ -265,6 +265,8 @@ export function ThinkingDetailPage(): ReactElement {
     referenceDocumentPath: string
     sourcePlan?: SourceDocumentPlan
     modelConfigId?: string
+    visualEnabled: boolean
+    imageModelConfigId?: string
   }): Promise<void> => {
     if (generating || !prepared) return
     setGenerating(true)
@@ -277,7 +279,9 @@ export function ThinkingDetailPage(): ReactElement {
         slideSizeId: params.slideSizeId,
         referenceDocumentPath: params.referenceDocumentPath,
         fontSelection: params.fontSelection,
-        sourcePlan: params.sourcePlan
+        sourcePlan: params.sourcePlan,
+        visualEnabled: params.visualEnabled,
+        imageModelConfigId: params.imageModelConfigId
       })
       success(t('home.sessionCreated'), {
         description: t('home.generationStarted'),

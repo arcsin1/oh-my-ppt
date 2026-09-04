@@ -14,6 +14,9 @@
     "植物"
   ],
   "styleCase": "餐饮美食、疗愈冥想、教学科普",
+  "imageGeneration": {
+    "prompt": "Fresh botanical editorial photograph in a bright greenhouse or plant study, with pale mint, sage and soft gray-green tones, delicate leaves and fern textures under diffused morning light. Keep a calm premium wellness mood with airy negative space. Do not render text, logos, UI, watermarks, hard shadows, or tropical-saturated colors."
+  },
   "version": "2.0.2",
   "source": "builtin"
 }

@@ -13,6 +13,9 @@
     "原色"
   ],
   "styleCase": "艺术视觉、品牌营销、产品发布",
+  "imageGeneration": {
+    "prompt": "Bauhaus abstract composition with bold red, yellow and cobalt-blue circles, triangles and rectangles on a warm paper canvas. Use precise asymmetric balance, crisp edges and subtle screen-print texture with room for slide content. Do not render text, logos, UI, watermarks, gradients, photorealism, or decorative frames."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

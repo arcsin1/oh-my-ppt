@@ -5,7 +5,8 @@ import { gfm } from 'micromark-extension-gfm'
 import type { ListItem, Nodes, Root } from 'mdast'
 import {
   SECTION_AGENDA_REASON_PREFIX_EN,
-  SECTION_AGENDA_REASON_PREFIX_ZH
+  SECTION_AGENDA_REASON_PREFIX_ZH,
+  type DocumentPlanAgendaItem
 } from '@shared/generation'
 
 export interface MarkdownHeadingNode {
@@ -38,6 +39,7 @@ export interface DocumentOutlinePageCandidate {
   lineStart: number
   lineEnd: number
   reason: string
+  agendaItems?: DocumentPlanAgendaItem[]
 }
 
 export interface DocumentOutlinePageCountEstimate {
@@ -200,7 +202,11 @@ export const deriveOutlinePageCandidates = (
           headingLevel: heading.level,
           lineStart: heading.lineStart,
           lineEnd: level2AgendaLineEnd(heading),
-          reason: formatSectionAgendaReason(heading)
+          reason: formatSectionAgendaReason(heading),
+          agendaItems: childCandidates.map((child) => ({
+            title: child.title,
+            lineStart: child.lineStart
+          }))
         },
         ...childCandidates.map((child) => ({
           role: 'content' as const,

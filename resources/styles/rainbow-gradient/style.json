@@ -12,6 +12,9 @@
     "欢乐"
   ],
   "styleCase": "年度庆典、品牌营销、亲子儿童",
+  "imageGeneration": {
+    "prompt": "Joyful flowing rainbow silk ribbons on a clean white field, using a soft seven-color spectrum, airy celebratory motion and a modern abstract poster aesthetic. Keep the composition light with room for slide content. Do not render text, logos, UI, watermarks, hard borders, photorealistic fabric clutter, or a busy background."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

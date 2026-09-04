@@ -25,7 +25,8 @@ export const buildDocumentPlanPageSkeleton = (args: {
     headingLevel: candidate.headingLevel,
     lineStart: candidate.lineStart,
     lineEnd: candidate.lineEnd,
-    reason: candidate.reason
+    reason: candidate.reason,
+    agendaItems: candidate.agendaItems
   }))
 }
 

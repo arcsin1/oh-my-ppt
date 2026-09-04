@@ -70,9 +70,6 @@ export function useWorkspaceRibbonController(isSavingEdits: boolean): {
   const pageEditJob = useGenerateStore((state) =>
     currentSession ? state.pageEditJobs[currentSession.id] || null : null
   )
-  const pageBeautifyJob = useGenerateStore((state) =>
-    currentSession ? state.pageBeautifyJobs[currentSession.id] || null : null
-  )
   const isDeckEditing = useGenerateStore((state) =>
     currentSession ? Boolean(state.deckEditJobs[currentSession.id]) : false
   )
@@ -107,12 +104,10 @@ export function useWorkspaceRibbonController(isSavingEdits: boolean): {
   const pageId = selectedPage?.pageId
   const styleSwitchPageLocked = isStyleSwitchPageLocked(styleSwitchJob, pageId)
   const isPageEditing = pageEditJob?.pageId === pageId
-  const isPageBeautifying = pageBeautifyJob?.pageId === pageId
   const isScopedGeneration =
     isAddingPage ||
     isRetryingSinglePage ||
     Boolean(pageEditJob) ||
-    Boolean(pageBeautifyJob) ||
     Boolean(styleSwitchJob)
   const isCurrentPageGenerating =
     isGenerating &&
@@ -124,7 +119,6 @@ export function useWorkspaceRibbonController(isSavingEdits: boolean): {
         retryingSinglePageId
       }) ||
       isPageEditing ||
-      isPageBeautifying ||
       styleSwitchPageLocked)
   const canUndo = useEditHistoryStore((state) => state.canUndo(pageId))
   const canRedo = useEditHistoryStore((state) => state.canRedo(pageId))
@@ -253,7 +247,6 @@ export function useWorkspaceRibbonController(isSavingEdits: boolean): {
     () => ({
       isGenerating: isCurrentPageGenerating,
       isPageEditing,
-      isPageBeautifying,
       isDeckEditing,
       isStyleSwitchPageLocked: styleSwitchPageLocked,
       isSavingEdits,
@@ -271,7 +264,6 @@ export function useWorkspaceRibbonController(isSavingEdits: boolean): {
       styleSwitchPageLocked,
       isCurrentPageGenerating,
       isPageEditing,
-      isPageBeautifying,
       isSavingEdits
     ]
   )

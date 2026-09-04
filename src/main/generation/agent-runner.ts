@@ -10,11 +10,14 @@ import {
   buildDesignContractSystemPrompt,
   buildDesignContractUserPrompt,
   buildEditUserPrompt,
+  buildGenerationImageLayoutRefinementPrompt,
   buildPlanningSystemPrompt,
   buildPlanningUserPrompt,
   buildSinglePageGenerationPrompt,
   CONTENT_LANGUAGE_RULES
 } from '../agent-runtime/prompt'
+import type { SessionDeckGenerationContext } from '../agent-runtime/agent'
+import type { ImageLayoutRefinement } from '../image-generation/fulfillment-service'
 import type {
   AnimationPreferencesPayload,
   DeckEditScope,
@@ -22,11 +25,18 @@ import type {
   FontSelection,
   GenerateChunkEvent,
   OutlineItem,
-  SelectedElementRuntimeContext
+  PageReferenceContext,
+  SelectedElementRuntimeContext,
+  SourceDocumentPlan
 } from '@shared/generation'
 import { isSectionAgendaOutline } from '@shared/generation'
 import { normalizeLayoutIntent, type LayoutIntent } from '@shared/layout-intent'
-import { formatLayoutMasterPrompt, resolveLayoutMasterTemplate } from '@shared/layout-master'
+import {
+  formatLayoutMasterPrompt,
+  getLayoutMasterTemplate,
+  resolveLayoutMasterTemplateVariant,
+  resolveStablePageLayoutSource
+} from '@shared/layout-master'
 import { resolveModelTimeoutMs, type ModelTimeoutProfile } from '@shared/model-timeout'
 import { progressLabel, progressText } from '@shared/progress'
 import type { SlideSizePreset } from '@shared/slide-size'
@@ -45,20 +55,51 @@ import { logAgentToolEvents } from '../utils/agent-tool-logger'
 import { normalizeKeyPoints, normalizeOutlineText } from './outline-normalizer'
 import { buildLocalCompletedGenerationPageSummary } from './generation-summary'
 import { readSessionLayoutLibrary } from '../session/master-service'
+import { validateLayoutSlots } from './layout-slot-validator'
+import { resolvePageReferenceContext } from './source-plan'
 
 type AppLocale = 'zh' | 'en'
 
 const uiText = (locale: AppLocale | undefined, zh: string, en: string): string =>
   locale === 'en' ? en : zh
 
+const assertGenerationNotCancelled = (
+  signal: AbortSignal | undefined,
+  locale?: AppLocale
+): void => {
+  if (signal?.aborted) throw new Error(uiText(locale, '生成已取消', 'Generation canceled'))
+}
+
 const resolveLayoutMasterOutlineItems = async (
   projectDir: string,
   outlineItems: OutlineItem[]
 ): Promise<OutlineItem[]> => {
   const layoutLibrary = (await readSessionLayoutLibrary(projectDir)).library
+  const variantIndexByIntent = new Map<LayoutIntent, number>()
   return outlineItems.map((item) => {
-    if (!item.layoutIntent) return item
-    const template = resolveLayoutMasterTemplate(layoutLibrary, item.layoutIntent)
+    const sourceTemplate = item.layoutId ? getLayoutMasterTemplate(item.layoutId) : null
+    if (
+      item.layoutId &&
+      (!sourceTemplate || (item.layoutIntent && sourceTemplate.intent !== item.layoutIntent))
+    ) {
+      return {
+        ...item,
+        layoutPrompt:
+          `Stored layout source ${item.layoutId} is unavailable or incompatible. ` +
+          'Preserve the existing information architecture and do not remap this page to another layout.'
+      }
+    }
+    const template = sourceTemplate && (!item.layoutIntent || sourceTemplate.intent === item.layoutIntent)
+      ? sourceTemplate
+      : item.layoutIntent
+        ? (() => {
+            const intent = normalizeLayoutIntent(item.layoutIntent)
+            const variantIndex = variantIndexByIntent.get(intent) || 0
+            variantIndexByIntent.set(intent, variantIndex + 1)
+            return resolveLayoutMasterTemplateVariant(layoutLibrary, intent, variantIndex)
+          })()
+        : null
+    if (!template) return item
     return {
       ...item,
       layoutId: template.id,
@@ -83,6 +124,84 @@ const modelCallSignal = (
   const timeoutSignal = AbortSignal.timeout(resolveModelTimeoutMs(timeoutMs, profile))
   return upstreamSignal ? AbortSignal.any([timeoutSignal, upstreamSignal]) : timeoutSignal
 }
+
+export type ImageLayoutRefinementAgentConfig = {
+  provider: string
+  apiKey: string
+  model: string
+  baseUrl: string
+  temperature?: number
+  maxTokens?: number
+  modelRuntime?: ModelRuntimeConfig
+  styleId: string | null | undefined
+  context: SessionDeckGenerationContext
+  agentManager: GenerationAgentManager
+  emit?: (chunk: GenerateChunkEvent) => void
+  runId?: string
+  stage: 'rendering' | 'editing'
+  totalPages: number
+  timeoutMs?: unknown
+  signal?: AbortSignal
+  workerLabel?: string
+}
+
+export const createImageLayoutRefinement =
+  (config: ImageLayoutRefinementAgentConfig): ImageLayoutRefinement =>
+  async (assets) => {
+    const agent = createSessionEditAgent({
+      provider: config.provider,
+      apiKey: config.apiKey,
+      model: config.model,
+      baseUrl: config.baseUrl,
+      temperature: config.temperature,
+      maxTokens: config.maxTokens,
+      modelRuntime: config.modelRuntime,
+      styleId: config.styleId,
+      context: config.context
+    })
+    const pageId = config.context.selectedPageId || config.context.allowedPageIds?.[0]
+    if (!pageId) throw new Error('Image layout refinement requires a target page.')
+    config.agentManager.setPageAgent(config.context.sessionId, pageId, agent)
+    try {
+      const stream = await agent.stream(
+        {
+          messages: [
+            {
+              role: 'user',
+              content: buildGenerationImageLayoutRefinementPrompt({
+                pageId,
+                assets,
+                referenceRangeBound: Boolean(
+                  config.context.referenceDocumentPath && config.context.pageReferenceContext
+                ),
+                slideSize: config.context.slideSize,
+                designContract: config.context.designContract,
+                layoutPrompt: config.context.outlineItems[0]?.layoutPrompt
+              })
+            }
+          ]
+        },
+        {
+          streamMode: ['updates', 'messages', 'custom'],
+          subgraphs: true,
+          signal: modelCallSignal(config.timeoutMs, 'agent', config.signal)
+        }
+      )
+      await processAgentStreamCore(stream, {
+        emit: config.emit,
+        runId: config.runId || '',
+        stage: config.stage,
+        totalPages: config.totalPages,
+        provider: config.provider,
+        model: config.model,
+        sessionId: config.context.sessionId,
+        workerLabel: config.workerLabel
+      })
+      assertGenerationNotCancelled(config.signal, config.context.appLocale)
+    } finally {
+      config.agentManager.removePageAgent(config.context.sessionId, pageId)
+    }
+  }
 
 // ── Shared agent stream processor ───────────────────────────────────────
 
@@ -618,6 +737,7 @@ export const buildDesignContractWithLLM = async (args: {
   modelRuntime?: ModelRuntimeConfig
   styleId: string | null | undefined
   styleSkillPrompt: string
+  imageGenerationPrompt?: string
   styleKey?: string
   styleName?: string
   styleVersion?: string
@@ -844,6 +964,7 @@ export const runDeepAgentDeckGeneration = async (args: {
   maxTokens?: number
   styleId: string | null | undefined
   styleSkillPrompt: string
+  hasStyleImageDirection?: boolean
   styleKey?: string
   styleName?: string
   styleVersion?: string
@@ -857,8 +978,11 @@ export const runDeepAgentDeckGeneration = async (args: {
   outlineTitles: string[]
   outlineItems: OutlineItem[]
   sourceDocumentPaths?: string[]
+  referenceDocumentPath?: string
+  sourcePlan?: SourceDocumentPlan | null
   systemPromptAddendum?: string
   singlePagePromptAddendum?: string
+  visualEnabled?: boolean
   requireTemplatePageRead?: boolean
   generationMode?: 'generate' | 'retry'
   renderingLabel?: string
@@ -868,6 +992,9 @@ export const runDeepAgentDeckGeneration = async (args: {
     title: string
     contentOutline?: string | null
     layoutIntent?: OutlineItem['layoutIntent']
+    layoutId?: string | null
+    layoutContractVersion?: number | null
+    pageReferenceContext?: PageReferenceContext | null
   }>
   designContract?: DesignContract
   projectDir: string
@@ -882,6 +1009,8 @@ export const runDeepAgentDeckGeneration = async (args: {
     title: string
     contentOutline: string
     layoutIntent?: OutlineItem['layoutIntent']
+    layoutId: string
+    layoutContractVersion: number
     htmlPath: string
   }) => Promise<void>
   onPageFailed?: (page: {
@@ -890,9 +1019,24 @@ export const runDeepAgentDeckGeneration = async (args: {
     title: string
     contentOutline: string
     layoutIntent?: OutlineItem['layoutIntent']
+    layoutId: string
+    layoutContractVersion: number
     htmlPath: string
     reason: string
   }) => Promise<void>
+  finalizePage?: (
+    page: {
+      pageNumber: number
+      pageId: string
+      title: string
+      contentOutline: string
+      layoutIntent?: OutlineItem['layoutIntent']
+      layoutId: string
+      layoutContractVersion: number
+      htmlPath: string
+    },
+    refineImageLayout: ImageLayoutRefinement
+  ) => Promise<void>
   runId?: string
   signal?: AbortSignal
 }): Promise<{
@@ -900,6 +1044,7 @@ export const runDeepAgentDeckGeneration = async (args: {
   failedPages: Array<{ pageId: string; title: string; reason: string }>
 }> => {
   const layoutLibrary = (await readSessionLayoutLibrary(args.projectDir)).library
+  const variantIndexByIntent = new Map<LayoutIntent, number>()
   type PageRef = {
     pageNumber: number
     pageId: string
@@ -907,7 +1052,9 @@ export const runDeepAgentDeckGeneration = async (args: {
     outline: string
     layoutIntent?: OutlineItem['layoutIntent']
     layoutId: string
+    layoutContractVersion: number
     layoutPrompt: string
+    pageReferenceContext: PageReferenceContext | null
   }
   const resolvePageRef = (page: {
     pageNumber: number
@@ -915,16 +1062,41 @@ export const runDeepAgentDeckGeneration = async (args: {
     title: string
     contentOutline?: string | null
     layoutIntent?: OutlineItem['layoutIntent']
+    layoutId?: string | null
+    layoutContractVersion?: number | null
+    pageReferenceContext?: PageReferenceContext | null
   }): PageRef => {
-    const layoutTemplate = resolveLayoutMasterTemplate(layoutLibrary, page.layoutIntent)
+    const intent = normalizeLayoutIntent(page.layoutIntent)
+    const hasPersistedLayoutSource = Boolean(page.layoutId && page.layoutContractVersion)
+    const layoutSource = hasPersistedLayoutSource
+      ? resolveStablePageLayoutSource(layoutLibrary, page)
+      : (() => {
+          const variantIndex = variantIndexByIntent.get(intent) || 0
+          variantIndexByIntent.set(intent, variantIndex + 1)
+          const template = resolveLayoutMasterTemplateVariant(layoutLibrary, intent, variantIndex)
+          return {
+            layoutIntent: intent,
+            layoutId: template.id,
+            layoutContractVersion: template.layoutContractVersion,
+            layoutPrompt: formatLayoutMasterPrompt(template)
+          }
+        })()
     return {
       pageNumber: page.pageNumber,
       pageId: page.pageId,
       title: page.title,
       outline: page.contentOutline || '',
-      layoutIntent: page.layoutIntent,
-      layoutId: layoutTemplate.id,
-      layoutPrompt: formatLayoutMasterPrompt(layoutTemplate)
+      layoutIntent: layoutSource.layoutIntent,
+      layoutId: layoutSource.layoutId,
+      layoutContractVersion: layoutSource.layoutContractVersion,
+      layoutPrompt: layoutSource.layoutPrompt,
+      pageReferenceContext:
+        page.pageReferenceContext ||
+        resolvePageReferenceContext({
+          referenceDocumentPath: args.referenceDocumentPath,
+          sourcePlan: args.sourcePlan,
+          pageNumber: page.pageNumber
+        })
     }
   }
   const pageRefs: PageRef[] =
@@ -1052,13 +1224,24 @@ export const runDeepAgentDeckGeneration = async (args: {
       : null
   })
 
-  const referenceDocumentRetriever = args.sourceDocumentPaths?.length
-    ? await createReferenceDocumentRetriever({
-        sessionId: args.sessionId,
-        projectDir: args.projectDir,
-        sourceDocumentPaths: args.sourceDocumentPaths
-      })
-    : null
+  const referenceDocumentRetrieverByPaths = new Map<
+    string,
+    Awaited<ReturnType<typeof createReferenceDocumentRetriever>>
+  >()
+  const getReferenceDocumentRetriever = async (sourceDocumentPaths: string[] | undefined) => {
+    const normalizedPaths = sourceDocumentPaths?.filter(Boolean) || []
+    if (normalizedPaths.length === 0) return null
+    const key = normalizedPaths.join('\n')
+    const cached = referenceDocumentRetrieverByPaths.get(key)
+    if (cached) return cached
+    const retriever = await createReferenceDocumentRetriever({
+      sessionId: args.sessionId,
+      projectDir: args.projectDir,
+      sourceDocumentPaths: normalizedPaths
+    })
+    referenceDocumentRetrieverByPaths.set(key, retriever)
+    return retriever
+  }
 
   const generateSinglePage = async (
     page: PageRef,
@@ -1069,9 +1252,7 @@ export const runDeepAgentDeckGeneration = async (args: {
       previousError: string
     }
   ): Promise<string> => {
-    if (args.signal?.aborted) {
-      throw new Error(uiText(args.appLocale, '生成已取消', 'Generation canceled'))
-    }
+    assertGenerationNotCancelled(args.signal, args.appLocale)
     const pageStartedAt = Date.now()
     const currentPagePath = args.pageFileMap[page.pageId]
     const writeToolName = args.requireTemplatePageRead
@@ -1116,18 +1297,28 @@ export const runDeepAgentDeckGeneration = async (args: {
       outlineLength: (page.outline || '').length
     })
 
-    const isSectionAgendaPage = isSectionAgendaOutline(page.outline || '')
-    const pageSourceDocumentPaths = isSectionAgendaPage ? [] : args.sourceDocumentPaths
-    const referenceDocumentSnippets = referenceDocumentRetriever && !isSectionAgendaPage
-      ? formatReferenceDocumentSnippets(
-          referenceDocumentRetriever.search({
-            pageId: page.pageId,
-            pageTitle: page.title,
-            pageOutline: page.outline,
-            userMessage: args.userMessage
-          })
-        )
-      : ''
+    const referenceRangeBound = Boolean(page.pageReferenceContext)
+    const isSectionAgendaPage =
+      page.pageReferenceContext?.isSectionAgenda || isSectionAgendaOutline(page.outline || '')
+    const pageSourceDocumentPaths =
+      referenceRangeBound && page.pageReferenceContext
+        ? [page.pageReferenceContext.referenceDocumentPath]
+        : isSectionAgendaPage
+          ? []
+          : args.sourceDocumentPaths
+    const pageReferenceDocumentPath = page.pageReferenceContext?.referenceDocumentPath
+    const referenceDocumentRetriever = await getReferenceDocumentRetriever(pageSourceDocumentPaths)
+    const referenceDocumentSnippets =
+      referenceDocumentRetriever && (!isSectionAgendaPage || referenceRangeBound)
+        ? formatReferenceDocumentSnippets(
+            referenceDocumentRetriever.search({
+              pageId: page.pageId,
+              pageTitle: page.title,
+              pageOutline: page.outline,
+              userMessage: args.userMessage
+            })
+          )
+        : ''
     log.info('[deepagent] reference document snippets prepared', {
       sessionId: args.sessionId,
       pageId: page.pageId,
@@ -1157,6 +1348,7 @@ export const runDeepAgentDeckGeneration = async (args: {
         deckTitle: args.deckTitle,
         styleId: args.styleId,
         styleSkillPrompt: args.styleSkillPrompt,
+        hasStyleImageDirection: args.hasStyleImageDirection,
         styleKey: args.styleKey,
         styleName: args.styleName,
         styleVersion: args.styleVersion,
@@ -1177,6 +1369,8 @@ export const runDeepAgentDeckGeneration = async (args: {
           }
         ],
         sourceDocumentPaths: pageSourceDocumentPaths,
+        referenceDocumentPath: pageReferenceDocumentPath,
+        pageReferenceContext: page.pageReferenceContext || undefined,
         mode: args.generationMode ?? 'generate',
         pageFileMap: { [page.pageId]: currentPagePath },
         pageNumbers: { [page.pageId]: page.pageNumber },
@@ -1219,7 +1413,11 @@ export const runDeepAgentDeckGeneration = async (args: {
                   layoutIntent: page.layoutIntent,
                   layoutId: page.layoutId,
                   layoutPrompt: page.layoutPrompt,
+                  visualEnabled: args.visualEnabled === true,
+                  hasStyleImageDirection: args.hasStyleImageDirection,
                   sourceDocumentPaths: pageSourceDocumentPaths,
+                  referenceDocumentPath: pageReferenceDocumentPath,
+                  pageReferenceContext: page.pageReferenceContext || undefined,
                   referenceDocumentSnippets,
                   isRetryMode: args.generationMode === 'retry',
                   writeToolName,
@@ -1282,6 +1480,7 @@ export const runDeepAgentDeckGeneration = async (args: {
           })
         }
       })
+      assertGenerationNotCancelled(args.signal, args.appLocale)
 
       const afterPageHtml = await readPageHtmlIfExists(currentPagePath)
       if (
@@ -1296,6 +1495,15 @@ export const runDeepAgentDeckGeneration = async (args: {
           ].join(' ')
         )
       }
+      const slotValidation = validateLayoutSlots({
+        html: afterPageHtml,
+        layoutIntent: page.layoutIntent,
+        layoutId: page.layoutId,
+        layoutContractVersion: page.layoutContractVersion
+      })
+      if (!slotValidation.valid) {
+        throw new Error(`Layout slot validation failed: ${slotValidation.errors.join('; ')}`)
+      }
 
       emitPageStatus({
         pageId: page.pageId,
@@ -1304,14 +1512,97 @@ export const runDeepAgentDeckGeneration = async (args: {
         pageProgress: 95
       })
 
-      await args.onPageCompleted?.({
+      const pageCompletion = {
         pageNumber: page.pageNumber,
         pageId: page.pageId,
         title: page.title,
         contentOutline: page.outline,
         layoutIntent: page.layoutIntent,
+        layoutId: page.layoutId,
+        layoutContractVersion: page.layoutContractVersion,
         htmlPath: currentPagePath
+      }
+      assertGenerationNotCancelled(args.signal, args.appLocale)
+      await args.finalizePage?.(
+        pageCompletion,
+        createImageLayoutRefinement({
+          provider: args.provider,
+          apiKey: args.apiKey,
+          model: args.model,
+          baseUrl: args.baseUrl,
+          temperature: args.temperature,
+          maxTokens: args.maxTokens,
+          modelRuntime: args.agentManager.getSession(args.sessionId)?.modelRuntime,
+          styleId: args.styleId,
+          context: {
+            mode: 'edit',
+            editScope: 'page',
+            sessionId: args.sessionId,
+            projectDir: args.projectDir,
+            indexPath: args.indexPath,
+            pageFileMap: { [page.pageId]: currentPagePath },
+            pageNumbers: { [page.pageId]: page.pageNumber },
+            selectPageIds: [page.pageId],
+            allowedPageIds: [page.pageId],
+            topic: args.topic,
+            deckTitle: args.deckTitle,
+            styleId: args.styleId,
+            styleSkillPrompt: args.styleSkillPrompt,
+            hasStyleImageDirection: args.hasStyleImageDirection,
+            styleKey: args.styleKey,
+            styleName: args.styleName,
+            styleVersion: args.styleVersion,
+            slideSize: args.slideSize,
+            appLocale: args.appLocale,
+            animationPreferences: args.animationPreferences,
+            designContract: args.designContract,
+            userMessage: 'Refine this page after automatic image placement.',
+            outlineTitles: [page.title],
+            outlineItems: [
+              {
+                title: page.title,
+                contentOutline: page.outline,
+                layoutIntent: page.layoutIntent,
+                layoutId: page.layoutId,
+                layoutPrompt: page.layoutPrompt
+              }
+            ],
+            sourceDocumentPaths: pageSourceDocumentPaths,
+            referenceDocumentPath: pageReferenceDocumentPath,
+            pageReferenceContext: page.pageReferenceContext || undefined,
+            selectedPageId: page.pageId,
+            selectedPageNumber: page.pageNumber,
+            selectedSelector: 'main[data-role="content"]',
+            elementTag: 'main',
+            elementText: 'Complete slide content after automatic image placement',
+            existingPageIds: [page.pageId]
+          },
+          agentManager: args.agentManager,
+          emit: args.emit,
+          runId: args.runId,
+          stage: 'rendering',
+          totalPages,
+          timeoutMs: args.modelTimeoutMs,
+          signal: args.signal,
+          workerLabel
+        })
+      )
+
+      const finalizedHtml = await readPageHtmlIfExists(currentPagePath)
+      const finalizedSlotValidation = validateLayoutSlots({
+        html: finalizedHtml,
+        layoutIntent: page.layoutIntent,
+        layoutId: page.layoutId,
+        layoutContractVersion: page.layoutContractVersion
       })
+      if (!finalizedSlotValidation.valid) {
+        throw new Error(
+          `Final layout slot validation failed: ${finalizedSlotValidation.errors.join('; ')}`
+        )
+      }
+
+      assertGenerationNotCancelled(args.signal, args.appLocale)
+      await args.onPageCompleted?.(pageCompletion)
 
       setPageProgress(page.pageId, 100)
       const completedCount = getCompletedPageCount()
@@ -1366,6 +1657,7 @@ export const runDeepAgentDeckGeneration = async (args: {
         return await generateSinglePage(page, workerLabel, retryContext)
       } catch (error) {
         lastError = error
+        if (args.signal?.aborted) throw error
         const reason = error instanceof Error ? error.message : String(error)
         // Write/validation errors that are truly non-retryable
         const isWriteError = /落盘校验|禁止的 CDN|远程资源|未知页面|不允许写入/i.test(reason)
@@ -1456,6 +1748,7 @@ export const runDeepAgentDeckGeneration = async (args: {
             )
           }
         } catch (error) {
+          if (args.signal?.aborted) throw error
           const reason = error instanceof Error ? error.message : String(error)
           args.emit?.({
             type: 'page_failed',
@@ -1479,6 +1772,8 @@ export const runDeepAgentDeckGeneration = async (args: {
             title: page.title,
             contentOutline: page.outline,
             layoutIntent: page.layoutIntent,
+            layoutId: page.layoutId,
+            layoutContractVersion: page.layoutContractVersion,
             htmlPath: args.pageFileMap[page.pageId] || '',
             reason
           })
@@ -1505,6 +1800,7 @@ export const runDeepAgentDeckGeneration = async (args: {
       })
     }
   })
+  assertGenerationNotCancelled(args.signal, args.appLocale)
   const finalAssistantText = pageRefs
     .map((page) => pageSummaryMap.get(page.pageNumber))
     .filter((item): item is string => Boolean(item))
@@ -1532,6 +1828,7 @@ type RunDeepAgentEditBaseArgs = {
   maxTokens?: number
   styleId: string | null | undefined
   styleSkillPrompt: string
+  hasStyleImageDirection?: boolean
   styleKey?: string
   styleName?: string
   styleVersion?: string
@@ -1544,6 +1841,10 @@ type RunDeepAgentEditBaseArgs = {
   outlineTitles: string[]
   outlineItems: OutlineItem[]
   sourceDocumentPaths?: string[]
+  referenceDocumentPath?: string
+  pageReferenceContexts?: Record<string, PageReferenceContext>
+  imageIntentAddendum?: string
+  finalizeEditedPage?: (pageId: string, refineImageLayout: ImageLayoutRefinement) => Promise<void>
   projectDir: string
   indexPath: string
   pageFileMap: Record<string, string>
@@ -1585,6 +1886,17 @@ const runDeepAgentScopedEdit = async (args: RunDeepAgentScopedEditArgs): Promise
   const outlineItems = appliesLayoutMaster
     ? await resolveLayoutMasterOutlineItems(args.projectDir, args.outlineItems)
     : args.outlineItems
+  const referenceContextPageId =
+    args.selectedPageId ||
+    (args.editScope === 'deck' && args.selectPageIds?.length === 1
+      ? args.selectPageIds[0]
+      : undefined)
+  const pageReferenceContext = referenceContextPageId
+    ? args.pageReferenceContexts?.[referenceContextPageId]
+    : undefined
+  const sourceDocumentPaths = pageReferenceContext
+    ? [pageReferenceContext.referenceDocumentPath]
+    : args.sourceDocumentPaths
   const editAgent = createSessionEditAgent({
     provider: args.provider,
     apiKey: args.apiKey,
@@ -1604,6 +1916,7 @@ const runDeepAgentScopedEdit = async (args: RunDeepAgentScopedEditArgs): Promise
       deckTitle: args.deckTitle,
       styleId: args.styleId,
       styleSkillPrompt: args.styleSkillPrompt,
+      hasStyleImageDirection: args.hasStyleImageDirection,
       styleKey: args.styleKey,
       styleName: args.styleName,
       styleVersion: args.styleVersion,
@@ -1613,7 +1926,9 @@ const runDeepAgentScopedEdit = async (args: RunDeepAgentScopedEditArgs): Promise
       userMessage: args.userMessage,
       outlineTitles: args.outlineTitles,
       outlineItems,
-      sourceDocumentPaths: args.sourceDocumentPaths,
+      sourceDocumentPaths,
+      referenceDocumentPath: pageReferenceContext?.referenceDocumentPath,
+      pageReferenceContext,
       pageFileMap: args.pageFileMap,
       pageNumbers: args.pageNumbers,
       selectPageIds: args.selectPageIds,
@@ -1628,7 +1943,9 @@ const runDeepAgentScopedEdit = async (args: RunDeepAgentScopedEditArgs): Promise
         args.editScope === 'page' && args.selectedPageId
           ? [args.selectedPageId]
           : args.editScope === 'deck'
-            ? Object.keys(args.pageFileMap)
+            ? args.selectPageIds?.length
+              ? args.selectPageIds
+              : Object.keys(args.pageFileMap)
             : undefined
     }
   })
@@ -1737,7 +2054,9 @@ const runDeepAgentScopedEdit = async (args: RunDeepAgentScopedEditArgs): Promise
           {
             role: 'user',
             content: buildEditUserPrompt({
-              userMessage: args.userMessage,
+              userMessage: [args.userMessage, args.imageIntentAddendum || '']
+                .filter(Boolean)
+                .join('\n\n'),
               editScope: args.editScope,
               selectedPageId: args.selectedPageId,
               selectedPageNumber: args.selectedPageNumber,
@@ -1797,8 +2116,81 @@ const runDeepAgentScopedEdit = async (args: RunDeepAgentScopedEditArgs): Promise
               ),
           progress: defaultProgress
         })
-      },
+      }
     })
+    assertGenerationNotCancelled(args.signal, args.appLocale)
+    if (args.finalizeEditedPage) {
+      for (const pageId of scopedEditPageIds) {
+        assertGenerationNotCancelled(args.signal, args.appLocale)
+        const pagePath = args.pageFileMap[pageId]
+        if (!pagePath || !fs.existsSync(pagePath)) continue
+        const pageIndex = Object.keys(args.pageFileMap).indexOf(pageId)
+        const outlineItem = outlineItems[pageIndex]
+        const pageTitle = args.outlineTitles[pageIndex] || pageId
+        const pageNumber = args.pageNumbers?.[pageId] || editPageNumberById.get(pageId) || 1
+        await args.finalizeEditedPage(
+          pageId,
+          createImageLayoutRefinement({
+            provider: args.provider,
+            apiKey: args.apiKey,
+            model: args.model,
+            baseUrl: args.baseUrl,
+            temperature: args.temperature,
+            maxTokens: args.maxTokens,
+            modelRuntime: args.agentManager.getSession(args.sessionId)?.modelRuntime,
+            styleId: args.styleId,
+            context: {
+              mode: 'edit',
+              editScope: 'page',
+              sessionId: args.sessionId,
+              projectDir: args.projectDir,
+              indexPath: args.indexPath,
+              pageFileMap: { [pageId]: pagePath },
+              pageNumbers: { [pageId]: pageNumber },
+              selectPageIds: [pageId],
+              allowedPageIds: [pageId],
+              topic: args.topic,
+              deckTitle: args.deckTitle,
+              styleId: args.styleId,
+              styleSkillPrompt: args.styleSkillPrompt,
+              hasStyleImageDirection: args.hasStyleImageDirection,
+              styleKey: args.styleKey,
+              styleName: args.styleName,
+              styleVersion: args.styleVersion,
+              slideSize: args.slideSize,
+              appLocale: args.appLocale,
+              designContract: args.designContract,
+              userMessage: 'Refine this page after automatic image placement.',
+              outlineTitles: [pageTitle],
+              outlineItems: [
+                outlineItem || {
+                  title: pageTitle,
+                  contentOutline: ''
+                }
+              ],
+              sourceDocumentPaths: args.sourceDocumentPaths,
+              referenceDocumentPath: args.pageReferenceContexts?.[pageId]?.referenceDocumentPath,
+              pageReferenceContext: args.pageReferenceContexts?.[pageId],
+              selectedPageId: pageId,
+              selectedPageNumber: pageNumber,
+              selectedSelector: 'main[data-role="content"]',
+              elementTag: 'main',
+              elementText: 'Complete slide content after automatic image placement',
+              existingPageIds: [pageId]
+            },
+            agentManager: args.agentManager,
+            emit: args.emit,
+            runId: args.runId,
+            stage: 'editing',
+            totalPages: 1,
+            timeoutMs: args.modelTimeoutMs,
+            signal: args.signal,
+            workerLabel: pageId
+          })
+        )
+      }
+    }
+    assertGenerationNotCancelled(args.signal, args.appLocale)
   } finally {
     if (concurrentDeckPageId) {
       args.agentManager.removePageAgent(args.sessionId, concurrentDeckPageId)

@@ -14,6 +14,9 @@
     "夕阳"
   ],
   "styleCase": "旅游出行、疗愈冥想、教学科普",
+  "imageGeneration": {
+    "prompt": "Tranquil healing seaside sunset with a clear sky-blue horizon, soft cream clouds and a warm orange sun over calm water. Use a minimal watercolor illustration style, gentle reflections and generous negative space for slide text. Do not render words, logos, UI, watermarks, harsh contrast, or photorealistic stock scenes."
+  },
   "version": "2.0.2",
   "source": "builtin"
 }

@@ -34,6 +34,11 @@ Your responsibility is to modify ONLY the target element specified by the select
 
 {{layoutCollisionRules}}
 
+## 页面节奏（仅当本次局部修改影响内容布局或阅读层级时）
+{{canvasScenarioContentRules}}
+
+{{canvasScenarioDeliveryGuard}}
+
 {{pageSemanticStructure}}
 
 {{frontendCapabilities}}{{sourceDocumentSection}}

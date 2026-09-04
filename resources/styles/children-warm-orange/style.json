@@ -15,6 +15,9 @@
     "children"
   ],
   "styleCase": "亲子儿童、教学科普、品牌营销",
+  "imageGeneration": {
+    "prompt": "Warm children's picture-book scene with an orange sky, vivid green meadow, playful children, balloons, paper airplanes and a small carousel when relevant to the topic. Use cheerful hand-painted forms and a wholesome, airy composition with text-safe space. Do not render words, logos, UI, watermarks, photorealism, dark moods, or dense visual clutter."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

@@ -14,6 +14,9 @@
     "水彩"
   ],
   "styleCase": "教学科普、疗愈冥想、亲子儿童",
+  "imageGeneration": {
+    "prompt": "Gentle hand-drawn watercolor storybook scene related to the slide subject, with soft pencil outlines, low-saturation warm cream, pale ocean blue and coral accents. Use airy paper texture, imperfect brushwork and a calm focal area with generous negative space. Do not render text, logos, UI, watermarks, harsh geometry, glossy 3D, or photorealism."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

@@ -32,6 +32,20 @@ export const stringifyJsonObject = (record: Record<string, unknown>): string => 
   return JSON.stringify(record, null, 2)
 }
 
+export const createImageModelVerificationSignature = (
+  provider: ImageModelProvider,
+  modelConfig: string
+): string => JSON.stringify({ provider, modelConfig })
+
+export const isImageModelVerificationCurrent = (
+  verifiedSignature: string | null,
+  provider: ImageModelProvider,
+  modelConfig: string | null
+): boolean => {
+  if (!modelConfig) return false
+  return verifiedSignature === createImageModelVerificationSignature(provider, modelConfig)
+}
+
 export const summarizeImageModelConfig = (value: string): string => {
   const config = readJsonObject(value)
   if (!config) return 'model_config'

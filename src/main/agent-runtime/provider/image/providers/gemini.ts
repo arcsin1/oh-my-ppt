@@ -6,6 +6,7 @@ import type {
   ResolvedImageModelConfig
 } from '../types'
 import { readRecord, readString } from './utils'
+import { resolveConfiguredDefaultImageSize } from './default-size'
 
 const DEFAULT_MODEL = 'gemini-3.1-flash-image'
 const LOG_TAG = 'gemini'
@@ -122,6 +123,15 @@ const collectGeminiImages = (response: unknown): ImageGenerationResult[] => {
 }
 
 export const geminiAdapter: ImageGenerationProviderAdapter = {
+  getDefaultSize(config) {
+    const configured = resolveConfiguredDefaultImageSize(config)
+    if (configured) return configured
+    const imageConfig = readRecord(readRecord(config.modelConfig.generationConfig).imageConfig)
+    const aspectRatio = readString(config.modelConfig, 'aspectRatio') || readString(imageConfig, 'aspectRatio')
+    const imageSize = readString(imageConfig, 'imageSize') || '1K'
+    return `${aspectRatio || '16:9'}|${imageSize}`
+  },
+
   async generate(config, input) {
     const startedAt = Date.now()
     const model = readString(config.modelConfig, 'model') || DEFAULT_MODEL

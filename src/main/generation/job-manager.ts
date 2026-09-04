@@ -19,7 +19,7 @@ type BackgroundJob<TContext extends FinalizeContext> = {
   kind: SessionJobKind
   context: TContext
   totalPages: number
-  status: 'pending' | 'active'
+  status: 'pending' | 'active' | 'settling'
   reservedCapacitySlot: boolean
   reservation: GenerateJobReservation
   execute: (context: TContext) => Promise<void>
@@ -94,7 +94,6 @@ export class GenerateJobManager {
       | 'page-edit'
       | 'edit'
       | 'style-switch'
-      | 'page-beautify'
       | 'single-page-retry'
       | 'addPage'
     targetPageId?: string
@@ -250,6 +249,7 @@ export class GenerateJobManager {
 
   async cancel(sessionId: string): Promise<boolean> {
     const job = this.jobsBySession.get(sessionId)
+    if (job?.status === 'settling') return false
     const activeJob = this.coordinator.getByOwner({ kind: 'session', id: sessionId })
     const cancelled = activeJob ? this.coordinator.cancel(activeJob.jobId) : false
     if (!job) return cancelled
@@ -344,6 +344,11 @@ export class GenerateJobManager {
       try {
         if (activationError) throw activationError
         await job.execute(job.context)
+        this.assertNotCancelled(job.reservation)
+        // execute() only resolves after generation, history, and session state have committed.
+        // Keep the lease until its session-job row is durable, but do not let a late cancel
+        // turn that already committed success into a contradictory cancelled run.
+        job.status = 'settling'
       } catch (error) {
         await this.settleFailedJob(job, error)
         return

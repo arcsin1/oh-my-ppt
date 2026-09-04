@@ -13,6 +13,9 @@
     "波普"
   ],
   "styleCase": "品牌营销、产品发布、教学科普",
+  "imageGeneration": {
+    "prompt": "Playful Memphis Pop abstract composition with neon yellow, lavender and indigo circles, triangles and zigzags, energetic asymmetry and a clean graphic poster feel. Preserve open space for slide content. Do not render text, logos, UI, watermarks, photorealistic objects, or a crowded collage."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

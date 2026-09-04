@@ -8,7 +8,8 @@ import {
   MAX_SELECTED_PAGES,
   MAX_STYLE_SWITCH_PAGES,
   type DesignContract,
-  type GeneratedPagePayload
+  type GeneratedPagePayload,
+  type PageReferenceContext
 } from '@shared/generation'
 import type { GenerationContext } from './context'
 import type { EditContext, EmitAssistantFn } from './types'
@@ -29,7 +30,12 @@ import {
   type DeckEditFailedBatch
 } from './edit-deck-batch-flow'
 import { runDeepAgentDeckAllPageEdit } from './agent-runner'
+import { createPageImageFinalizer } from './page-image-finalizer'
+import { hasCompatiblePageLayoutSource, validateLayoutSlots } from './layout-slot-validator'
+import { buildGenerationImageIntentRules } from '../agent-runtime/prompt/composers/generation-image-intent-rules'
+import { getLayoutMasterTemplate } from '@shared/layout-master'
 import { resolveRemainingFailedPageInfo } from './edit-deck-failure-state'
+import { resolvePageReferenceContext } from './source-plan'
 import {
   buildLocalSuccessfulEditSummary,
   emitSuccessfulEditSummary
@@ -84,6 +90,25 @@ export async function executeDeckAllPageEditGeneration(
   const sessionPages = await db.listSessionPages(context.sessionId)
   if (sessionPages.length === 0) {
     throw new Error('session_pages is empty after migration; cannot edit this session')
+  }
+  const layoutSourceByPageId = new Map(
+    sessionPages.map((page) => [
+      page.file_slug,
+      {
+        layoutIntent: page.layout_intent ? normalizeLayoutIntent(page.layout_intent) : null,
+        layoutId: page.layout_id,
+        layoutContractVersion: page.layout_contract_version
+      }
+    ])
+  )
+  const pageReferenceContexts: Record<string, PageReferenceContext> = {}
+  for (const page of sessionPages) {
+    const pageReferenceContext = resolvePageReferenceContext({
+      referenceDocumentPath: context.referenceDocumentPath,
+      sourcePlan: context.sourcePlan,
+      pageNumber: page.page_number
+    })
+    if (pageReferenceContext) pageReferenceContexts[page.file_slug] = pageReferenceContext
   }
   pageRefs = sessionPages.map((page) => ({
     id: page.id,
@@ -160,7 +185,8 @@ export async function executeDeckAllPageEditGeneration(
   const outlineItems = pageRefs.map((ref) => ({
     title: ref.title,
     contentOutline: outlineByPageId.get(ref.pageId) || '',
-    layoutIntent: layoutIntentByPageId.get(ref.pageId)
+    layoutIntent: layoutSourceByPageId.get(ref.pageId)?.layoutIntent || layoutIntentByPageId.get(ref.pageId),
+    layoutId: layoutSourceByPageId.get(ref.pageId)?.layoutId || undefined
   }))
   const pageFileMap = Object.fromEntries(pageRefs.map((p) => [p.pageId, p.htmlPath]))
   const pageNumbers = Object.fromEntries(pageRefs.map((p) => [p.pageId, p.pageNumber]))
@@ -223,6 +249,7 @@ export async function executeDeckAllPageEditGeneration(
     temperature: PAGE_EDIT_DEFAULT_TEMPERATURE,
     styleId: context.styleId,
     styleSkillPrompt: context.styleSkill.prompt,
+    hasStyleImageDirection: Boolean(context.imageGenerationPrompt.trim()),
     styleKey: context.styleKey,
     styleName: context.styleName,
     styleVersion: context.styleVersion,
@@ -231,15 +258,80 @@ export async function executeDeckAllPageEditGeneration(
     topic: context.topic,
     deckTitle: context.deckTitle,
     userMessage: context.userMessage,
+    imageIntentAddendum:
+      context.visualEnabled && context.imageGenerationPrompt.trim()
+        ? [
+            'Automatic image generation is enabled for this session.',
+            'The active style supports automatic image generation.',
+            'For the current page only, preserve its data-ppt-slot contract and follow the image-intent rules supplied by its selected layout master.'
+          ].join('\n')
+        : context.visualEnabled
+          ? 'The active style has no image-generation direction. Do not request generated images.'
+          : '',
     outlineTitles,
     outlineItems,
     sourceDocumentPaths: context.sourceDocumentPaths,
+    referenceDocumentPath: context.referenceDocumentPath,
+    pageReferenceContexts,
     projectDir,
     indexPath,
     pageFileMap,
     pageNumbers,
     designContract: savedDesignContract,
     existingPageIds: existingPageIdsBeforeRun,
+    finalizeEditedPage: async (pageId, refineImageLayout) => {
+      const page = pageRefs.find((item) => item.pageId === pageId)
+      const source = layoutSourceByPageId.get(pageId)
+      if (!page) return
+      if (
+        !source?.layoutIntent ||
+        !source.layoutId ||
+        !source.layoutContractVersion ||
+        !hasCompatiblePageLayoutSource(source)
+      ) {
+        log.info('[images:fulfillment] page skipped', {
+          sessionId: context.sessionId,
+          runId: context.runId,
+          pageId,
+          reason: 'deck edit has no compatible layout source',
+          layoutIntent: source?.layoutIntent || null,
+          layoutId: source?.layoutId || null,
+          layoutContractVersion: source?.layoutContractVersion || null
+        })
+        return
+      }
+      const finalizer = createPageImageFinalizer(ctx, {
+        sessionId: context.sessionId,
+        runId: context.runId,
+        visualEnabled: context.visualEnabled,
+        imageModelConfigId: context.imageModelConfigId,
+        imageGenerationPrompt: context.imageGenerationPrompt,
+        imagePromptDirector: {
+          provider: context.provider,
+          apiKey: context.apiKey,
+          model: context.model,
+          baseUrl: context.providerBaseUrl,
+          maxTokens: context.maxTokens,
+          modelRuntime: context.modelRuntime,
+          modelTimeoutMs: context.modelTimeouts.agent,
+          locale: context.appLocale
+        },
+        abortSignal: context.abortSignal
+      })
+      await finalizer(
+        {
+          pageNumber: page.pageNumber,
+          pageId,
+          title: page.title,
+          contentOutline: outlineByPageId.get(pageId) || '',
+          layoutIntent: source.layoutIntent || undefined,
+          layoutId: source.layoutId,
+          layoutContractVersion: source.layoutContractVersion,
+          htmlPath: page.htmlPath
+        },
+        refineImageLayout
+      )
+    },
     agentManager,
     runId: context.runId,
     signal: context.abortSignal
@@ -327,6 +419,26 @@ export async function executeDeckAllPageEditGeneration(
         return runDeepAgentDeckAllPageEdit({
           ...editRunArgs,
           userMessage,
+          imageIntentAddendum: (() => {
+            if (!context.visualEnabled) return ''
+            const source = layoutSourceByPageId.get(pageId)
+            if (
+              !source?.layoutIntent ||
+              !source.layoutId ||
+              !source.layoutContractVersion ||
+              !hasCompatiblePageLayoutSource(source)
+            ) {
+              return ''
+            }
+            const template = getLayoutMasterTemplate(source.layoutId)
+            return template
+              ? buildGenerationImageIntentRules({
+                  visualEnabled: true,
+                  template,
+                  hasStyleImageDirection: Boolean(context.imageGenerationPrompt.trim())
+                })
+              : ''
+          })(),
           selectPageIds: [pageId],
           emit
         })
@@ -335,6 +447,18 @@ export async function executeDeckAllPageEditGeneration(
         const pageRef = selectedPageRefs.find((p) => p.pageId === result.pageId)
         if (!pageRef) return
         const outlineItem = outlineItemByPageId.get(result.pageId)
+        const source = layoutSourceByPageId.get(result.pageId)
+        const currentHtml = await fs.promises.readFile(pageRef.htmlPath, 'utf-8')
+        const retainsLayoutSource = Boolean(
+          source?.layoutId &&
+            source.layoutContractVersion &&
+            validateLayoutSlots({
+              html: currentHtml,
+              layoutIntent: source.layoutIntent,
+              layoutId: source.layoutId,
+              layoutContractVersion: source.layoutContractVersion
+            }).valid
+        )
         await db.upsertGenerationPage({
           runId: context.runId,
           sessionId: context.sessionId,
@@ -342,7 +466,11 @@ export async function executeDeckAllPageEditGeneration(
           pageNumber: pageRef.pageNumber,
           title: pageRef.title,
           contentOutline: outlineItem?.contentOutline || '',
-          layoutIntent: outlineItem?.layoutIntent,
+          layoutIntent: retainsLayoutSource
+            ? source?.layoutIntent || outlineItem?.layoutIntent
+            : null,
+          layoutId: retainsLayoutSource ? source?.layoutId : null,
+          layoutContractVersion: retainsLayoutSource ? source?.layoutContractVersion : null,
           htmlPath: pageRef.htmlPath,
           status: 'completed',
           retryCount: result.retryCount
@@ -357,6 +485,9 @@ export async function executeDeckAllPageEditGeneration(
           pageNumber: pageRef.pageNumber,
           title: pageRef.title,
           htmlPath: pageRef.htmlPath,
+          layoutIntent: retainsLayoutSource ? source?.layoutIntent : null,
+          layoutId: retainsLayoutSource ? source?.layoutId : null,
+          layoutContractVersion: retainsLayoutSource ? source?.layoutContractVersion : null,
           status: 'completed',
           error: null
         })

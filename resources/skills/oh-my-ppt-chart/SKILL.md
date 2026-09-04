@@ -1,11 +1,11 @@
 ---
 name: oh-my-ppt-chart
-description: Must be read before adding or modifying Oh My PPT slide charts. Defines product-safe Chart.js usage, canvas layout constraints, axis label rules, and retry fixes.
+description: Must be read before adding or modifying Oh My PPT slide charts. Defines chart-selection rules, product-safe Chart.js usage, canvas layout constraints, axis label rules, and retry fixes.
 ---
 
 # Oh My PPT Chart
 
-For deeper examples (chart frame height guide, category axis patterns, layout integration tips), read `references/chart.md`.
+For deeper examples (chart selection, frame height guide, category axis patterns, layout integration tips), read `references/chart.md`.
 
 ## When to use
 
@@ -16,19 +16,32 @@ For deeper examples (chart frame height guide, category axis patterns, layout in
 ## When not to use
 
 - Pure visual micro-edits that don't change chart structure (e.g. adjusting a single color value). These still follow chart skill hard rules, but don't require reading the full reference.
+- A page without a source-grounded quantitative relationship. Course maps, agendas, processes, equal-status topic groups, hierarchies, and qualitative comparisons are page-native diagrams, not Chart.js charts.
 
 ## 30-second decision checklist
 
-Before writing chart HTML, answer these in order:
+Before deciding to write chart HTML, answer these in order:
 
-1. **Chart type**: bar, line, pie, doughnut, radar, polarArea, scatter, bubble?
-2. **Content slot**: how much vertical space remains for the chart zone after title, outer padding, gaps, notes, and reserve?
-3. **Support budget**: if metric cards, insight rails, legends, or footnotes share that zone, subtract their height first. Default to 0-2 support items around a main chart.
-4. **Final chart height**: hero / standard / compact? Pick one final px height for the chart frame. The `h-[Npx]` class must equal this final number.
-5. **Data semantics**: one value axis = one unit/meaning. Do not mix counts, percentages, money, or "new role" labels in one numeric dataset.
-6. **Takeaway**: what should the audience conclude from the chart? Write one visible interpretation sentence or a compact annotation rail; the chart cannot be the whole argument by itself.
-7. **Data shape**: labels + datasets. Are there enough data points for the chosen type?
-8. **Script event**: DOMContentLoaded only — the runtime loads Chart.js before this event fires.
+1. **Chart gate**: does the source provide a real numeric, temporal, compositional, profile, or correlation relationship? If not, use a page-native diagram and stop.
+2. **Visual question**: is the message comparison, trend, composition, profile, or correlation? Choose the chart form for that question; never create numbers or proportions just to use a chart.
+3. **Content slot**: how much vertical space remains for the chart zone after title, outer padding, gaps, notes, and reserve?
+4. **Support budget**: if metric cards, insight rails, legends, or footnotes share that zone, subtract their height first. Start with a small support set (often 0-2 items) around a main chart; add more when the reading path, hierarchy, and chart budget remain clear.
+5. **Final chart height**: hero / standard / compact? Pick one final px height for the chart frame. The `h-[Npx]` class must equal this final number.
+6. **Data semantics**: one value axis = one unit/meaning. Do not mix counts, percentages, money, or "new role" labels in one numeric dataset.
+7. **Takeaway**: what should the audience conclude from the chart? Write one visible interpretation sentence or a compact annotation rail; the chart cannot be the whole argument by itself.
+8. **Data shape**: labels + datasets. Are there enough data points for the chosen type?
+9. **Script event**: DOMContentLoaded only — the runtime loads Chart.js before this event fires.
+
+## Chart selection
+
+Use Chart.js only for a real source-grounded relationship:
+
+- **Category comparison or ranking**: use a bar chart; use horizontal bars for long labels.
+- **Ordered time or continuous change**: use a line chart; use an area only when cumulative magnitude is the message.
+- **Verified, mutually exclusive parts of one stated whole**: use a doughnut or pie with 4-6 slices. Values must add to the displayed total or 100%; a list of topics or an invented time split is not a whole.
+- **Same-scale scores across shared dimensions**: use a radar chart sparingly; every axis must share a meaningful scale.
+- **Two or three numeric variables**: use scatter or bubble for correlation/distribution.
+- **No data chart**: use a page-native route, four-part map, process, hierarchy, relationship diagram, or comparison layout for agendas, course maps, stages, concepts, or unquantified topic groups.
 
 ## How to create a chart
 
@@ -66,14 +79,14 @@ Calculation steps:
 8. Subtract only sibling modules stacked above/below the chart inside the same column or vertical zone. Side-by-side modules in other columns share width, not height; do **not** divide the content slot by column count, and do not subtract a left metric rail from a right-column chart height.
 9. Choose the chart frame height from the chart slot (do not stop short and leave an empty band):
    - Hero/main chart (dominant zone): 380–560px only when the chart is the primary evidence
-   - Standard chart beside/under 1–2 support modules: 280–360px, with breathing room around the support modules
+   - Standard chart beside/under a compact support set: 280–360px, with an actual nonzero gap around independent support modules
    - Compact supporting chart (one small module in a dense layout): 220–280px, with other modules kept concise
    - If the computed chart slot is 600px+ and the chart is the primary evidence, use the top of the hero/main range (usually 520–560px). Do not calculate a 600+ slot and then choose 340px for the primary chart.
-10. If the chart slot is below 220px, redesign the chart/support relationship and run the layout width/height self-check again.
+10. If the chart slot is below the space needed for its labels, axes, and intended reading distance (often around 220px on a 1600×900 canvas), redesign the chart/support relationship and run the layout width/height self-check again.
 
 Column budget rule: columns share width, not height. If the page uses `grid-cols-2`, the chart column still receives the full post-title vertical content slot. A bad calc is `content slot = 732; left metrics = 732/2; right side = 366`; the correct calc is `right column content slot = 732`, then subtract only the right-column heading, insight card, gaps, padding, and reserve.
 
-Do not pair a standard/tall chart with a two-row bottom card grid. If the slide has 4-6 additional facts, choose a density-appropriate structure such as in-chart annotations, one short evidence rail, a compact table, or a grouped list. A main chart usually gets 0-2 support items, not a full card set.
+Avoid a two-row bottom card grid when it competes with a standard/tall chart. If the slide has 4-6 additional facts, choose in-chart annotations, an evidence rail, a compact table, a grouped list, or a compact aligned data mosaic with an explicit budget. A main chart usually starts with 0-2 support items; a larger set is valid when the chart remains dominant and the reading path stays clear.
 
 Axis-heavy charts need extra space. For horizontal bars with 6+ categories, long labels, negative+positive ranges, or wide tick labels such as percentages, reserve 40-60px inside the chart options for the x-axis/tick area (`layout.padding.bottom`, tick padding, and a modest `maxTicksLimit`). If that would push support modules into a second row, redesign the support area as a side rail, annotation band, compact table, or in-chart callouts instead of shrinking the plot.
 
@@ -90,7 +103,7 @@ Chart.js category labels are plain text. Do not put HTML such as `<br>`, `<span>
 
 ### Chart slides need interpretation
 
-A chart-only slide is usually under-explained even if the chart is large. Pair the main chart with one visible takeaway sentence and, when useful, 1-2 compact annotations, an insight rail, or a source/note line. These support modules explain how to read the chart; they must not repeat every bar/table row as equal-weight cards. If the source has rich context, use the support area for "so what", caveat, baseline, or implication rather than more labels.
+A chart-only slide is usually under-explained even if the chart is large. Pair the main chart with one visible takeaway sentence and, when useful, concise annotations, an insight rail, or a source/note line. These support modules explain how to read the chart; they must not repeat every bar/table row as equal-weight cards. If the source has rich context, use the support area for "so what", caveat, baseline, or implication rather than more labels.
 
 Bad patterns to avoid:
 

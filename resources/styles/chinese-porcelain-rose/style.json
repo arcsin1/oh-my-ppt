@@ -15,6 +15,9 @@
     "典雅"
   ],
   "styleCase": "传统文化、品牌营销、艺术视觉",
+  "imageGeneration": {
+    "prompt": "Elegant Chinese porcelain still life with warm ivory and muted rose-pink ceramic vessels, lotus and scrolling cloud motifs, subtle gold accents and soft watercolor glaze texture. Use refined museum-like lighting and calm negative space. Do not render text, logos, labels, UI, watermarks, saturated colors, or generic product photography."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

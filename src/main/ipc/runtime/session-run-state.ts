@@ -8,7 +8,6 @@ export type SessionRunMode =
   | 'addPage'
   | 'retrySinglePage'
   | 'style-switch'
-  | 'page-beautify'
 
 export type SessionRunKind =
   | 'standard'
@@ -20,14 +19,12 @@ export type SessionRunKind =
   | 'page-edit'
   | 'deck-edit'
   | 'style-switch'
-  | 'page-beautify'
 
 export type SessionRunActivityKind =
   | 'page-edit'
   | 'deck-edit'
   | 'edit'
   | 'style-switch'
-  | 'page-beautify'
   | 'single-page-retry'
   | 'addPage'
 
@@ -96,12 +93,7 @@ export function getSessionRunPageCounts(state: {
 export function runtimeDomainForSessionRun(state: SessionRunState | undefined): RuntimeDomain {
   const activityKind = state?.activityKind
   if (activityKind === 'style-switch') return 'style'
-  if (
-    activityKind === 'page-edit' ||
-    activityKind === 'deck-edit' ||
-    activityKind === 'edit' ||
-    activityKind === 'page-beautify'
-  ) {
+  if (activityKind === 'page-edit' || activityKind === 'deck-edit' || activityKind === 'edit') {
     return 'edit'
   }
   return 'generation'

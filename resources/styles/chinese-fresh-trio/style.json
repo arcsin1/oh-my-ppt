@@ -15,6 +15,9 @@
     "国风现代"
   ],
   "styleCase": "品牌营销、商业汇报、教学科普",
+  "imageGeneration": {
+    "prompt": "Modern Chinese landscape illustration with emerald bamboo, a turquoise lake or stream, distant green hills and light cloud vapor. Blend clean geometric color blocking with restrained ink-wash texture on an ivory background, leaving clear space for slide content. Do not render text, logos, UI, watermarks, photorealism, or dense scenery."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

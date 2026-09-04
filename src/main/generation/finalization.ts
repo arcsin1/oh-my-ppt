@@ -8,6 +8,10 @@ import { isCancellationMessage, normalizeRestoredSessionStatus } from './status-
 
 const pageSlugId = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 10)
 
+const assertNotCancelled = (context: FinalizeContext): void => {
+  if (context.abortSignal?.aborted) throw new Error('生成已取消')
+}
+
 export const resolveGenerationFailureSessionStatus = (
   context: FinalizeContext,
   cancelled: boolean
@@ -29,16 +33,22 @@ const syncGeneratedPagesToSessionPages = async (
   ctx: GenerationContext,
   args: {
     sessionId: string
+    runId: string
     generatedPages: Array<{
       id?: string
       pageNumber: number
       title: string
       pageId?: string
       htmlPath?: string
+      layoutIntent?: string | null
+      layoutId?: string | null
+      layoutContractVersion?: number | null
     }>
   }
 ): Promise<void> => {
   const existingPages = await ctx.db.listSessionPages(args.sessionId, { includeDeleted: true })
+  const generationPages = await ctx.db.listGenerationPages(args.runId)
+  const generationPageById = new Map(generationPages.map((page) => [page.page_id, page]))
   const existingBySlug = new Map<string, SessionPageRecord>()
   for (const row of existingPages) {
     existingBySlug.set(row.file_slug, row)
@@ -48,6 +58,7 @@ const syncGeneratedPagesToSessionPages = async (
   for (const page of args.generatedPages) {
     const fileSlug = page.pageId || `page-${pageSlugId()}`
     const existing = existingBySlug.get(fileSlug)
+    const generationPage = generationPageById.get(fileSlug)
     await ctx.db.upsertSessionPage({
       id: page.id || existing?.id || nanoid(),
       sessionId: args.sessionId,
@@ -56,6 +67,14 @@ const syncGeneratedPagesToSessionPages = async (
       pageNumber: page.pageNumber,
       title: page.title || `第 ${page.pageNumber} 页`,
       htmlPath: page.htmlPath || '',
+      layoutIntent:
+        page.layoutIntent ?? generationPage?.layout_intent ?? existing?.layout_intent ?? null,
+      layoutId: page.layoutId ?? generationPage?.layout_id ?? existing?.layout_id ?? null,
+      layoutContractVersion:
+        page.layoutContractVersion ??
+        generationPage?.layout_contract_version ??
+        existing?.layout_contract_version ??
+        null,
       status: 'completed',
       error: null
     })
@@ -69,21 +88,28 @@ export async function finalizeGenerationSuccess(
   const { db } = ctx
   const { context, indexPath, totalPages, generatedPages } = args
   const contextWithPrompt = context as FinalizeContext & { userMessage?: unknown }
+  assertNotCancelled(context)
   await syncGeneratedPagesToSessionPages(ctx, {
     sessionId: context.sessionId,
+    runId: context.runId,
     generatedPages
   })
+  assertNotCancelled(context)
   await db.updateSessionMetadata(context.sessionId, {
     lastRunId: context.runId,
     entryMode: 'multi_page',
     indexPath,
     projectId: context.projectId
   })
+  assertNotCancelled(context)
   if (args.designContract) {
     await db.updateSessionDesignContract(context.sessionId, args.designContract)
   }
+  assertNotCancelled(context)
   await db.updateProjectStatus(context.projectId, 'draft')
+  assertNotCancelled(context)
   await db.updateSessionStatus(context.sessionId, 'completed')
+  assertNotCancelled(context)
   await ctx.history.recordOperation({
     sessionId: context.sessionId,
     projectDir: path.dirname(indexPath),
@@ -103,6 +129,9 @@ export async function finalizeGenerationSuccess(
       totalPages
     }
   })
+  assertNotCancelled(context)
+  await db.updateGenerationRunStatus(context.runId, 'completed', null)
+  assertNotCancelled(context)
   log.info('[generate:start] completed', {
     sessionId: context.sessionId,
     styleId: context.styleId,
@@ -132,7 +161,7 @@ export async function finalizeGenerationFailure(
     message
   })
   const generationRun = await db.getGenerationRun(context.runId)
-  if (generationRun && generationRun.status === 'running') {
+  if (generationRun && (generationRun.status === 'running' || generationRun.status === 'completed')) {
     await db.updateGenerationRunStatus(context.runId, 'failed', message)
   }
   if (context.effectiveMode === 'addPage' && context.targetPageId) {

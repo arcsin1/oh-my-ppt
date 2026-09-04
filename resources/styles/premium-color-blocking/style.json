@@ -14,6 +14,9 @@
     "editorial"
   ],
   "styleCase": "时尚潮流、品牌营销、产品发布",
+  "imageGeneration": {
+    "prompt": "High-fashion editorial abstract composition with sharp coral-orange and deep ink-blue color blocks, cream negative space and subtle screen-print texture. Add a single restrained botanical line motif only when relevant, preserving strong hierarchy for slide content. Do not render text, logos, UI, watermarks, photorealistic people, or decorative frames."
+  },
   "version": "2.0.2",
   "source": "builtin"
 }

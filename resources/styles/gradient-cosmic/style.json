@@ -15,6 +15,9 @@
     "夜空"
   ],
   "styleCase": "影视音乐、艺术视觉、年度庆典",
+  "imageGeneration": {
+    "prompt": "Cinematic cosmic night sky in deep indigo and black, with a luminous golden-orange nebula, stars, meteor trails and a subtle distant silhouette when relevant. Use dramatic dark-to-gold contrast and clean negative space for slide content. Do not render text, logos, UI, watermarks, borders, generic sci-fi interfaces, or busy scenes."
+  },
   "version": "2.0.2",
   "source": "builtin"
 }

@@ -38,6 +38,12 @@ function shouldBlockNativeWriteFile(context: SessionDeckGenerationContext): bool
   return context.mode === 'edit'
 }
 
+function resolveAllowedEditPaths(context: SessionDeckGenerationContext): string[] | undefined {
+  if (!context.selectedSelector?.trim()) return undefined
+  const pageId = context.selectedPageId?.trim()
+  return pageId ? [`/${pageId}.html`] : []
+}
+
 export function createSessionEditAgent(args: CreateSessionEditAgentArgs): DeepAgentStreamResult {
   const model = resolveModel(
     args.provider,
@@ -55,11 +61,13 @@ export function createSessionEditAgent(args: CreateSessionEditAgentArgs): DeepAg
   }
   const disableNativeEditFile = shouldBlockNativeEditFile(context)
   const disableNativeWriteFile = shouldBlockNativeWriteFile(context)
+  const allowedEditPaths = resolveAllowedEditPaths(context)
   const backend = new GuardedFilesystemBackend({
     rootDir: context.projectDir,
     virtualMode: true,
     disableEditFile: disableNativeEditFile,
     disableWriteFile: disableNativeWriteFile,
+    allowedEditPaths,
     editBlockedReason: disableNativeEditFile
       ? '当前编辑任务禁止使用 edit_file。请改用 update_single_page_file(pageId, content) 或 update_page_file(pageId, content)。'
       : undefined,
@@ -92,6 +100,7 @@ export function createSessionEditAgent(args: CreateSessionEditAgentArgs): DeepAg
     selectPageIds: context.selectPageIds,
     disableNativeEditFile,
     disableNativeWriteFile,
+    allowedEditPaths,
     promptMode,
     skillsEnabled: agentBackend.enabled,
     requiredSkillNames

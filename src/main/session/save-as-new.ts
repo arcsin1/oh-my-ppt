@@ -243,6 +243,13 @@ export function registerSessionSaveAsNewHandler(ctx: IpcContext): void {
       typeof sourceSession.model === 'string' && sourceSession.model.trim()
         ? sourceSession.model
         : 'session-save-as-new'
+    const sourceImageModelConfigId =
+      typeof (sourceSession.imageModelConfigId ?? sourceSession.image_model_config_id) === 'string'
+        ? String(sourceSession.imageModelConfigId ?? sourceSession.image_model_config_id).trim()
+        : ''
+    const sourceVisualEnabled =
+      (sourceSession.visualEnabled === 1 || sourceSession.visual_enabled === 1) &&
+      Boolean(sourceImageModelConfigId)
 
     try {
       await copyDirectoryForNewSession(sourceProjectDir, targetProjectDir)
@@ -268,6 +275,8 @@ export function registerSessionSaveAsNewHandler(ctx: IpcContext): void {
         slideWidth: slideSize.width,
         slideHeight: slideSize.height,
         referenceDocumentPath,
+        visualEnabled: sourceVisualEnabled,
+        imageModelConfigId: sourceVisualEnabled ? sourceImageModelConfigId : null,
         provider: sourceProvider,
         model: sourceModel
       })
@@ -309,6 +318,9 @@ export function registerSessionSaveAsNewHandler(ctx: IpcContext): void {
           pageNumber: page.page_number,
           title: page.title,
           htmlPath,
+          layoutIntent: page.layout_intent,
+          layoutId: page.layout_id,
+          layoutContractVersion: page.layout_contract_version,
           status: page.status,
           error: page.error
         })

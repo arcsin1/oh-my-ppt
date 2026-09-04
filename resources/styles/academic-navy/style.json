@@ -1,0 +1,19 @@
+{
+  "style": "academic-navy",
+  "name": {
+    "zh": "藏青学衡",
+    "en": "Academic Navy"
+  },
+  "description": "藏青与低调金棕构成的严谨学术答辩风",
+  "category": "学术 · 严谨",
+  "aliases": [
+    "学术答辩",
+    "论文汇报",
+    "藏青",
+    "深蓝金",
+    "研究"
+  ],
+  "styleCase": "毕业论文答辩、开题报告、科研课题汇报、学术项目结题",
+  "version": "1.0.0",
+  "source": "builtin"
+}

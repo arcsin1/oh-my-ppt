@@ -3,6 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 const api = {
   ...electronAPI,
+  getPlatform: (): NodeJS.Platform => process.platform,
   getPathForFile: (file: File) => webUtils.getPathForFile(file)
 }
 

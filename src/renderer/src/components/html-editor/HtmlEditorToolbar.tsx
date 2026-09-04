@@ -2,10 +2,12 @@ import { useCallback, type ReactElement } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Download,
+  Eye,
   ExternalLink,
   FileSearch,
   History,
   Home,
+  Pencil,
   Redo2,
   RotateCcw,
   Save,
@@ -20,15 +22,26 @@ import { useHtmlEditHistoryStore } from '../../store/htmlEditHistoryStore'
 import { useHtmlEditorAiStore } from '../../store/htmlEditorAiStore'
 import { useHtmlEditorUiStore } from '../../store/htmlEditorUiStore'
 import { useToastStore } from '../../store/toastStore'
+import { WindowControls } from '../layout/WindowControls'
 
 const iconBtnClass =
   'app-no-drag rounded-md p-1.5 text-[#5d6b4d] transition-colors hover:bg-[#ece5d6] disabled:pointer-events-none disabled:opacity-40'
 
+export type HtmlEditorMode = 'preview' | 'edit'
+
 /** HTML 编辑器顶部工具条（全图标，tooltip 标注）。 */
-export function HtmlEditorToolbar({ onOpenHistory }: { onOpenHistory: () => void }): ReactElement {
+export function HtmlEditorToolbar({
+  onOpenHistory,
+  mode = 'preview',
+  onModeChange
+}: {
+  onOpenHistory: () => void
+  mode?: HtmlEditorMode
+  onModeChange?: (mode: HtmlEditorMode) => void
+}): ReactElement {
   const t = useT()
   const navigate = useNavigate()
-  const isMac = window.electron?.process?.platform === 'darwin'
+  const isMac = ipc.getPlatform() === 'darwin'
 
   const docId = useHtmlEditorStore((s) => s.docId)
   const title = useHtmlEditorStore((s) => s.title)
@@ -78,6 +91,7 @@ export function HtmlEditorToolbar({ onOpenHistory }: { onOpenHistory: () => void
 
   const handleToggleAiMode = useCallback(async (): Promise<void> => {
     if (isSavingEdits) return
+    if (mode !== 'edit') onModeChange?.('edit')
     const nextEnabled = !useHtmlEditorAiStore.getState().enabled
     if (nextEnabled && docId) {
       const editStore = useHtmlEditStore.getState()
@@ -89,7 +103,7 @@ export function HtmlEditorToolbar({ onOpenHistory }: { onOpenHistory: () => void
     }
     useHtmlEditorAiStore.getState().setEnabled(nextEnabled)
     useHtmlEditorUiStore.getState().clearSelectedElement()
-  }, [docId, isSavingEdits])
+  }, [docId, isSavingEdits, mode, onModeChange])
 
   const tipBtn = (
     Icon: typeof Home,
@@ -115,11 +129,11 @@ export function HtmlEditorToolbar({ onOpenHistory }: { onOpenHistory: () => void
   )
 
   return (
-    <header className="app-drag-region app-titlebar relative shrink-0 bg-[#f5f1e8]/95 shadow-[0_10px_26px_rgba(93,107,77,0.055)] backdrop-blur-xl">
+    <header className="app-drag-region app-titlebar relative flex shrink-0 bg-[#f5f1e8]/95 shadow-[0_10px_26px_rgba(93,107,77,0.055)] backdrop-blur-xl">
       <div
-        className={`relative flex h-full items-center gap-1.5 ${
+        className={`relative flex h-full min-w-0 flex-1 items-center gap-1.5 ${
           isMac ? 'pl-[85px]' : 'pl-4'
-        } ${isMac ? '' : 'pr-[calc(var(--app-titlebar-control-safe-area)+16px)]'}`}
+        }`}
       >
         {/* 返回 */}
         <Tooltip>
@@ -159,6 +173,43 @@ export function HtmlEditorToolbar({ onOpenHistory }: { onOpenHistory: () => void
 
         <span className="mx-0.5 h-4 w-px bg-[#e2dccf]" />
 
+        <div
+          className="app-no-drag flex items-center gap-0.5 rounded-md bg-[#e8e0d0]/72 p-0.5"
+          aria-label={t('htmlEditor.edit')}
+          role="group"
+        >
+          <button
+            type="button"
+            onClick={() => onModeChange?.('preview')}
+            aria-label={t('common.preview')}
+            aria-pressed={mode === 'preview'}
+            className={`inline-flex h-6 items-center gap-1 rounded-[4px] px-2 text-[11px] font-medium transition-colors ${
+              mode === 'preview'
+                ? 'bg-[#5d6b4d] text-white shadow-[0_1px_3px_rgba(62,74,50,0.2)]'
+                : 'text-[#5d6b4d] hover:bg-[#f5f1e8]'
+            }`}
+          >
+            <Eye className="h-3 w-3" />
+            {t('common.preview')}
+          </button>
+          <button
+            type="button"
+            onClick={() => onModeChange?.('edit')}
+            aria-label={t('common.edit')}
+            aria-pressed={mode === 'edit'}
+            className={`inline-flex h-6 items-center gap-1 rounded-[4px] px-2 text-[11px] font-medium transition-colors ${
+              mode === 'edit'
+                ? 'bg-[#5d6b4d] text-white shadow-[0_1px_3px_rgba(62,74,50,0.2)]'
+                : 'text-[#5d6b4d] hover:bg-[#f5f1e8]'
+            }`}
+          >
+            <Pencil className="h-3 w-3" />
+            {t('common.edit')}
+          </button>
+        </div>
+
+        <span className="mx-0.5 h-4 w-px bg-[#e2dccf]" />
+
         {/* 导出 / 查看文件 / 预览 / 版本历史（一组） */}
         {tipBtn(
           Download,
@@ -191,6 +242,7 @@ export function HtmlEditorToolbar({ onOpenHistory }: { onOpenHistory: () => void
           {t('htmlEditor.aiModeButton')}
         </button>
       </div>
+      <WindowControls />
     </header>
   )
 }

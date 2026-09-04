@@ -5,12 +5,24 @@ import type {
   ResolvedImageModelConfig
 } from '../types'
 import { collectImageResults, joinUrl, readJsonResponse, readRecord, readString } from './utils'
+import { resolveConfiguredDefaultImageSize } from './default-size'
 
 const DEFAULT_BASE_URL = 'https://ark.cn-beijing.volces.com'
 const DEFAULT_ENDPOINT_PATH = '/api/v3/images/generations'
 const DEFAULT_MODEL = 'doubao-seedream-5-0-260128'
 const LOG_TAG = 'seedream'
 const LABEL = 'Seedream'
+const DEFAULT_SIZE = '2K'
+
+// M3b and the manual image panel use semantic aspect ratios. Seedream accepts a
+// pixel dimension or a quality tier, so map the former to balanced defaults.
+const DEFAULT_SIZE_BY_ASPECT: Record<string, string> = {
+  '1:1': '1024x1024',
+  '16:9': '1536x864',
+  '4:3': '1280x960',
+  '9:16': '864x1536',
+  '3:4': '960x1280'
+}
 
 const buildEndpoint = (config: ResolvedImageModelConfig): string => {
   const endpoint = readString(config.modelConfig, 'endpoint')
@@ -31,7 +43,7 @@ const resolveSize = (config: ResolvedImageModelConfig, inputSize: string): strin
   const configuredSize = readString(config.modelConfig, 'size') || readString(config.modelConfig, 'imageSize')
   const size = configuredSize || inputSize
   if (!size) throw new Error(`${LABEL} 需要 size，请在模型配置里填写 sizes 并选择一个值。`)
-  return size
+  return DEFAULT_SIZE_BY_ASPECT[size.trim().toLowerCase()] || size
 }
 
 const readNumber = (config: ResolvedImageModelConfig, key: string): number | undefined => {
@@ -95,6 +107,10 @@ const toErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
 export const seedreamAdapter: ImageGenerationProviderAdapter = {
+  getDefaultSize(config) {
+    return resolveConfiguredDefaultImageSize(config) || DEFAULT_SIZE
+  },
+
   async generate(config, input) {
     const startedAt = Date.now()
     const endpoint = buildEndpoint(config)

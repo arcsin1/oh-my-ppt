@@ -708,23 +708,29 @@ export const PageSidebar = memo(function PageSidebar({
                                   }
                                   actions={
                                     <div className="absolute inset-x-1 top-1 z-10 flex items-start justify-between opacity-0 transition-opacity group-hover:opacity-100">
-                                      <button
-                                        type="button"
-                                        ref={setActivatorNodeRef}
-                                        disabled={pageManagementDisabled || disabled}
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                        }}
-                                        className="cursor-grab rounded bg-white/90 p-1 text-[#5d6b4d] shadow-sm transition-colors hover:bg-[#f5f1e8] hover:text-[#3e4a32] active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50"
-                                        aria-label={t('pageManagement.dragHandle')}
-                                        title={t('pageManagement.dragHandle')}
-                                        {...attributes}
-                                        {...listeners}
-                                      >
-                                        <Move
-                                          className={`h-4 w-4 ${isDragging ? 'opacity-60' : ''}`}
-                                        />
-                                      </button>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <button
+                                            type="button"
+                                            ref={setActivatorNodeRef}
+                                            disabled={pageManagementDisabled || disabled}
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                            }}
+                                            className="cursor-grab rounded bg-white/90 p-1 text-[#5d6b4d] shadow-sm transition-colors hover:bg-[#f5f1e8] hover:text-[#3e4a32] active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50"
+                                            aria-label={t('pageManagement.dragHandle')}
+                                            {...attributes}
+                                            {...listeners}
+                                          >
+                                            <Move
+                                              className={`h-4 w-4 ${isDragging ? 'opacity-60' : ''}`}
+                                            />
+                                          </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="bottom" align="start">
+                                          {t('pageManagement.dragHandle')}
+                                        </TooltipContent>
+                                      </Tooltip>
                                       <div className="flex items-center gap-1">
                                         {canExportPptx ? (
                                           <DropdownMenu>
@@ -776,53 +782,71 @@ export const PageSidebar = memo(function PageSidebar({
                                           </DropdownMenu>
                                         ) : null}
                                         {onRenamePage ? (
-                                          <button
-                                            type="button"
-                                            disabled={pageActionDisabled}
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              onRenamePage(page)
-                                            }}
-                                            className="rounded bg-white/90 p-1 text-[#5d6b4d] shadow-sm transition-colors hover:bg-[#f5f1e8] hover:text-[#3e4a32] disabled:cursor-not-allowed disabled:opacity-50"
-                                            aria-label={t('pageManagement.editPageTitle')}
-                                            title={t('pageManagement.editPageTitle')}
-                                          >
-                                            <PencilLine className="h-3.5 w-3.5" />
-                                          </button>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                type="button"
+                                                disabled={pageActionDisabled}
+                                                onClick={(e) => {
+                                                  e.stopPropagation()
+                                                  onRenamePage(page)
+                                                }}
+                                                className="rounded bg-white/90 p-1 text-[#5d6b4d] shadow-sm transition-colors hover:bg-[#f5f1e8] hover:text-[#3e4a32] disabled:cursor-not-allowed disabled:opacity-50"
+                                                aria-label={t('pageManagement.editPageTitle')}
+                                              >
+                                                <PencilLine className="h-3.5 w-3.5" />
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="bottom">
+                                              {t('pageManagement.editPageTitle')}
+                                            </TooltipContent>
+                                          </Tooltip>
                                         ) : null}
                                         {onDuplicatePage ? (
-                                          <button
-                                            type="button"
-                                            disabled={pageManagementDisabled || pageActionDisabled}
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              onDuplicatePage(page)
-                                            }}
-                                            className="rounded bg-white/90 p-1 text-[#5d6b4d] shadow-sm transition-colors hover:bg-[#f5f1e8] hover:text-[#3e4a32] disabled:cursor-not-allowed disabled:opacity-50"
-                                            aria-label={t('pageManagement.duplicatePage')}
-                                            title={t('pageManagement.duplicatePage')}
-                                          >
-                                            <Copy className="h-3.5 w-3.5" />
-                                          </button>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                type="button"
+                                                disabled={pageManagementDisabled || pageActionDisabled}
+                                                onClick={(e) => {
+                                                  e.stopPropagation()
+                                                  onDuplicatePage(page)
+                                                }}
+                                                className="rounded bg-white/90 p-1 text-[#5d6b4d] shadow-sm transition-colors hover:bg-[#f5f1e8] hover:text-[#3e4a32] disabled:cursor-not-allowed disabled:opacity-50"
+                                                aria-label={t('pageManagement.duplicatePage')}
+                                              >
+                                                <Copy className="h-3.5 w-3.5" />
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="bottom">
+                                              {t('pageManagement.duplicatePage')}
+                                            </TooltipContent>
+                                          </Tooltip>
                                         ) : null}
                                         {onDeletePage ? (
-                                          <button
-                                            type="button"
-                                            disabled={
-                                              pageManagementDisabled ||
-                                              pageActionDisabled ||
-                                              pages.length <= 1
-                                            }
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              onDeletePage(page)
-                                            }}
-                                            className="rounded bg-white/90 p-1 shadow-sm disabled:cursor-not-allowed disabled:opacity-50 disabled:grayscale"
-                                            aria-label={t('pageManagement.deletePage')}
-                                            title={t('pageManagement.deletePage')}
-                                          >
-                                            <Trash2 className="h-4 w-4" />
-                                          </button>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                type="button"
+                                                disabled={
+                                                  pageManagementDisabled ||
+                                                  pageActionDisabled ||
+                                                  pages.length <= 1
+                                                }
+                                                onClick={(e) => {
+                                                  e.stopPropagation()
+                                                  onDeletePage(page)
+                                                }}
+                                                className="rounded bg-white/90 p-1 shadow-sm disabled:cursor-not-allowed disabled:opacity-50 disabled:grayscale"
+                                                aria-label={t('pageManagement.deletePage')}
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="bottom" align="end">
+                                              {t('pageManagement.deletePage')}
+                                            </TooltipContent>
+                                          </Tooltip>
                                         ) : null}
                                       </div>
                                     </div>

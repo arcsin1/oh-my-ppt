@@ -23,6 +23,8 @@ import {
   createEmptyModelForm,
   createImageModelForm,
   createModelForm,
+  createImageModelVerificationSignature,
+  isImageModelVerificationCurrent,
   readJsonObject,
   stringifyJsonObject
 } from '../components/settings/model-settings-utils'
@@ -88,12 +90,14 @@ export function SettingsPage(): React.JSX.Element {
   >(() => createTimeoutSeconds(useSettingsStore.getState().settings?.timeouts))
   const [savingModel, setSavingModel] = useState(false)
   const [verifiedModelSignature, setVerifiedModelSignature] = useState<string | null>(null)
+  const [verifiedImageModelSignature, setVerifiedImageModelSignature] = useState<string | null>(null)
   const [savingTimeouts, setSavingTimeouts] = useState(false)
   const [proxyUrl, setProxyUrl] = useState(
     () => useSettingsStore.getState().settings?.proxyUrl || ''
   )
   const [verifying, setVerifying] = useState(false)
   const [verifyingImageModel, setVerifyingImageModel] = useState(false)
+  const [imageVerificationPreviewUrl, setImageVerificationPreviewUrl] = useState<string | null>(null)
   const [activatingId, setActivatingId] = useState<string | null>(null)
   const [activatingImageId, setActivatingImageId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -188,18 +192,26 @@ export function SettingsPage(): React.JSX.Element {
 
   const openCreateImageModelDialog = (): void => {
     setImageModelForm(createEmptyImageModelForm(imageModelConfigs.length === 0))
+    setImageVerificationPreviewUrl(null)
+    setVerifiedImageModelSignature(null)
     setVerificationMessage(null)
     setImageModelDialogOpen(true)
   }
 
   const openEditImageModelDialog = (config: ImageModelConfig): void => {
     setImageModelForm(createImageModelForm(config))
+    setImageVerificationPreviewUrl(null)
+    setVerifiedImageModelSignature(null)
     setVerificationMessage(null)
     setImageModelDialogOpen(true)
   }
 
   const updateImageModelForm = (patch: Partial<ImageModelForm>): void => {
     setImageModelForm((form) => ({ ...form, ...patch }))
+    if (patch.provider !== undefined || patch.modelConfig !== undefined) {
+      setImageVerificationPreviewUrl(null)
+      setVerifiedImageModelSignature(null)
+    }
     setVerificationMessage(null)
   }
 
@@ -212,6 +224,8 @@ export function SettingsPage(): React.JSX.Element {
       modelConfig:
         provider !== form.provider ? createDefaultImageModelConfig(provider) : form.modelConfig
     }))
+    setImageVerificationPreviewUrl(null)
+    setVerifiedImageModelSignature(null)
     setVerificationMessage(null)
   }
 
@@ -219,6 +233,13 @@ export function SettingsPage(): React.JSX.Element {
     const modelConfig = readJsonObject(imageModelForm.modelConfig)
     return modelConfig ? stringifyJsonObject(modelConfig) : null
   }
+
+  const imageModelConfigForVerification = normalizeImageModelConfigForSave()
+  const imageModelVerified = isImageModelVerificationCurrent(
+    verifiedImageModelSignature,
+    imageModelForm.provider,
+    imageModelConfigForVerification
+  )
 
   const handleSaveModel = async (): Promise<void> => {
     if (!modelForm.name.trim()) {
@@ -276,6 +297,10 @@ export function SettingsPage(): React.JSX.Element {
       warning(t('settings.fillImageModelConfig'))
       return
     }
+    if (!imageModelVerified) {
+      warning(t('settings.verifyImageBeforeSave'))
+      return
+    }
 
     setSavingModel(true)
     setVerificationMessage(null)
@@ -293,6 +318,7 @@ export function SettingsPage(): React.JSX.Element {
         return
       }
       setImageModelDialogOpen(false)
+      setVerifiedImageModelSignature(null)
       success(t('settings.imageModelSaved'), {
         description: t('settings.imageModelSavedDescription')
       })
@@ -394,20 +420,27 @@ export function SettingsPage(): React.JSX.Element {
     }
 
     setVerifyingImageModel(true)
+    setImageVerificationPreviewUrl(null)
+    setVerifiedImageModelSignature(null)
     setVerificationMessage(null)
+    const verificationSignature = createImageModelVerificationSignature(
+      imageModelForm.provider,
+      modelConfig
+    )
     try {
-      const valid = await verifyImageModel(
+      const result = await verifyImageModel(
         imageModelForm.provider,
         modelConfig
       )
-      const verifyMessage = useSettingsStore.getState().verificationMessage
-      if (valid) {
-        success(t('settings.verifyPassed'), {
-          description: verifyMessage || t('settings.verifyPassedDescription')
+      if (result.valid && result.previewDataUrl) {
+        setImageVerificationPreviewUrl(result.previewDataUrl)
+        setVerifiedImageModelSignature(verificationSignature)
+        success(t('settings.imageVerifyPassed'), {
+          description: result.message || t('settings.imageVerifyPassedDescription')
         })
       } else {
-        error(t('settings.verifyFailed'), {
-          description: verifyMessage || t('settings.verifyFailedDescription')
+        error(t('settings.imageVerifyFailed'), {
+          description: result.message || t('settings.imageVerifyFailedDescription')
         })
       }
     } finally {
@@ -593,6 +626,8 @@ export function SettingsPage(): React.JSX.Element {
         open={imageModelDialogOpen}
         saving={savingModel}
         verifying={verifyingImageModel}
+        verified={imageModelVerified}
+        verificationPreviewUrl={imageVerificationPreviewUrl}
         t={t}
         onClose={() => setImageModelDialogOpen(false)}
         onFormChange={updateImageModelForm}

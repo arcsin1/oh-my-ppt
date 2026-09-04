@@ -15,6 +15,9 @@
     "远山"
   ],
   "styleCase": "旅游出行、传统文化、艺术视觉",
+  "imageGeneration": {
+    "prompt": "Expressive Chinese ink landscape painting with layered blue-gray mountains fading through mist, a lone boat, pine trees, and a distant pavilion when relevant. Use warm sand and rice-paper tones with expansive poetic negative space. Do not render text, seals with lettering, logos, UI, watermarks, vivid neon colors, or photorealism."
+  },
   "version": "2.0.2",
   "source": "builtin"
 }

@@ -3,8 +3,8 @@
 ## P0 - Not Deliverable
 
 - Content exceeds the note canvas or is clipped.
-- Text-bearing modules use absolute/fixed positioning instead of grid/flex flow.
-- Body text is below 18px, headings below 24px, or auxiliary text below 12px.
+- Non-media text-bearing modules use absolute/fixed positioning instead of grid/flex flow, overlap another content module, or escape the canvas. Intentional text or transparent-panel overlays on image/video are allowed.
+- Body text is below 33px outside a bounded `data-ppt-density="high"` module or below 30px inside one, titles/headers below 44px, or auxiliary text below 22px.
 - The page lacks a clear hook.
 - The value body is not readable as a saveable note.
 

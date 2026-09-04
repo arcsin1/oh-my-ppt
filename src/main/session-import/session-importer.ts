@@ -602,6 +602,8 @@ export async function importSessionFile(
       slideSizeId: slideSize.id,
       slideWidth: slideSize.width,
       slideHeight: slideSize.height,
+      visualEnabled: false,
+      imageModelConfigId: null,
       provider: 'import',
       model: 'session-file-import'
     })

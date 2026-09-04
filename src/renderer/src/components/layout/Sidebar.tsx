@@ -10,7 +10,8 @@ import {
   Type,
   LayoutTemplate,
   ChartNoAxesCombined,
-  FileCode2
+  FileCode2,
+  CircleHelp
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import logoUrl from '@renderer/assets/images/logo.png'
@@ -93,6 +94,15 @@ export function Sidebar(): React.JSX.Element {
             </Link>
           )
         })}
+        <a
+          href="https://www.ohmyppt.cc/#/help"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-[#58664a] transition-colors hover:bg-[#efe5d3]/75 hover:text-[#38452f]"
+        >
+          <CircleHelp className="h-4 w-4" />
+          {t('nav.helpDocs')}
+        </a>
       </nav>
 
       <div className="px-4 pb-4">

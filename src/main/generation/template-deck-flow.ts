@@ -13,6 +13,7 @@ import { parseJsonObject } from '../ipc/utils'
 import { resolveTemplateDesignContract } from '../templates/template-design-contract'
 import { canUseSourcePlanDirectly, mapSourcePlanToOutlineItems } from './source-plan'
 import type { GenerationContext, RuntimeJobExecutionContext } from './context'
+import { createPageImageFinalizer } from './page-image-finalizer'
 
 type TemplateSeedPage = {
   id: string
@@ -375,12 +376,45 @@ export async function executeTemplateDeckGeneration(
       projectId: context.projectId
     })
   }
+  const persistSessionPageLayoutSource = async (
+    page: {
+      pageNumber: number
+      pageId: string
+      title: string
+      htmlPath: string
+      layoutIntent?: LayoutIntent
+      layoutId: string
+      layoutContractVersion: number
+    },
+    status: 'completed' | 'failed',
+    error: string | null
+  ): Promise<void> => {
+    const pageRef = pageRefs.find((item) => item.pageId === page.pageId)
+    const existing = existingSessionPageBySlug.get(page.pageId)
+    if (!pageRef) return
+    await db.upsertSessionPage({
+      id: existing?.id || pageRef.id,
+      sessionId: context.sessionId,
+      legacyPageId: existing?.legacy_page_id || null,
+      fileSlug: page.pageId,
+      pageNumber: page.pageNumber,
+      title: page.title,
+      htmlPath: page.htmlPath,
+      layoutIntent: page.layoutIntent || null,
+      layoutId: page.layoutId,
+      layoutContractVersion: page.layoutContractVersion,
+      status,
+      error
+    })
+  }
   const persistCompletedGeneratedPage = async (page: {
     pageNumber: number
     pageId: string
     title: string
     contentOutline: string
     layoutIntent?: LayoutIntent
+    layoutId: string
+    layoutContractVersion: number
     htmlPath: string
   }): Promise<void> => {
     if (!fs.existsSync(page.htmlPath)) {
@@ -399,9 +433,12 @@ export async function executeTemplateDeckGeneration(
       title: page.title,
       contentOutline: page.contentOutline,
       layoutIntent: page.layoutIntent,
+      layoutId: page.layoutId,
+      layoutContractVersion: page.layoutContractVersion,
       htmlPath: page.htmlPath,
       status: 'completed'
     })
+    await persistSessionPageLayoutSource(page, 'completed', null)
     persistedGeneratedPagesById.set(page.pageId, {
       pageNumber: page.pageNumber,
       title: page.title,
@@ -436,6 +473,8 @@ export async function executeTemplateDeckGeneration(
     title: string
     contentOutline: string
     layoutIntent?: LayoutIntent
+    layoutId: string
+    layoutContractVersion: number
     htmlPath: string
     reason: string
   }): Promise<void> => {
@@ -447,10 +486,13 @@ export async function executeTemplateDeckGeneration(
       title: page.title,
       contentOutline: page.contentOutline,
       layoutIntent: page.layoutIntent,
+      layoutId: page.layoutId,
+      layoutContractVersion: page.layoutContractVersion,
       htmlPath: page.htmlPath,
       status: 'failed',
       error: page.reason
     })
+    await persistSessionPageLayoutSource(page, 'failed', page.reason)
     await persistGenerationSnapshotMetadata()
   }
 
@@ -465,6 +507,7 @@ export async function executeTemplateDeckGeneration(
     temperature: PAGE_GENERATION_TEMPERATURE,
     styleId: context.styleId,
     styleSkillPrompt: context.styleSkill.prompt,
+    hasStyleImageDirection: false,
     styleKey: context.styleKey,
     styleName: context.styleName,
     styleVersion: context.styleVersion,
@@ -483,17 +526,26 @@ export async function executeTemplateDeckGeneration(
       layoutIntent: outlineItems[index]?.layoutIntent
     })),
     sourceDocumentPaths: context.sourceDocumentPaths,
+    referenceDocumentPath: context.referenceDocumentPath,
+    sourcePlan: context.sourcePlan,
     designContract: templateDesignContract,
     systemPromptAddendum: templateSystemPromptAddendum,
     singlePagePromptAddendum: templateSinglePagePromptAddendum,
     requireTemplatePageRead: true,
     generationMode: 'generate',
+    visualEnabled: false,
     projectDir: context.projectDir,
     indexPath,
     pageFileMap,
     pageNumbers,
     agentManager,
     emit: (chunk) => emitDeckChunk(chunk),
+    finalizePage: createPageImageFinalizer(ctx, {
+      sessionId: context.sessionId,
+      runId: context.runId,
+      visualEnabled: false,
+      abortSignal: context.abortSignal
+    }),
     onPageCompleted: persistCompletedGeneratedPage,
     onPageFailed: persistFailedGeneratedPage,
     runId: context.runId,
@@ -648,7 +700,6 @@ export async function executeTemplateDeckGeneration(
       : `Template generation completed. It has ${fullDeckPageCount} pages for "${context.topic}".`
   )
   await emitAssistant(context, agentSummary.trim() || fallbackCompletionSummary)
-  await db.updateGenerationRunStatus(context.runId, 'completed', null)
   await finalizeGenerationSuccess(ctx, {
     context,
     indexPath,

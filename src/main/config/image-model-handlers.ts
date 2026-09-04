@@ -1,8 +1,15 @@
 import { ipcMain } from 'electron'
 import log from 'electron-log/main.js'
-import type { ImageModelProvider } from '@shared/image-generation'
+import type { ImageModelProvider, ImageModelVerificationResult } from '@shared/image-generation'
+import {
+  resolveImageGenerationProvider,
+  type ResolvedImageModelConfig
+} from '../agent-runtime/provider/image'
 import type { IpcContext } from '../ipc/context'
 import { readAppLocale, uiText } from './locale-utils'
+
+const IMAGE_MODEL_VERIFY_PROMPT = '生成一只卡通猫'
+const IMAGE_MODEL_VERIFY_TIMEOUT_MS = 120_000
 
 const VALID_IMAGE_PROVIDERS = [
   'jimeng',
@@ -32,6 +39,22 @@ const normalizeModelConfig = (value: unknown): string => {
     return '{}'
   }
 }
+
+const toPreviewDataUrl = (bytes: Buffer, mimeType: string): string => {
+  const safeMimeType = /^image\/[a-z0-9.+-]+$/i.test(mimeType) ? mimeType : 'image/png'
+  return `data:${safeMimeType};base64,${bytes.toString('base64')}`
+}
+
+const createVerificationConfig = (
+  provider: ImageModelProvider,
+  modelConfig: string
+): ResolvedImageModelConfig => ({
+  id: 'image-model-verification',
+  name: 'Image model verification',
+  provider,
+  active: false,
+  modelConfig: JSON.parse(modelConfig) as Record<string, unknown>
+})
 
 export function registerImageModelHandlers(ctx: IpcContext): void {
   const { db, encryptApiKey, decryptApiKey } = ctx
@@ -112,15 +135,41 @@ export function registerImageModelHandlers(ctx: IpcContext): void {
       return {
         valid: false,
         message: uiText(locale, '请先填写生图模型配置。', 'Enter image model config first.')
-      }
+      } satisfies ImageModelVerificationResult
     }
-    return {
-      valid: true,
-      message: uiText(
-        locale,
-        '基础配置已通过检查。生图接口会在首次生成时验证。',
-        'Basic configuration looks valid. The image endpoint is verified on first generation.'
-      )
+
+    try {
+      const verificationConfig = createVerificationConfig(provider, modelConfig)
+      const adapter = resolveImageGenerationProvider(provider)
+      const size = adapter.getDefaultSize(verificationConfig)
+      const [image] = await adapter.generate(verificationConfig, {
+        prompt: IMAGE_MODEL_VERIFY_PROMPT,
+        count: 1,
+        size,
+        signal: AbortSignal.timeout(IMAGE_MODEL_VERIFY_TIMEOUT_MS)
+      })
+      if (!image || image.bytes.length === 0) {
+        return {
+          valid: false,
+          message: uiText(
+            locale,
+            '生图接口未返回可预览的图片。',
+            'The image endpoint returned no previewable image.'
+          )
+        } satisfies ImageModelVerificationResult
+      }
+      return {
+        valid: true,
+        message: uiText(locale, '已成功生成测试图片。', 'A test image was generated successfully.'),
+        previewDataUrl: toPreviewDataUrl(image.bytes, image.mimeType)
+      } satisfies ImageModelVerificationResult
+    } catch (error) {
+      const message = error instanceof Error && error.message ? error.message : String(error)
+      log.error('[imageModels:verify] failed', { provider, message })
+      return {
+        valid: false,
+        message
+      } satisfies ImageModelVerificationResult
     }
   })
 }

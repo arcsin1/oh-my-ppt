@@ -62,6 +62,9 @@ export const buildBasePageStyleTag = (input: SlideSizePreset): string => {
   .ppt-page-content [data-ppt-readable-fonts="1"] {
     font-size: 18px;
   }
+  .ppt-page-content [data-ppt-readable-fonts="1"] [data-ppt-density="high"] {
+    font-size: 16px;
+  }
   .ppt-page-content h1,
   .ppt-page-content h2,
   .ppt-page-content h3,
@@ -116,6 +119,7 @@ export const buildFitScript = (input: SlideSizePreset): string => {
   const legacyMinFont = Math.round(14 * heightScale)
   const auxiliaryMinFont = Math.round(12 * heightScale)
   const bodyMinFont = Math.round(18 * heightScale)
+  const denseBodyMinFont = Math.round(16 * heightScale)
   const headingMinFont = Math.round(24 * heightScale)
   return `<script id="ppt-page-fit">
 (() => {
@@ -124,6 +128,7 @@ export const buildFitScript = (input: SlideSizePreset): string => {
   const LEGACY_MIN_FONT = ${legacyMinFont};
   const AUXILIARY_MIN_FONT = ${auxiliaryMinFont};
   const BODY_MIN_FONT = ${bodyMinFont};
+  const DENSE_BODY_MIN_FONT = ${denseBodyMinFont};
   const HEADING_MIN_FONT = ${headingMinFont};
   const AUXILIARY_TEXT_SELECTOR = [
     "footer",
@@ -159,6 +164,7 @@ export const buildFitScript = (input: SlideSizePreset): string => {
     return Array.from(elements);
   };
   const isAuxiliaryText = (node) => Boolean(node.closest(AUXILIARY_TEXT_SELECTOR));
+  const isHighDensityText = (node) => Boolean(node.closest('[data-ppt-density="high"]'));
   const resolveMinimumFontSize = (node, readableRoot) => {
     if (!readableRoot || !readableRoot.contains(node)) return LEGACY_MIN_FONT;
     if (isAuxiliaryText(node)) return AUXILIARY_MIN_FONT;
@@ -170,7 +176,7 @@ export const buildFitScript = (input: SlideSizePreset): string => {
     ) {
       return HEADING_MIN_FONT;
     }
-    return BODY_MIN_FONT;
+    return isHighDensityText(node) ? DENSE_BODY_MIN_FONT : BODY_MIN_FONT;
   };
 
   function fitPage() {

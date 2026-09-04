@@ -1,0 +1,22 @@
+{
+  "style": "sage-academia",
+  "name": {
+    "zh": "青竹 · 学术风",
+    "en": "Sage Academia"
+  },
+  "description": "清爽留白配鼠尾草绿的学术研究风",
+  "category": "浅色·沉静",
+  "aliases": [
+    "学术绿",
+    "论文答辩风",
+    "清新科研",
+    "鼠尾草绿模板",
+    "毕业答辩ppt"
+  ],
+  "styleCase": "毕业论文答辩、开题报告、科研成果汇报、课题选题展示、学术汇报",
+  "imageGeneration": {
+    "prompt": "Calm academic geography visual evidence, rendered as a restrained documentary landform scene, aerial terrain view, geological field study, or precise geographic illustration appropriate to the slide subject, on a clean white ground with sage green, muted olive, matcha, teal-gray and slate-blue accents. Keep analytical, balanced, spacious composition with a clear text-safe area; preserve terrain structure and recognizable landform features without turning the image into a chart. Do not render readable text, labels, equations, logos, UI, watermarks, neon saturation, heavy shadows, glossy 3D, crowded detail, or generic corporate stock imagery."
+  },
+  "version": "2.0.2",
+  "source": "builtin"
+}

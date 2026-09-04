@@ -13,6 +13,8 @@ export type StyleSwitchPageRef = {
   htmlPath: string
   contentOutline: string
   layoutIntent?: LayoutIntent
+  layoutId: string | null
+  layoutContractVersion: number | null
   retryCount: number
 }
 

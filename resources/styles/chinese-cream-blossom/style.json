@@ -15,6 +15,9 @@
     "国风"
   ],
   "styleCase": "婚庆浪漫、生活方式、传统文化",
+  "imageGeneration": {
+    "prompt": "Delicate Chinese guohua-inspired illustration on warm rice paper, with soft cherry blossoms, drifting petals, silk fans, lanterns and pale cloud motifs when relevant. Use an ivory and restrained blush-pink palette with elegant negative space. Do not render text, seals with lettering, logos, UI, watermarks, heavy saturation, or photorealism."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

@@ -15,6 +15,7 @@ import {
 } from '../components/session-generating'
 import { useModelAction } from '../hooks/useModelAction'
 import { trySessionSlideSize, type SlideSizePreset } from '@shared/slide-size'
+import { WindowControls } from '../components/layout/WindowControls'
 
 type LocationState = {
   initialPrompt?: string
@@ -1022,7 +1023,9 @@ export function SessionGeneratingPage({
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(237,243,232,0.86)_0%,rgba(237,243,232,0.72)_42%,rgba(237,243,232,0.48)_100%)]" />
       </div>
 
-      <div className="app-drag-region app-titlebar relative z-20 flex items-center bg-[#f7f0e2]/90 backdrop-blur-sm" />
+      <div className="app-drag-region app-titlebar relative z-20 flex items-center bg-[#f7f0e2]/90 backdrop-blur-sm">
+        <WindowControls />
+      </div>
 
       <div className="app-no-drag relative z-10 flex min-h-0 flex-1 flex-col gap-4 px-5 pb-5 pt-4 lg:flex-row">
         <GenerationSidebar

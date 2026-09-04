@@ -1,0 +1,22 @@
+{
+  "style": "acid-blue-business",
+  "name": {
+    "zh": "酸蓝张力",
+    "en": "Acid Blue Business"
+  },
+  "description": "亮蓝、黑白灰与大胆留白的科技商务风",
+  "category": "科技 · 商务",
+  "aliases": [
+    "酸性蓝",
+    "科技商务",
+    "亮蓝",
+    "现代汇报",
+    "acid blue"
+  ],
+  "styleCase": "产品发布、项目汇报、商业计划、创新业务、企业培训",
+  "imageGeneration": {
+    "prompt": "Sharp contemporary technology-business visual in electric cobalt blue, black, white, and cool gray. Use an abstract product, architectural, material, or environmental subject relevant to the slide, with crisp geometry, directional light, sparse composition, and a large clean text-safe zone. Do not render text, logos, UI, watermarks, generic dashboards, neon cyberpunk, gradients, or crowded decoration."
+  },
+  "version": "1.0.0",
+  "source": "builtin"
+}

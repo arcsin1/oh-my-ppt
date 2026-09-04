@@ -1,5 +1,47 @@
 # 更新日志 / Changelog
 
+## 2026-09-04 · v2.5.0
+
+### 中文
+
+- 新增图表编辑：双击图表即可改数据、换图表类型、调图例颜色。
+- 新增全新元素编辑交互：选中元素即出现悬浮工具条快捷操作，双击打开属性面板精细编辑（迈入新的编辑方式阶段）。
+- 新增配图描述一键生成：「大纲提示词」生成插图描述，「风格提示词」生成匹配当前页风格的背景图描述，更加匹配当前页面。
+- 新增生图厂商接入：支持gpt-image-2等生图，可选择的生图服务更多、出图质量更好，更便宜，稳定。
+- 新增会话导出完整保留当前ppt的完整风格，分享给别人的演示不再丢风格。
+- 新增文档解析可取消，长文档不用等待。
+- 新增页面生成并发设置：可在高级设置中自定义同时生成的页面数（1-10），整体出稿更快。
+- 优化一键配图：根据页面角色自动选择焦点插图或背景底图，配图完成前自动检查版面，溢出与遮挡问题可自动修复。
+- 优化新增页面流程：新增页面直接基于正文素材生成并追加到末尾，速度更快、内容更聚焦。
+- 优化生成体验：样式大幅优化，生成进度按页面卡片归组展示，每页状态与日志一目了然；初次生成界面更简洁清爽。
+- 优化 PPTX 导出：升级导出引擎，旋转卡片等内容改为原生导出，还原度更高，以及元素层级问题优化。
+- 优化安装包体积：产物压缩与按需加载，安装包显著更小、启动更快（减少20%～30%体积）。
+- 优化 AI 模式响应性能与 OpenAI 系模型的兼容性。
+- 修复 Word 文档导入时标题层级识别错误、加粗残留与空表头问题，以及解析大纲更加匹配。
+- 修复大纲生成对 thinking 类模型的参数兼容问题，统一一致跟一键创建的模式。
+- 修复多处弹窗层级遮挡、会话创建页提示卡住、图表预览偶发空白与公式选择不匹配等问题。
+- 修复生成时候会把【受众和主张的信息】在 PPT 正文体现带入生成内容中的问题。
+
+### English
+
+- Added chart editing: double-click a chart to edit its data, switch chart types, and adjust legend colors.
+- Added a new element editing experience: selecting an element shows a floating toolbar for quick actions, and double-clicking opens the properties panel for detailed editing.
+- Added one-click prompt generation: "Outline prompt" writes an illustration description, while "Style prompt" writes a background description matching the current slide's look.
+- Added a new image-model provider, expanding your options with higher-quality output.
+- Added full style preservation in session export, so shared decks keep their look.
+- Added cancellation for document analysis, so long documents no longer keep you waiting.
+- Added a page-generation concurrency setting: choose how many slides generate at once (1-10) in advanced settings for faster decks.
+- Improved one-click illustration: automatically picks a focal illustration or background plate based on the slide's role, and audits the layout before finishing so overflow and overlap can self-heal.
+- Improved the add-page flow: new pages generate directly from body material and append to the end — faster and more focused.
+- Improved the generation experience: progress and logs are now grouped into per-slide cards with a cleaner first-run layout.
+- Improved PPTX export: the upgraded engine exports rotated cards and similar content natively with higher fidelity.
+- Improved the app footprint: compressed assets and lazy loading make the installer notably smaller and startup faster.
+- Improved AI-mode responsiveness and compatibility with OpenAI-style models.
+- Fixed heading-level, bold-residue, and empty-header issues when importing Word documents.
+- Fixed thinking-parameter compatibility in outline generation.
+- Fixed dialog layering issues, a stuck tooltip on the creation page, occasional blank chart previews, and formula selector mismatches.
+
+
 ## 2026-08-22 · v2.4.0
 
 ### 中文

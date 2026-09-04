@@ -1,5 +1,11 @@
 import { CircleAlert, Loader2 } from 'lucide-react'
 import { PreviewIframe } from '@renderer/components/preview/PreviewIframe'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@renderer/components/ui/Tooltip'
 import { cn } from '@renderer/lib/utils'
 import type { GenerationPreviewPage } from './types'
 import type { SlideSizePreset } from '@shared/slide-size'
@@ -23,8 +29,9 @@ export function GenerationThumbnail({
   const hasPreview =
     previewEnabled && page.status === 'completed' && (page.htmlPath || page.sourceUrl)
 
-  return (
+  const card = (
     <div
+      tabIndex={hasPreview ? 0 : undefined}
       className={cn(
         'group relative flex w-full min-w-0 flex-col overflow-hidden rounded-xl border bg-[#fffaf1]/78 p-1.5 shadow-[0_16px_34px_rgba(70,82,58,0.12)] transition-all duration-500',
         page.status === 'completed' && 'border-[#b8d3a6] translate-y-0 opacity-100',
@@ -105,5 +112,39 @@ export function GenerationThumbnail({
         )}
       </div>
     </div>
+  )
+
+  if (!hasPreview) return card
+
+  return (
+    <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+      <Tooltip disableHoverableContent>
+        <TooltipTrigger asChild>{card}</TooltipTrigger>
+        <TooltipContent
+          side="top"
+          align="center"
+          sideOffset={12}
+          aria-label={`Page ${page.pageNumber} preview`}
+          className="pointer-events-none z-[60] max-w-none border-[#b8d3a6] bg-[#fffaf1] p-2 shadow-[0_24px_64px_rgba(70,82,58,0.24)]"
+        >
+          <div className="relative flex h-[280px] w-[440px] items-center justify-center overflow-hidden rounded-lg bg-[#f5f1e8]">
+            <div
+              className="relative max-h-full max-w-full overflow-hidden"
+              style={thumbnailFitStyle}
+            >
+              <PreviewIframe
+                key={`generating-hover-preview-${page.id}-${page.previewVersion ?? 0}`}
+                src={page.sourceUrl}
+                htmlPath={page.htmlPath}
+                pageId={page.pageId}
+                title={`generating-hover-preview-${page.pageNumber}`}
+                slideSize={slideSize}
+                inspectable={false}
+              />
+            </div>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   )
 }

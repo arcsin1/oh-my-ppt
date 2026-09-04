@@ -23,7 +23,6 @@ export function usePageSidebarController(sessionId: string) {
   const currentPages = useGenerateStore((state) => state.currentPages)
   const isGenerating = useGenerateStore((state) => state.isGenerating)
   const pageEditJob = useGenerateStore((state) => state.pageEditJobs[sessionId] || null)
-  const pageBeautifyJob = useGenerateStore((state) => state.pageBeautifyJobs[sessionId] || null)
   const deckEditJob = useGenerateStore((state) => state.deckEditJobs[sessionId] || null)
   const styleSwitchJob = useGenerateStore((state) => state.styleSwitchJobs[sessionId] || null)
   const selectedPageId = useSessionDetailUiStore((state) => state.selectedPageId)
@@ -60,7 +59,6 @@ export function usePageSidebarController(sessionId: string) {
     isAddingPage ||
     isRetryingSinglePage ||
     Boolean(pageEditJob) ||
-    Boolean(pageBeautifyJob) ||
     Boolean(styleSwitchJob)
   const isSessionWideGenerating = isGenerating && !hasPageScopedGeneration
   const isPageActionDisabled = (page: SessionPreviewPage): boolean =>
@@ -72,7 +70,6 @@ export function usePageSidebarController(sessionId: string) {
       retryingSinglePageId
     }) ||
     pageEditJob?.pageId === page.pageId ||
-    pageBeautifyJob?.pageId === page.pageId ||
     Boolean(deckEditJob) ||
     isStyleSwitchPageLocked(styleSwitchJob, page.pageId) ||
     isManagingPages
@@ -188,7 +185,6 @@ export function usePageSidebarController(sessionId: string) {
     pageManagementDisabled:
       isGenerating ||
       Boolean(pageEditJob) ||
-      Boolean(pageBeautifyJob) ||
       Boolean(deckEditJob) ||
       isStyleSwitchActive ||
       isAddingPage ||

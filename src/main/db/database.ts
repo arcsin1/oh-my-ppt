@@ -7,6 +7,7 @@ import { app } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import fs from 'fs'
 import crypto from 'crypto'
+import { nanoid } from 'nanoid'
 import { runDatabasePatches } from './patch'
 import {
   compareStyleVersion,
@@ -40,7 +41,6 @@ type GenerationRunMode =
   | 'addPage'
   | 'retrySinglePage'
   | 'style-switch'
-  | 'page-beautify'
 type GenerationRunStatus = 'running' | 'completed' | 'failed' | 'partial'
 export type SessionJobKind =
   | 'standard'
@@ -51,7 +51,6 @@ export type SessionJobKind =
   | 'page-edit'
   | 'deck-edit'
   | 'style-switch'
-  | 'page-beautify'
 export type SessionJobStatus = 'pending' | 'active' | 'finished' | 'aborted'
 type GenerationPageStatus = 'pending' | 'running' | 'completed' | 'failed'
 type SessionPageStatus = schema.SessionPageStatus
@@ -89,6 +88,10 @@ export interface Session {
   designContract?: string | null
   currentOperationId?: string | null
   currentCommit?: string | null
+  visual_enabled?: number
+  visualEnabled?: number
+  image_model_config_id?: string | null
+  imageModelConfigId?: string | null
 }
 
 export interface Message {
@@ -201,6 +204,8 @@ type GenerationPageCreateData = {
   title: string
   contentOutline?: string | null
   layoutIntent?: string | null
+  layoutId?: string | null
+  layoutContractVersion?: number | null
   htmlPath?: string | null
   status?: Extract<GenerationPageStatus, 'pending' | 'running'>
   error?: string | null
@@ -216,6 +221,8 @@ export interface GenerationPageRecord {
   title: string
   content_outline: string | null
   layout_intent: string | null
+  layout_id: string | null
+  layout_contract_version: number | null
   html_path: string | null
   status: GenerationPageStatus
   error: string | null
@@ -232,11 +239,104 @@ export interface SessionPageRecord {
   page_number: number
   title: string
   html_path: string
+  layout_intent: string | null
+  layout_id: string | null
+  layout_contract_version: number | null
   status: SessionPageStatus
   error: string | null
   created_at: number
   updated_at: number
   deleted_at: number | null
+}
+
+export type ImageFulfillmentJobStatus =
+  | 'pending'
+  | 'running'
+  | 'finalizing'
+  | 'completed'
+  | 'degraded'
+  | 'failed'
+  | 'cancelled'
+
+export type ImageFulfillmentIntentStatus =
+  | 'pending'
+  | 'generating'
+  | 'generated'
+  | 'used'
+  | 'fallback'
+  | 'layout_failed'
+  | 'failed'
+  | 'cancelled'
+
+export interface ImageFulfillmentJobRecord {
+  id: string
+  run_id: string
+  session_id: string
+  session_page_id: string
+  page_id: string
+  layout_id: string | null
+  layout_contract_version: number | null
+  image_model_config_id: string | null
+  image_provider: string | null
+  image_model: string | null
+  attempt: number
+  retry_of_job_id: string | null
+  idempotency_key: string | null
+  status: ImageFulfillmentJobStatus
+  error: string | null
+  cancel_requested_at: number | null
+  lease_owner: string | null
+  lease_expires_at: number | null
+  finalization_manifest_path: string | null
+  created_at: number
+  started_at: number | null
+  updated_at: number
+  finished_at: number | null
+}
+
+export interface ImageFulfillmentIntentRecord {
+  id: string
+  job_id: string
+  slot_id: string
+  layout_slot_id: string
+  role: string
+  layer: string
+  request_version: number
+  size_hint: string | null
+  subject: string
+  text_zone: string | null
+  subject_zone: string | null
+  negative_space: string | null
+  avoid_json: string | null
+  request_json: string
+  image_history_id: string | null
+  asset_path: string | null
+  width: number | null
+  height: number | null
+  mime_type: string | null
+  attempt: number
+  retry_of_intent_id: string | null
+  status: ImageFulfillmentIntentStatus
+  error: string | null
+  created_at: number
+  updated_at: number
+}
+
+export type ImageFulfillmentIntentCreateData = {
+  id?: string
+  slotId: string
+  layoutSlotId: string
+  role: string
+  layer: string
+  requestVersion?: number
+  sizeHint?: string | null
+  subject: string
+  textZone?: string | null
+  subjectZone?: string | null
+  negativeSpace?: string | null
+  avoidJson?: string | null
+  requestJson: string
+  retryOfIntentId?: string | null
 }
 
 export type ThumbnailStatus = 'queued' | 'running' | 'completed' | 'failed'
@@ -268,10 +368,28 @@ export interface SourcePageSkeletonRecord {
   heading_level: number
   line_start: number
   line_end: number
+  agenda_items_json: string | null
   reason: string | null
   confidence: SourcePageSkeletonConfidence
   created_at: number
   updated_at: number
+}
+
+const serializeSourcePageSkeletonAgendaItems = (value: unknown): string | null => {
+  if (!Array.isArray(value)) return null
+  const agendaItems = value
+    .slice(0, 500)
+    .map((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null
+      const record = item as Record<string, unknown>
+      const title = typeof record.title === 'string' ? record.title.trim() : ''
+      const lineStart = Number(record.lineStart ?? record.line_start)
+      return title && Number.isFinite(lineStart) && lineStart >= 1
+        ? { title, lineStart: Math.floor(lineStart) }
+        : null
+    })
+    .filter((item): item is { title: string; lineStart: number } => Boolean(item))
+  return agendaItems.length > 0 ? JSON.stringify(agendaItems) : null
 }
 
 export interface SessionPageInput {
@@ -282,6 +400,9 @@ export interface SessionPageInput {
   pageNumber: number
   title: string
   htmlPath: string
+  layoutIntent?: string | null
+  layoutId?: string | null
+  layoutContractVersion?: number | null
   status?: SessionPageStatus
   error?: string | null
 }
@@ -299,6 +420,9 @@ export const sessionPageRecordToInput = (page: SessionPageRecord): SessionPageIn
   pageNumber: page.page_number,
   title: page.title,
   htmlPath: page.html_path,
+  layoutIntent: page.layout_intent,
+  layoutId: page.layout_id,
+  layoutContractVersion: page.layout_contract_version,
   status: page.status,
   error: page.error
 })
@@ -316,6 +440,7 @@ export interface StyleRow {
   styleSkill: string // plain markdown
   version: string
   styleCase: string
+  imageGenerationPrompt: string
   packageDir: string
   active: boolean
   favoriteAt: number | null
@@ -337,6 +462,7 @@ export interface SessionStyleSnapshotRow {
   source: StyleSource
   version: string
   styleCase: string
+  imageGenerationPrompt: string
   packageDir: string
   styleSkill: string
   createdAt: number
@@ -679,11 +805,16 @@ export class PPTDatabase {
     slideWidth?: number
     slideHeight?: number
     referenceDocumentPath?: string | null
+    visualEnabled?: boolean
+    imageModelConfigId?: string | null
     provider: string
     model: string
   }): Promise<string> {
     const id = data.id || crypto.randomUUID()
     const now = Math.floor(Date.now() / 1000)
+    if (data.visualEnabled && !data.imageModelConfigId?.trim()) {
+      throw new Error('imageModelConfigId is required when visualEnabled is true')
+    }
 
     const slideSize = requirePersistedSlideSize({
       id: data.slideSizeId,
@@ -703,6 +834,8 @@ export class PPTDatabase {
         slideWidth: slideSize.width,
         slideHeight: slideSize.height,
         referenceDocumentPath: data.referenceDocumentPath || null,
+        visualEnabled: data.visualEnabled ? 1 : 0,
+        imageModelConfigId: data.visualEnabled ? data.imageModelConfigId || null : null,
         status: 'active',
         provider: data.provider,
         model: data.model,
@@ -750,6 +883,25 @@ export class PPTDatabase {
       .update(schema.sessions)
       .set({ status, updatedAt: now })
       .where(eq(schema.sessions.id, sessionId))
+      .run()
+  }
+
+  async updateSessionVisualSettings(data: {
+    sessionId: string
+    visualEnabled: boolean
+    imageModelConfigId?: string | null
+  }): Promise<void> {
+    if (data.visualEnabled && !data.imageModelConfigId?.trim()) {
+      throw new Error('imageModelConfigId is required when visualEnabled is true')
+    }
+    await this.db
+      .update(schema.sessions)
+      .set({
+        visualEnabled: data.visualEnabled ? 1 : 0,
+        imageModelConfigId: data.visualEnabled ? data.imageModelConfigId!.trim() : null,
+        updatedAt: Math.floor(Date.now() / 1000)
+      })
+      .where(eq(schema.sessions.id, data.sessionId))
       .run()
   }
 
@@ -820,6 +972,7 @@ export class PPTDatabase {
           source: snapshot.source,
           version: snapshot.version,
           styleCase: snapshot.styleCase,
+          imageGenerationPrompt: snapshot.imageGenerationPrompt || '',
           packageDir: snapshot.packageDir,
           styleSkill: snapshot.styleSkill,
           createdAt: snapshot.createdAt
@@ -955,8 +1108,7 @@ export class PPTDatabase {
       kind === 'single-page-retry' ||
       kind === 'page-edit' ||
       kind === 'deck-edit' ||
-      kind === 'style-switch' ||
-      kind === 'page-beautify'
+      kind === 'style-switch'
         ? kind
         : 'standard') as SessionJobKind,
       previous_session_status:
@@ -1016,6 +1168,14 @@ export class PPTDatabase {
         typeof (row.layoutIntent ?? row.layout_intent) === 'string'
           ? String(row.layoutIntent ?? row.layout_intent)
           : null,
+      layout_id:
+        typeof (row.layoutId ?? row.layout_id) === 'string'
+          ? String(row.layoutId ?? row.layout_id)
+          : null,
+      layout_contract_version:
+        typeof (row.layoutContractVersion ?? row.layout_contract_version) === 'number'
+          ? Number(row.layoutContractVersion ?? row.layout_contract_version)
+          : null,
       html_path:
         typeof (row.htmlPath ?? row.html_path) === 'string'
           ? String(row.htmlPath ?? row.html_path)
@@ -1040,6 +1200,18 @@ export class PPTDatabase {
       page_number: Number(row.pageNumber ?? row.page_number ?? 0) || 0,
       title: String(row.title || ''),
       html_path: String(row.htmlPath ?? row.html_path ?? ''),
+      layout_intent:
+        typeof (row.layoutIntent ?? row.layout_intent) === 'string'
+          ? String(row.layoutIntent ?? row.layout_intent)
+          : null,
+      layout_id:
+        typeof (row.layoutId ?? row.layout_id) === 'string'
+          ? String(row.layoutId ?? row.layout_id)
+          : null,
+      layout_contract_version:
+        typeof (row.layoutContractVersion ?? row.layout_contract_version) === 'number'
+          ? Number(row.layoutContractVersion ?? row.layout_contract_version)
+          : null,
       status: String(row.status || 'pending') as SessionPageStatus,
       error: typeof row.error === 'string' ? row.error : null,
       created_at: Number(row.createdAt ?? row.created_at ?? 0) || 0,
@@ -1048,6 +1220,149 @@ export class PPTDatabase {
         typeof (row.deletedAt ?? row.deleted_at) === 'number'
           ? Number(row.deletedAt ?? row.deleted_at)
           : null
+    }
+  }
+
+  private normalizeImageFulfillmentJobRow(row: Record<string, unknown>): ImageFulfillmentJobRecord {
+    const status = String(row.status || 'pending')
+    return {
+      id: String(row.id || ''),
+      run_id: String(row.runId ?? row.run_id ?? ''),
+      session_id: String(row.sessionId ?? row.session_id ?? ''),
+      session_page_id: String(row.sessionPageId ?? row.session_page_id ?? ''),
+      page_id: String(row.pageId ?? row.page_id ?? ''),
+      layout_id:
+        typeof (row.layoutId ?? row.layout_id) === 'string'
+          ? String(row.layoutId ?? row.layout_id)
+          : null,
+      layout_contract_version:
+        typeof (row.layoutContractVersion ?? row.layout_contract_version) === 'number'
+          ? Number(row.layoutContractVersion ?? row.layout_contract_version)
+          : null,
+      image_model_config_id:
+        typeof (row.imageModelConfigId ?? row.image_model_config_id) === 'string'
+          ? String(row.imageModelConfigId ?? row.image_model_config_id)
+          : null,
+      image_provider:
+        typeof (row.imageProvider ?? row.image_provider) === 'string'
+          ? String(row.imageProvider ?? row.image_provider)
+          : null,
+      image_model:
+        typeof (row.imageModel ?? row.image_model) === 'string'
+          ? String(row.imageModel ?? row.image_model)
+          : null,
+      attempt: Number(row.attempt || 1) || 1,
+      retry_of_job_id:
+        typeof (row.retryOfJobId ?? row.retry_of_job_id) === 'string'
+          ? String(row.retryOfJobId ?? row.retry_of_job_id)
+          : null,
+      idempotency_key:
+        typeof (row.idempotencyKey ?? row.idempotency_key) === 'string'
+          ? String(row.idempotencyKey ?? row.idempotency_key)
+          : null,
+      status: (status === 'running' ||
+      status === 'finalizing' ||
+      status === 'completed' ||
+      status === 'degraded' ||
+      status === 'failed' ||
+      status === 'cancelled'
+        ? status
+        : 'pending') as ImageFulfillmentJobStatus,
+      error: typeof row.error === 'string' ? row.error : null,
+      cancel_requested_at:
+        typeof (row.cancelRequestedAt ?? row.cancel_requested_at) === 'number'
+          ? Number(row.cancelRequestedAt ?? row.cancel_requested_at)
+          : null,
+      lease_owner:
+        typeof (row.leaseOwner ?? row.lease_owner) === 'string'
+          ? String(row.leaseOwner ?? row.lease_owner)
+          : null,
+      lease_expires_at:
+        typeof (row.leaseExpiresAt ?? row.lease_expires_at) === 'number'
+          ? Number(row.leaseExpiresAt ?? row.lease_expires_at)
+          : null,
+      finalization_manifest_path:
+        typeof (row.finalizationManifestPath ?? row.finalization_manifest_path) === 'string'
+          ? String(row.finalizationManifestPath ?? row.finalization_manifest_path)
+          : null,
+      created_at: Number(row.createdAt ?? row.created_at ?? 0) || 0,
+      started_at:
+        typeof (row.startedAt ?? row.started_at) === 'number'
+          ? Number(row.startedAt ?? row.started_at)
+          : null,
+      updated_at: Number(row.updatedAt ?? row.updated_at ?? 0) || 0,
+      finished_at:
+        typeof (row.finishedAt ?? row.finished_at) === 'number'
+          ? Number(row.finishedAt ?? row.finished_at)
+          : null
+    }
+  }
+
+  private normalizeImageFulfillmentIntentRow(
+    row: Record<string, unknown>
+  ): ImageFulfillmentIntentRecord {
+    const status = String(row.status || 'pending')
+    return {
+      id: String(row.id || ''),
+      job_id: String(row.jobId ?? row.job_id ?? ''),
+      slot_id: String(row.slotId ?? row.slot_id ?? ''),
+      layout_slot_id: String(row.layoutSlotId ?? row.layout_slot_id ?? ''),
+      role: String(row.role || ''),
+      layer: String(row.layer || ''),
+      request_version: Number(row.requestVersion ?? row.request_version ?? 1) || 1,
+      size_hint:
+        typeof (row.sizeHint ?? row.size_hint) === 'string'
+          ? String(row.sizeHint ?? row.size_hint)
+          : null,
+      subject: String(row.subject || ''),
+      text_zone:
+        typeof (row.textZone ?? row.text_zone) === 'string'
+          ? String(row.textZone ?? row.text_zone)
+          : null,
+      subject_zone:
+        typeof (row.subjectZone ?? row.subject_zone) === 'string'
+          ? String(row.subjectZone ?? row.subject_zone)
+          : null,
+      negative_space:
+        typeof (row.negativeSpace ?? row.negative_space) === 'string'
+          ? String(row.negativeSpace ?? row.negative_space)
+          : null,
+      avoid_json:
+        typeof (row.avoidJson ?? row.avoid_json) === 'string'
+          ? String(row.avoidJson ?? row.avoid_json)
+          : null,
+      request_json: String(row.requestJson ?? row.request_json ?? '{}'),
+      image_history_id:
+        typeof (row.imageHistoryId ?? row.image_history_id) === 'string'
+          ? String(row.imageHistoryId ?? row.image_history_id)
+          : null,
+      asset_path:
+        typeof (row.assetPath ?? row.asset_path) === 'string'
+          ? String(row.assetPath ?? row.asset_path)
+          : null,
+      width: typeof row.width === 'number' ? Number(row.width) : null,
+      height: typeof row.height === 'number' ? Number(row.height) : null,
+      mime_type:
+        typeof (row.mimeType ?? row.mime_type) === 'string'
+          ? String(row.mimeType ?? row.mime_type)
+          : null,
+      attempt: Number(row.attempt || 1) || 1,
+      retry_of_intent_id:
+        typeof (row.retryOfIntentId ?? row.retry_of_intent_id) === 'string'
+          ? String(row.retryOfIntentId ?? row.retry_of_intent_id)
+          : null,
+      status: (status === 'generating' ||
+      status === 'generated' ||
+      status === 'used' ||
+      status === 'fallback' ||
+      status === 'layout_failed' ||
+      status === 'failed' ||
+      status === 'cancelled'
+        ? status
+        : 'pending') as ImageFulfillmentIntentStatus,
+      error: typeof row.error === 'string' ? row.error : null,
+      created_at: Number(row.createdAt ?? row.created_at ?? 0) || 0,
+      updated_at: Number(row.updatedAt ?? row.updated_at ?? 0) || 0
     }
   }
 
@@ -1067,6 +1382,11 @@ export class PPTDatabase {
       heading_level: Number(row.headingLevel ?? row.heading_level ?? 0) || 1,
       line_start: Number(row.lineStart ?? row.line_start ?? 0) || 1,
       line_end: Number(row.lineEnd ?? row.line_end ?? 0) || 1,
+      agenda_items_json:
+        typeof (row.agendaItemsJson ?? row.agenda_items_json) === 'string' &&
+        String(row.agendaItemsJson ?? row.agenda_items_json).trim().length > 0
+          ? String(row.agendaItemsJson ?? row.agenda_items_json)
+          : null,
       reason:
         typeof row.reason === 'string' && row.reason.trim().length > 0 ? String(row.reason) : null,
       confidence: row.confidence === 'medium' || row.confidence === 'low' ? row.confidence : 'high',
@@ -1195,6 +1515,8 @@ export class PPTDatabase {
           title: page.title,
           contentOutline: page.contentOutline || null,
           layoutIntent: page.layoutIntent || null,
+          layoutId: page.layoutId || null,
+          layoutContractVersion: page.layoutContractVersion || null,
           htmlPath: page.htmlPath || null,
           status: page.status || 'pending',
           error: page.error || null,
@@ -1334,6 +1656,8 @@ export class PPTDatabase {
     title: string
     contentOutline?: string | null
     layoutIntent?: string | null
+    layoutId?: string | null
+    layoutContractVersion?: number | null
     htmlPath?: string | null
     status: GenerationPageStatus
     error?: string | null
@@ -1350,6 +1674,8 @@ export class PPTDatabase {
       title: data.title,
       contentOutline: data.contentOutline || null,
       layoutIntent: data.layoutIntent || null,
+      layoutId: data.layoutId || null,
+      layoutContractVersion: data.layoutContractVersion || null,
       htmlPath: data.htmlPath || null,
       status: data.status,
       error: data.error || null,
@@ -1367,6 +1693,8 @@ export class PPTDatabase {
           title: values.title,
           contentOutline: values.contentOutline,
           layoutIntent: values.layoutIntent,
+          layoutId: values.layoutId,
+          layoutContractVersion: values.layoutContractVersion,
           htmlPath: values.htmlPath,
           status: values.status,
           error: values.error,
@@ -1439,6 +1767,10 @@ export class PPTDatabase {
       headingLevel: number
       lineStart: number
       lineEnd: number
+      agendaItems?: Array<{
+        title: string
+        lineStart: number
+      }>
       reason?: string | null
     }>
   }): Promise<void> {
@@ -1465,6 +1797,7 @@ export class PPTDatabase {
           headingLevel: Math.max(1, Math.floor(item.headingLevel || 1)),
           lineStart,
           lineEnd,
+          agendaItemsJson: serializeSourcePageSkeletonAgendaItems(item.agendaItems),
           reason: item.reason || null,
           confidence: args.confidence || 'high',
           createdAt: now,
@@ -1486,6 +1819,10 @@ export class PPTDatabase {
     headingLevel?: number
     lineStart?: number
     lineEnd?: number
+    agendaItems?: Array<{
+      title: string
+      lineStart: number
+    }>
     reason?: string | null
     confidence?: SourcePageSkeletonConfidence
   }): Promise<void> {
@@ -1505,6 +1842,7 @@ export class PPTDatabase {
       headingLevel: Math.max(1, Math.floor(args.headingLevel || 1)),
       lineStart,
       lineEnd,
+      agendaItemsJson: serializeSourcePageSkeletonAgendaItems(args.agendaItems),
       reason: args.reason || null,
       confidence: args.confidence || 'medium',
       createdAt: now,
@@ -1525,6 +1863,7 @@ export class PPTDatabase {
           headingLevel: value.headingLevel,
           lineStart: value.lineStart,
           lineEnd: value.lineEnd,
+          agendaItemsJson: value.agendaItemsJson,
           reason: value.reason,
           confidence: value.confidence,
           updatedAt: now
@@ -1580,6 +1919,9 @@ export class PPTDatabase {
         pageNumber: page.pageNumber,
         title: page.title,
         htmlPath: page.htmlPath,
+        layoutIntent: page.layoutIntent || null,
+        layoutId: page.layoutId || null,
+        layoutContractVersion: page.layoutContractVersion || null,
         status: page.status || 'pending',
         error: page.error || null,
         createdAt: now,
@@ -1594,6 +1936,15 @@ export class PPTDatabase {
           pageNumber: page.pageNumber,
           title: page.title,
           htmlPath: page.htmlPath,
+          // Omitted layout fields come from callers that only update status/order.
+          // Preserve their stable source; explicit null is still the intentional clear path.
+          layoutIntent:
+            page.layoutIntent === undefined ? schema.sessionPages.layoutIntent : page.layoutIntent,
+          layoutId: page.layoutId === undefined ? schema.sessionPages.layoutId : page.layoutId,
+          layoutContractVersion:
+            page.layoutContractVersion === undefined
+              ? schema.sessionPages.layoutContractVersion
+              : page.layoutContractVersion,
           status: page.status || 'pending',
           error: page.error || null,
           deletedAt: null,
@@ -2710,7 +3061,561 @@ export class PPTDatabase {
       .where(eq(schema.imageModelConfigs.id, id))
       .get()
     if (!existing) throw new Error('Image model config does not exist')
+    const [{ value: referencedSessionCount }] = await this.db
+      .select({ value: count() })
+      .from(schema.sessions)
+      .where(and(eq(schema.sessions.imageModelConfigId, id), eq(schema.sessions.visualEnabled, 1)))
+      .all()
+    if (referencedSessionCount > 0) {
+      throw new Error('Image model config is used by visual-enabled sessions')
+    }
+    const [{ value: activeJobCount }] = await this.db
+      .select({ value: count() })
+      .from(schema.imageFulfillmentJobs)
+      .where(
+        and(
+          eq(schema.imageFulfillmentJobs.imageModelConfigId, id),
+          inArray(schema.imageFulfillmentJobs.status, ['pending', 'running', 'finalizing'])
+        )
+      )
+      .all()
+    if (activeJobCount > 0) {
+      throw new Error('Image model config is used by active image fulfillment jobs')
+    }
     await this.db.delete(schema.imageModelConfigs).where(eq(schema.imageModelConfigs.id, id)).run()
+  }
+
+  // ========== Image Fulfillment Jobs ===========
+
+  async createImageFulfillmentJob(data: {
+    id?: string
+    runId: string
+    sessionId: string
+    sessionPageId: string
+    pageId: string
+    layoutId?: string | null
+    layoutContractVersion?: number | null
+    imageModelConfigId: string
+    imageProvider: string
+    imageModel: string
+    idempotencyKey?: string | null
+    retryOfJobId?: string | null
+    intents: ImageFulfillmentIntentCreateData[]
+  }): Promise<{
+    job: ImageFulfillmentJobRecord
+    intents: ImageFulfillmentIntentRecord[]
+    created: boolean
+  }> {
+    const pageId = data.pageId.trim()
+    const idempotencyKey = data.idempotencyKey?.trim() || null
+    const intents = data.intents.map((intent) => ({
+      ...intent,
+      slotId: intent.slotId.trim(),
+      layoutSlotId: intent.layoutSlotId.trim(),
+      role: intent.role.trim(),
+      layer: intent.layer.trim(),
+      subject: intent.subject.trim(),
+      requestJson: intent.requestJson.trim()
+    }))
+    if (!pageId) throw new Error('image fulfillment pageId is required')
+    if (!data.imageModelConfigId.trim())
+      throw new Error('image fulfillment model config is required')
+    if (intents.length === 0) throw new Error('image fulfillment requires at least one intent')
+    if (
+      intents.some(
+        (intent) =>
+          !intent.slotId ||
+          !intent.layoutSlotId ||
+          !intent.role ||
+          !intent.layer ||
+          !intent.subject ||
+          !intent.requestJson
+      )
+    ) {
+      throw new Error('image fulfillment intent is incomplete')
+    }
+    if (new Set(intents.map((intent) => intent.slotId)).size !== intents.length) {
+      throw new Error('image fulfillment slot IDs must be unique within one job')
+    }
+
+    const now = Math.floor(Date.now() / 1000)
+    return this.db.transaction(async (tx) => {
+      if (idempotencyKey) {
+        const existing = await tx
+          .select()
+          .from(schema.imageFulfillmentJobs)
+          .where(
+            and(
+              eq(schema.imageFulfillmentJobs.sessionId, data.sessionId),
+              eq(schema.imageFulfillmentJobs.idempotencyKey, idempotencyKey)
+            )
+          )
+          .get()
+        if (existing) {
+          const job = this.normalizeImageFulfillmentJobRow(existing as Record<string, unknown>)
+          const existingIntents = await tx
+            .select()
+            .from(schema.imageFulfillmentIntents)
+            .where(eq(schema.imageFulfillmentIntents.jobId, job.id))
+            .orderBy(asc(schema.imageFulfillmentIntents.createdAt))
+            .all()
+          return {
+            job,
+            intents: existingIntents.map((intent) =>
+              this.normalizeImageFulfillmentIntentRow(intent as Record<string, unknown>)
+            ),
+            created: false
+          }
+        }
+      }
+
+      const sessionPage = await tx
+        .select()
+        .from(schema.sessionPages)
+        .where(
+          and(
+            eq(schema.sessionPages.id, data.sessionPageId),
+            eq(schema.sessionPages.sessionId, data.sessionId)
+          )
+        )
+        .get()
+      if (!sessionPage) throw new Error('image fulfillment page does not belong to the session')
+      if (
+        pageId !== sessionPage.fileSlug &&
+        pageId !== sessionPage.id &&
+        pageId !== (sessionPage.legacyPageId || '')
+      ) {
+        throw new Error('image fulfillment pageId does not match the session page')
+      }
+
+      if (data.retryOfJobId) {
+        const source = await tx
+          .select()
+          .from(schema.imageFulfillmentJobs)
+          .where(eq(schema.imageFulfillmentJobs.id, data.retryOfJobId))
+          .get()
+        const sourceStatus = String(source?.status || '')
+        if (
+          !source ||
+          source.sessionId !== data.sessionId ||
+          source.sessionPageId !== data.sessionPageId ||
+          !['completed', 'degraded', 'failed', 'cancelled'].includes(sourceStatus)
+        ) {
+          throw new Error('image fulfillment retry source is not eligible')
+        }
+      }
+
+      const activeJob = await tx
+        .select({ id: schema.imageFulfillmentJobs.id })
+        .from(schema.imageFulfillmentJobs)
+        .where(
+          and(
+            eq(schema.imageFulfillmentJobs.sessionId, data.sessionId),
+            eq(schema.imageFulfillmentJobs.sessionPageId, data.sessionPageId),
+            inArray(schema.imageFulfillmentJobs.status, ['pending', 'running', 'finalizing'])
+          )
+        )
+        .get()
+      if (activeJob) throw new Error('an image fulfillment job is already active for this page')
+
+      const latestAttempt = await tx
+        .select({ value: max(schema.imageFulfillmentJobs.attempt) })
+        .from(schema.imageFulfillmentJobs)
+        .where(
+          and(
+            eq(schema.imageFulfillmentJobs.runId, data.runId),
+            eq(schema.imageFulfillmentJobs.sessionPageId, data.sessionPageId)
+          )
+        )
+        .get()
+      const attempt = Math.max(0, Number(latestAttempt?.value || 0)) + 1
+      const id = data.id || nanoid()
+      const values = {
+        id,
+        runId: data.runId,
+        sessionId: data.sessionId,
+        sessionPageId: data.sessionPageId,
+        pageId,
+        layoutId: data.layoutId || null,
+        layoutContractVersion: data.layoutContractVersion || null,
+        imageModelConfigId: data.imageModelConfigId.trim(),
+        imageProvider: data.imageProvider.trim() || null,
+        imageModel: data.imageModel.trim() || null,
+        attempt,
+        retryOfJobId: data.retryOfJobId || null,
+        idempotencyKey,
+        status: 'pending' as const,
+        error: null,
+        cancelRequestedAt: null,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        finalizationManifestPath: null,
+        createdAt: now,
+        startedAt: null,
+        updatedAt: now,
+        finishedAt: null
+      }
+      await tx.insert(schema.imageFulfillmentJobs).values(values)
+      const intentValues = intents.map((intent) => ({
+        id: intent.id || nanoid(),
+        jobId: id,
+        slotId: intent.slotId,
+        layoutSlotId: intent.layoutSlotId,
+        role: intent.role,
+        layer: intent.layer,
+        requestVersion: Math.max(1, Math.floor(intent.requestVersion || 1)),
+        sizeHint: intent.sizeHint?.trim() || null,
+        subject: intent.subject,
+        textZone: intent.textZone?.trim() || null,
+        subjectZone: intent.subjectZone?.trim() || null,
+        negativeSpace: intent.negativeSpace?.trim() || null,
+        avoidJson: intent.avoidJson?.trim() || null,
+        requestJson: intent.requestJson,
+        imageHistoryId: null,
+        assetPath: null,
+        width: null,
+        height: null,
+        mimeType: null,
+        attempt,
+        retryOfIntentId: intent.retryOfIntentId || null,
+        status: 'pending' as const,
+        error: null,
+        createdAt: now,
+        updatedAt: now
+      }))
+      await tx.insert(schema.imageFulfillmentIntents).values(intentValues)
+      return {
+        job: this.normalizeImageFulfillmentJobRow(values as Record<string, unknown>),
+        intents: intentValues.map((intent) =>
+          this.normalizeImageFulfillmentIntentRow(intent as Record<string, unknown>)
+        ),
+        created: true
+      }
+    })
+  }
+
+  async getImageFulfillmentJob(jobId: string): Promise<ImageFulfillmentJobRecord | undefined> {
+    const row = await this.db
+      .select()
+      .from(schema.imageFulfillmentJobs)
+      .where(eq(schema.imageFulfillmentJobs.id, jobId))
+      .get()
+    return row ? this.normalizeImageFulfillmentJobRow(row as Record<string, unknown>) : undefined
+  }
+
+  async listImageFulfillmentJobs(
+    sessionId: string,
+    sessionPageId?: string
+  ): Promise<ImageFulfillmentJobRecord[]> {
+    const where = sessionPageId
+      ? and(
+          eq(schema.imageFulfillmentJobs.sessionId, sessionId),
+          eq(schema.imageFulfillmentJobs.sessionPageId, sessionPageId)
+        )
+      : eq(schema.imageFulfillmentJobs.sessionId, sessionId)
+    const rows = await this.db
+      .select()
+      .from(schema.imageFulfillmentJobs)
+      .where(where)
+      .orderBy(desc(schema.imageFulfillmentJobs.createdAt))
+      .all()
+    return rows.map((row) => this.normalizeImageFulfillmentJobRow(row as Record<string, unknown>))
+  }
+
+  async listImageFulfillmentIntents(jobId: string): Promise<ImageFulfillmentIntentRecord[]> {
+    const rows = await this.db
+      .select()
+      .from(schema.imageFulfillmentIntents)
+      .where(eq(schema.imageFulfillmentIntents.jobId, jobId))
+      .orderBy(asc(schema.imageFulfillmentIntents.createdAt))
+      .all()
+    return rows.map((row) =>
+      this.normalizeImageFulfillmentIntentRow(row as Record<string, unknown>)
+    )
+  }
+
+  async requestImageFulfillmentCancellation(jobId: string): Promise<boolean> {
+    const now = Math.floor(Date.now() / 1000)
+    const result = await this.db
+      .update(schema.imageFulfillmentJobs)
+      .set({ cancelRequestedAt: now, updatedAt: now })
+      .where(
+        and(
+          eq(schema.imageFulfillmentJobs.id, jobId),
+          inArray(schema.imageFulfillmentJobs.status, ['pending', 'running', 'finalizing'])
+        )
+      )
+      .run()
+    return Number(result.rowsAffected || 0) > 0
+  }
+
+  async claimImageFulfillmentJob(args: {
+    jobId: string
+    leaseOwner: string
+    leaseDurationSec: number
+  }): Promise<boolean> {
+    const now = Math.floor(Date.now() / 1000)
+    const result = await this.db
+      .update(schema.imageFulfillmentJobs)
+      .set({
+        status: 'running',
+        leaseOwner: args.leaseOwner,
+        leaseExpiresAt: now + Math.max(1, Math.floor(args.leaseDurationSec)),
+        startedAt: now,
+        updatedAt: now
+      })
+      .where(
+        and(
+          eq(schema.imageFulfillmentJobs.id, args.jobId),
+          inArray(schema.imageFulfillmentJobs.status, ['pending', 'running']),
+          isNull(schema.imageFulfillmentJobs.cancelRequestedAt),
+          or(
+            isNull(schema.imageFulfillmentJobs.leaseExpiresAt),
+            lte(schema.imageFulfillmentJobs.leaseExpiresAt, now)
+          )
+        )
+      )
+      .run()
+    return Number(result.rowsAffected || 0) > 0
+  }
+
+  async transitionImageFulfillmentJob(args: {
+    jobId: string
+    from: ImageFulfillmentJobStatus[]
+    status: ImageFulfillmentJobStatus
+    error?: string | null
+    finalizationManifestPath?: string | null
+    imageProvider?: string | null
+    imageModel?: string | null
+    leaseOwner?: string | null
+    leaseExpiresAt?: number | null
+  }): Promise<boolean> {
+    if (args.from.length === 0) return false
+    const now = Math.floor(Date.now() / 1000)
+    const terminal = ['completed', 'degraded', 'failed', 'cancelled'].includes(args.status)
+    const values: Record<string, unknown> = {
+      status: args.status,
+      updatedAt: now
+    }
+    if (args.error !== undefined) values.error = args.error
+    if (args.finalizationManifestPath !== undefined) {
+      values.finalizationManifestPath = args.finalizationManifestPath
+    }
+    if (args.imageProvider !== undefined) values.imageProvider = args.imageProvider
+    if (args.imageModel !== undefined) values.imageModel = args.imageModel
+    if (args.leaseOwner !== undefined) values.leaseOwner = args.leaseOwner
+    if (args.leaseExpiresAt !== undefined) values.leaseExpiresAt = args.leaseExpiresAt
+    if (terminal) {
+      values.finishedAt = now
+      values.leaseOwner = null
+      values.leaseExpiresAt = null
+    }
+    const result = await this.db
+      .update(schema.imageFulfillmentJobs)
+      .set(values)
+      .where(
+        and(
+          eq(schema.imageFulfillmentJobs.id, args.jobId),
+          inArray(schema.imageFulfillmentJobs.status, args.from)
+        )
+      )
+      .run()
+    return Number(result.rowsAffected || 0) > 0
+  }
+
+  async completeImageFulfillmentJob(args: {
+    jobId: string
+    sessionId: string
+    pageId: string
+    modelConfigId: string
+    provider: string
+    model: string
+    assets: Array<{
+      intentId: string
+      prompt: string
+      assetPath: string
+      mimeType: string
+      width: number
+      height: number
+    }>
+  }): Promise<boolean> {
+    if (args.assets.length === 0) throw new Error('image fulfillment completion requires assets')
+    const now = Math.floor(Date.now() / 1000)
+    return this.db.transaction(async (tx) => {
+      const job = await tx
+        .select({ id: schema.imageFulfillmentJobs.id })
+        .from(schema.imageFulfillmentJobs)
+        .where(
+          and(
+            eq(schema.imageFulfillmentJobs.id, args.jobId),
+            eq(schema.imageFulfillmentJobs.status, 'finalizing'),
+            isNull(schema.imageFulfillmentJobs.cancelRequestedAt)
+          )
+        )
+        .get()
+      if (!job) return false
+
+      for (const asset of args.assets) {
+        const historyId = crypto.randomUUID()
+        await tx.insert(schema.imageGenerationHistories).values({
+          id: historyId,
+          sessionId: args.sessionId,
+          pageId: args.pageId,
+          prompt: asset.prompt,
+          imagePaths: JSON.stringify([asset.assetPath]),
+          modelConfigId: args.modelConfigId,
+          provider: args.provider,
+          model: args.model,
+          createdAt: now
+        })
+        const updatedIntent = await tx
+          .update(schema.imageFulfillmentIntents)
+          .set({
+            status: 'used',
+            error: null,
+            imageHistoryId: historyId,
+            assetPath: asset.assetPath,
+            width: asset.width,
+            height: asset.height,
+            mimeType: asset.mimeType,
+            updatedAt: now
+          })
+          .where(
+            and(
+              eq(schema.imageFulfillmentIntents.id, asset.intentId),
+              eq(schema.imageFulfillmentIntents.jobId, args.jobId),
+              eq(schema.imageFulfillmentIntents.status, 'generated')
+            )
+          )
+          .run()
+        if (Number(updatedIntent.rowsAffected || 0) !== 1) {
+          throw new Error('image fulfillment intent changed before completion')
+        }
+      }
+
+      const updatedJob = await tx
+        .update(schema.imageFulfillmentJobs)
+        .set({
+          status: 'completed',
+          error: null,
+          updatedAt: now,
+          finishedAt: now,
+          leaseOwner: null,
+          leaseExpiresAt: null
+        })
+        .where(
+          and(
+            eq(schema.imageFulfillmentJobs.id, args.jobId),
+            eq(schema.imageFulfillmentJobs.status, 'finalizing'),
+            isNull(schema.imageFulfillmentJobs.cancelRequestedAt)
+          )
+        )
+        .run()
+      if (Number(updatedJob.rowsAffected || 0) !== 1) {
+        throw new Error('image fulfillment job changed before completion')
+      }
+      return true
+    })
+  }
+
+  async recoverExpiredImageFulfillmentJobs(args?: {
+    error?: string
+    /** Pending jobs only become stale when their creating process has exited. */
+    includePending?: boolean
+  }): Promise<ImageFulfillmentJobRecord[]> {
+    const error = args?.error || 'Image fulfillment lease expired; retry the image stage.'
+    const includePending = args?.includePending === true
+    const now = Math.floor(Date.now() / 1000)
+    const staleRows = await this.db
+      .select()
+      .from(schema.imageFulfillmentJobs)
+      .where(
+        or(
+          and(
+            inArray(schema.imageFulfillmentJobs.status, ['running', 'finalizing']),
+            lte(schema.imageFulfillmentJobs.leaseExpiresAt, now)
+          ),
+          includePending ? eq(schema.imageFulfillmentJobs.status, 'pending') : undefined
+        )
+      )
+      .all()
+    if (staleRows.length === 0) return []
+    const ids = staleRows.map((row) => row.id)
+    await this.db
+      .update(schema.imageFulfillmentJobs)
+      .set({
+        status: 'failed',
+        error,
+        updatedAt: now,
+        finishedAt: now,
+        leaseOwner: null,
+        leaseExpiresAt: null
+      })
+      .where(
+        and(
+          inArray(schema.imageFulfillmentJobs.id, ids),
+          or(
+            and(
+              inArray(schema.imageFulfillmentJobs.status, ['running', 'finalizing']),
+              lte(schema.imageFulfillmentJobs.leaseExpiresAt, now)
+            ),
+            includePending ? eq(schema.imageFulfillmentJobs.status, 'pending') : undefined
+          )
+        )
+      )
+      .run()
+    await this.db
+      .update(schema.imageFulfillmentIntents)
+      .set({
+        status: 'failed',
+        error,
+        updatedAt: now
+      })
+      .where(
+        and(
+          inArray(schema.imageFulfillmentIntents.jobId, ids),
+          inArray(schema.imageFulfillmentIntents.status, ['pending', 'generating', 'generated'])
+        )
+      )
+      .run()
+    return staleRows.map((row) =>
+      this.normalizeImageFulfillmentJobRow(row as Record<string, unknown>)
+    )
+  }
+
+  async transitionImageFulfillmentIntent(args: {
+    intentId: string
+    from: ImageFulfillmentIntentStatus[]
+    status: ImageFulfillmentIntentStatus
+    error?: string | null
+    imageHistoryId?: string | null
+    assetPath?: string | null
+    width?: number | null
+    height?: number | null
+    mimeType?: string | null
+  }): Promise<boolean> {
+    if (args.from.length === 0) return false
+    const values: Record<string, unknown> = {
+      status: args.status,
+      updatedAt: Math.floor(Date.now() / 1000)
+    }
+    if (args.error !== undefined) values.error = args.error
+    if (args.imageHistoryId !== undefined) values.imageHistoryId = args.imageHistoryId
+    if (args.assetPath !== undefined) values.assetPath = args.assetPath
+    if (args.width !== undefined) values.width = args.width
+    if (args.height !== undefined) values.height = args.height
+    if (args.mimeType !== undefined) values.mimeType = args.mimeType
+    const result = await this.db
+      .update(schema.imageFulfillmentIntents)
+      .set(values)
+      .where(
+        and(
+          eq(schema.imageFulfillmentIntents.id, args.intentId),
+          inArray(schema.imageFulfillmentIntents.status, args.from)
+        )
+      )
+      .run()
+    return Number(result.rowsAffected || 0) > 0
   }
 
   // ========== Image Generation Histories ==========
@@ -2948,6 +3853,7 @@ export class PPTDatabase {
               styleSkill: stylePackage.skillMarkdown,
               version: item.version,
               styleCase: item.styleCase,
+              imageGenerationPrompt: item.imageGeneration?.prompt || '',
               packageDir
             })
             continue
@@ -2965,6 +3871,7 @@ export class PPTDatabase {
                 styleSkill: stylePackage.skillMarkdown,
                 version: item.version,
                 styleCase: item.styleCase,
+                imageGenerationPrompt: item.imageGeneration?.prompt || '',
                 packageDir
               })
               continue
@@ -2988,6 +3895,7 @@ export class PPTDatabase {
             styleSkill: stylePackage.skillMarkdown,
             version: item.version,
             styleCase: item.styleCase,
+            imageGenerationPrompt: item.imageGeneration?.prompt || '',
             packageDir
           })
         } catch (error) {
@@ -3001,6 +3909,15 @@ export class PPTDatabase {
 
     await syncDirectory(systemPath, 'system')
     await syncDirectory(userPath, 'user')
+    await this.client.execute(`
+      UPDATE session_style_snapshots
+      SET image_generation_prompt = COALESCE((
+        SELECT styles.image_generation_prompt
+        FROM styles
+        WHERE styles.id = session_style_snapshots.style_id
+      ), '')
+      WHERE COALESCE(image_generation_prompt, '') = ''
+    `)
     await this._refreshStylesCache()
   }
 
@@ -3084,6 +4001,7 @@ export class PPTDatabase {
     styleSkill?: string
     version?: string | number
     styleCase?: string
+    imageGenerationPrompt?: string
     packageDir?: string
   }): Promise<string> {
     const id = data.id || crypto.randomUUID()
@@ -3103,6 +4021,7 @@ export class PPTDatabase {
         styleSkill: data.styleSkill || '',
         version: normalizeStyleVersion(data.version),
         styleCase: data.styleCase || '',
+        imageGenerationPrompt: data.imageGenerationPrompt || '',
         packageDir: data.packageDir || '',
         createdAt: now,
         updatedAt: now
@@ -3125,6 +4044,7 @@ export class PPTDatabase {
       styleSkill?: string
       version?: string | number
       styleCase?: string
+      imageGenerationPrompt?: string
       packageDir?: string
       active?: boolean
     }
@@ -3141,6 +4061,9 @@ export class PPTDatabase {
     if (data.styleSkill !== undefined) set.styleSkill = data.styleSkill
     if (data.version !== undefined) set.version = normalizeStyleVersion(data.version)
     if (data.styleCase !== undefined) set.styleCase = data.styleCase
+    if (data.imageGenerationPrompt !== undefined) {
+      set.imageGenerationPrompt = data.imageGenerationPrompt
+    }
     if (data.packageDir !== undefined) set.packageDir = data.packageDir
     if (data.active !== undefined) set.active = data.active
     await this.db.update(schema.styles).set(set).where(eq(schema.styles.id, styleId)).run()
@@ -3308,6 +4231,7 @@ export class PPTDatabase {
         source: style.source,
         version: normalizeStyleVersion(style.version),
         styleCase: style.styleCase,
+        imageGenerationPrompt: style.imageGenerationPrompt || '',
         packageDir: style.packageDir || '',
         styleSkill: style.styleSkill,
         createdAt: now
@@ -3359,6 +4283,7 @@ export class PPTDatabase {
         source: source.source,
         version: normalizeStyleVersion(source.version),
         styleCase: source.styleCase,
+        imageGenerationPrompt: source.imageGenerationPrompt || '',
         packageDir: source.packageDir || '',
         styleSkill: source.styleSkill,
         createdAt: Math.floor(Date.now() / 1000)
@@ -3419,7 +4344,8 @@ export class PPTDatabase {
       aliases: row.aliases,
       source: row.source,
       version: row.version,
-      styleCase: row.styleCase
+      styleCase: row.styleCase,
+      imageGenerationPrompt: row.imageGenerationPrompt
     })
   }
 

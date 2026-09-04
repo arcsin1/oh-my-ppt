@@ -12,6 +12,9 @@
     "封面"
   ],
   "styleCase": "影视音乐、产品发布、年度庆典",
+  "imageGeneration": {
+    "prompt": "Abstract aurora borealis sweeping across a deep indigo polar night sky, with emerald green, cyan and violet ribbons dissolving into soft luminous mist. Create cinematic, dreamy cover art with clear negative space for slide text. Do not render typography, logos, UI, watermarks, borders, people, or sharp geometric elements."
+  },
   "version": "2.0.2",
   "source": "builtin"
 }

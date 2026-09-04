@@ -14,6 +14,9 @@
     "高级"
   ],
   "styleCase": "餐饮美食、品牌营销、艺术视觉",
+  "imageGeneration": {
+    "prompt": "Luxurious editorial still life on ivory silk and warm gilded-brown surfaces, with tactile velvet, restrained champagne-gold ornament and museum-like classical lighting. Keep the composition refined and spacious for slide content. Do not render text, logos, product labels, UI, watermarks, ornate frames, or crowded arrangements."
+  },
   "version": "2.0.2",
   "source": "builtin"
 }

@@ -42,6 +42,9 @@ export interface ManagedPage {
   legacyPageId?: string
   title: string
   contentOutline?: string | null
+  layoutIntent?: string | null
+  layoutId?: string | null
+  layoutContractVersion?: number | null
   htmlPath: string
   html?: string
   status?: SessionPageStatus
@@ -74,6 +77,9 @@ export async function loadEditableSessionPages(
     legacyPageId: sp.legacy_page_id || undefined,
     title: sp.title,
     contentOutline: outlineBySessionPageId.get(sp.id) || null,
+    layoutIntent: sp.layout_intent,
+    layoutId: sp.layout_id,
+    layoutContractVersion: sp.layout_contract_version,
     htmlPath: resolvePageHtmlPath(projectDir, sp.file_slug, sp.html_path),
     status: sp.status,
     error: sp.error
@@ -214,6 +220,9 @@ export async function createBlankSessionPage(
     pageId: nextPageId,
     title: nextTitle,
     contentOutline: null,
+    layoutIntent: sourcePage.layoutIntent || null,
+    layoutId: sourcePage.layoutId || null,
+    layoutContractVersion: sourcePage.layoutContractVersion || null,
     htmlPath: nextHtmlPath,
     html: nextHtml,
     status: 'completed',
@@ -233,6 +242,9 @@ export async function createBlankSessionPage(
     pageNumber: newPage.pageNumber,
     title: newPage.title,
     htmlPath: newPage.htmlPath,
+    layoutIntent: newPage.layoutIntent || null,
+    layoutId: newPage.layoutId || null,
+    layoutContractVersion: newPage.layoutContractVersion || null,
     status: 'completed',
     error: null
   })
@@ -295,6 +307,9 @@ export async function duplicateSessionPage(
     pageId: nextPageId,
     title: nextTitle,
     contentOutline: sourcePage.contentOutline || null,
+    layoutIntent: sourcePage.layoutIntent || null,
+    layoutId: sourcePage.layoutId || null,
+    layoutContractVersion: sourcePage.layoutContractVersion || null,
     htmlPath: nextHtmlPath,
     html: nextHtml,
     status: sourcePage.status || 'completed',
@@ -311,6 +326,9 @@ export async function duplicateSessionPage(
     pageNumber: newPage.pageNumber,
     title: newPage.title,
     htmlPath: newPage.htmlPath,
+    layoutIntent: newPage.layoutIntent || null,
+    layoutId: newPage.layoutId || null,
+    layoutContractVersion: newPage.layoutContractVersion || null,
     status: newPage.status || 'completed',
     error: null
   })
@@ -367,6 +385,9 @@ export async function renameSessionPageTitle(
     pageNumber: page.pageNumber,
     title,
     htmlPath: page.htmlPath,
+    layoutIntent: page.layoutIntent || null,
+    layoutId: page.layoutId || null,
+    layoutContractVersion: page.layoutContractVersion || null,
     status: page.status || 'completed',
     error: page.error || null
   })

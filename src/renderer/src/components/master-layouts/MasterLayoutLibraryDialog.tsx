@@ -186,7 +186,6 @@ export function MasterLayoutLibraryDialog(): React.JSX.Element | null {
     Boolean(
       state.isGenerating ||
       state.pageEditJobs[sessionId] ||
-      state.pageBeautifyJobs[sessionId] ||
       state.deckEditJobs[sessionId] ||
       state.styleSwitchJobs[sessionId]
     )

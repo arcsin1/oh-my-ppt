@@ -22,7 +22,7 @@ Before writing HTML, decide:
 2. **Primary object** - chart, table, matrix, diagram, hero number, conclusion block, image, or comparison.
 3. **Reading path** - title/claim -> primary object -> interpretation/action.
 4. **Density** - low for cover/quote/hero number, medium for most slides, high only for compact tables or matrices.
-5. **Pattern** - choose one structure from `references/catalog.md` before writing HTML.
+5. **Pattern** - use a structure from `references/catalog.md` as a starting point when it helps the reading path; it is not a closed template menu, and a fresh composition is welcome when it serves the page thesis.
 6. **Budget** - estimate width and height together; 4:3 failures are often width pressure, not only height pressure.
 
 Use the canvas dimensions from the prompt. If custom dimensions are supplied, preserve the same square-ish relationships.
@@ -33,8 +33,9 @@ Use the canvas dimensions from the prompt. If custom dimensions are supplied, pr
 - Two real content columns are usually enough. Three columns work only for short metric chips or labels.
 - Keep side margins and gutters generous enough for projection readability.
 - Use row-based tables and grouped insight rows when information has several dimensions.
-- Use grid/flex document flow for text-bearing modules. Absolute positioning is only for background accents, connector lines, and non-text decoration.
-- Body copy, ordinary labels, and card descriptions must be at least **24px** (Tailwind `text-2xl` is 24px, or use `style="font-size:24px"` / `text-[24px]`); headings must be at least **32px** (`text-3xl` or larger); auxiliary source/footer text must be at least **16px** (`text-base` or `text-[16px]`). These floors compensate for the smaller fit-scale a 1200h canvas gets in presentation mode — `text-lg`/`text-xl` (18px/20px) are too small here, do not use them for body copy.
+- Use grid/flex document flow for text-bearing modules. Independent text/content modules occupy their own cells and must not overlap or escape the canvas. Absolute positioning is only for background accents, connector lines, non-text decoration, and intentional image/video background composition; text or transparent panels may intentionally sit over media.
+- Independent content modules must retain an actual nonzero gap. Compact spacing is valid when it suits the composition.
+- Body copy, ordinary labels, and card descriptions default to at least **24px** (Tailwind `text-2xl` or `text-[24px]`). Only a genuinely high-density bounded module may use **21px** after restructuring; mark it `data-ppt-density="high"` and compensate its grid/flex footprint if it is scaled. Headings are at least **32px** (`text-3xl` or larger) with no upper cap; auxiliary source/footer text is at least **16px**. These floors preserve the same displayed 18px / 16px / 24px / 12px semantic minimums on this 1200px-high canvas.
 
 ## Pattern Quick Lookup
 

@@ -10,6 +10,8 @@ interface ImageModelConfigDialogProps {
   open: boolean
   saving: boolean
   verifying: boolean
+  verified: boolean
+  verificationPreviewUrl: string | null
   t: SettingsTranslate
   onClose: () => void
   onFormChange: (patch: Partial<ImageModelForm>) => void
@@ -72,6 +74,8 @@ export function ImageModelConfigDialog({
   open,
   saving,
   verifying,
+  verified,
+  verificationPreviewUrl,
   t,
   onClose,
   onFormChange,
@@ -176,20 +180,36 @@ export function ImageModelConfigDialog({
             <Button
               variant="secondary"
               onClick={onVerify}
-              disabled={verifying}
+              disabled={saving || verifying}
               className="h-7 min-w-[72px] rounded-lg border border-[#7ea06f]/45 px-2.5 text-xs"
             >
               <ShieldCheck className="mr-1 h-3.5 w-3.5" />
               {verifying ? t('settings.verifying') : t('settings.verify')}
             </Button>
           </div>
+
+          {verificationPreviewUrl && (
+            <div className="overflow-hidden rounded-lg border border-[#b5c7a4] bg-[#f4f8ed] p-2.5">
+              <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+                <span className="font-medium text-[#3e4a32]">
+                  {t('settings.imageVerificationPreview')}
+                </span>
+                <span className="text-[#647653]">{t('settings.imageVerificationPrompt')}</span>
+              </div>
+              <img
+                src={verificationPreviewUrl}
+                alt={t('settings.imageVerificationPreviewAlt')}
+                className="max-h-64 w-full rounded-md bg-[#e9e3d7] object-contain"
+              />
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 border-t border-[#e3d8c5] px-4 py-2.5">
           <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>
             {t('common.cancel')}
           </Button>
-          <Button onClick={onSave} disabled={saving}>
+          <Button onClick={onSave} disabled={saving || verifying || !verified}>
             {saving ? t('common.saving') : t('settings.saveImageModel')}
           </Button>
         </div>

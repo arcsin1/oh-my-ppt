@@ -12,7 +12,8 @@ import {
   deleteStyleSkill,
   exportStylePackageZip,
   importStylePackageDirectory,
-  importStylePackageZip
+  importStylePackageZip,
+  getStylePackageDirectory
 } from './catalog'
 import type { IpcContext } from '../ipc/context'
 import { resolveGlobalModelTimeouts, resolveModelConfigForTask } from '../config/model-config-utils'
@@ -21,6 +22,8 @@ import { parseStyleImage } from './import/image'
 import { parseStylePptx } from './import/pptx'
 import { isSupportedImageMimeType, normalizeImageMimeType } from '@shared/image-mime'
 import { getInstalledStylesPath } from './style-runtime'
+import { readStylePackage, styleRowToPackageJson } from './style-package'
+import { recommendStyles } from './recommendation'
 import {
   enqueueHtmlThumbnail,
   getFreshHtmlThumbnailPath
@@ -53,6 +56,7 @@ type StyleBasePayload = {
   aliases: string[]
   prompt: string
   styleCase: string
+  imageGenerationPrompt?: string
 }
 
 type StylePayload = StyleBasePayload & {
@@ -97,6 +101,7 @@ export function registerStyleHandlers(ctx: IpcContext): void {
         source?: 'builtin' | 'custom' | 'override'
         editable?: boolean
         styleCase?: string
+        imageGenerationPrompt?: string
       }>
     > = {}
     for (const style of styles) {
@@ -108,7 +113,8 @@ export function registerStyleHandlers(ctx: IpcContext): void {
         description: style.description,
         source: style.source,
         editable: style.editable,
-        styleCase: style.styleCase
+        styleCase: style.styleCase,
+        imageGenerationPrompt: style.imageGenerationPrompt
       })
     }
     const defaultStyle =
@@ -143,6 +149,7 @@ export function registerStyleHandlers(ctx: IpcContext): void {
         editable: row.source !== 'builtin',
         version: row.version,
         styleCase: row.styleCase,
+        imageGenerationPrompt: row.imageGenerationPrompt || '',
         packageDir: row.packageDir || '',
         favoriteAt: row.favoriteAt ?? null,
         previewPath,
@@ -182,6 +189,7 @@ export function registerStyleHandlers(ctx: IpcContext): void {
           editable: false,
           version: snapshot.version,
           styleCase: snapshot.styleCase,
+          imageGenerationPrompt: snapshot.imageGenerationPrompt || '',
           packageDir: snapshot.packageDir || '',
           favoriteAt: null,
           previewPath,
@@ -200,6 +208,45 @@ export function registerStyleHandlers(ctx: IpcContext): void {
     return {
       items
     }
+  })
+
+  ipcMain.handle('styles:recommend', async (_event, payload) => {
+    const topic = typeof payload?.topic === 'string' ? payload.topic.trim() : ''
+    if (!topic) throw new Error('请先填写主题后再推荐风格。')
+    const brief = typeof payload?.brief === 'string' ? payload.brief.trim().slice(0, 8000) : ''
+    const rows = (await db.listStyleRows()).filter((row) => row.active !== false)
+    const styles = await Promise.all(
+      rows.map(async (row) => {
+        try {
+          return (await readStylePackage(getStylePackageDirectory(row.id))).json
+        } catch (error) {
+          log.warn('[styles:recommend] using catalog metadata for unreadable style package', {
+            styleId: row.id,
+            styleKey: row.style,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          return styleRowToPackageJson(row)
+        }
+      })
+    )
+    const activeModel = await resolveModelConfigForTask(ctx, {
+      modelConfigId: payload?.modelConfigId,
+      purpose: 'styles:recommend'
+    })
+    const modelTimeouts = await resolveGlobalModelTimeouts(ctx)
+    const styleKeys = await recommendStyles({
+      topic: topic.slice(0, 1000),
+      brief,
+      styles,
+      provider: activeModel.provider,
+      apiKey: activeModel.apiKey,
+      model: activeModel.model,
+      baseUrl: activeModel.baseUrl,
+      maxTokens: activeModel.maxTokens,
+      modelRuntime: ctx.modelRuntime,
+      modelTimeoutMs: modelTimeouts.agent
+    })
+    return { styleKeys }
   })
 
   ipcMain.handle('styles:setFavorite', async (_event, payload) => {
@@ -239,7 +286,11 @@ export function registerStyleHandlers(ctx: IpcContext): void {
       category,
       aliases,
       prompt: styleSkill,
-      styleCase: String(record.styleCase || '').trim()
+      styleCase: String(record.styleCase || '').trim(),
+      imageGenerationPrompt:
+        typeof record.imageGenerationPrompt === 'string'
+          ? record.imageGenerationPrompt.trim()
+          : undefined
     }
   }
 

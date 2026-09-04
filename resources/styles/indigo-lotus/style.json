@@ -14,6 +14,9 @@
     "紫蓝"
   ],
   "styleCase": "传统文化、疗愈冥想、教学科普",
+  "imageGeneration": {
+    "prompt": "Dreamlike Chinese-inspired twilight seascape, indigo-violet sky fading into turquoise water, flowing ink-wash clouds, delicate stars, distant mountains and lotus leaves in silhouette. Preserve a serene atmosphere and elegant negative space for slide content. Do not render text, logos, UI, watermarks, strong neon, or dense scenery."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

@@ -59,9 +59,6 @@ export const PreviewStage = forwardRef<
   const pageEditJob = useGenerateStore((state) =>
     currentSession ? state.pageEditJobs[currentSession.id] || null : null
   )
-  const pageBeautifyJob = useGenerateStore((state) =>
-    currentSession ? state.pageBeautifyJobs[currentSession.id] || null : null
-  )
   const isDeckEditing = useGenerateStore((state) =>
     currentSession ? Boolean(state.deckEditJobs[currentSession.id]) : false
   )
@@ -78,7 +75,6 @@ export const PreviewStage = forwardRef<
   const isAnimationSelecting = interactionMode === 'animation-select'
   const isInspecting = interactionMode === 'ai-inspect' || isAnimationSelecting
   const isPageEditing = pageEditJob?.pageId === selectedPage?.pageId
-  const isPageBeautifying = pageBeautifyJob?.pageId === selectedPage?.pageId
   const isGeneratingPlaceholder =
     selectedPage?.status === 'generating' || selectedPage?.status === 'pending'
   const isStyleSwitchLocked = isStyleSwitchPageLocked(styleSwitchJob, selectedPage?.pageId)
@@ -317,7 +313,6 @@ export const PreviewStage = forwardRef<
                   editMode={
                     isEditing &&
                     !isPageEditing &&
-                    !isPageBeautifying &&
                     !isDeckEditing &&
                     !isStyleSwitchLocked
                   }
@@ -339,7 +334,7 @@ export const PreviewStage = forwardRef<
               </div>
             )}
 
-            {isEditing && !isPageEditing && !isPageBeautifying && (
+            {isEditing && !isPageEditing && (
               <EditorGuidesOverlay
                 selectedPageId={selectedPage.pageId}
                 frameRef={frameRef}
@@ -371,20 +366,6 @@ export const PreviewStage = forwardRef<
                 </div>
                 <div className="text-xs tabular-nums text-[#6d7b5d]">
                   {Math.round(pageEditJob.progress)}%
-                </div>
-              </div>
-            )}
-            {pageBeautifyJob && isPageBeautifying && (
-              <div
-                className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-[#f5f1e8]/72 text-center text-[#4f6340] backdrop-blur-[1px]"
-                aria-live="polite"
-              >
-                <Loader2 className="h-7 w-7 animate-spin" />
-                <div className="max-w-sm px-6 text-sm font-medium">
-                  {pageBeautifyJob.label || t('sessionDetail.pageBeautifying')}
-                </div>
-                <div className="text-xs tabular-nums text-[#6d7b5d]">
-                  {Math.round(pageBeautifyJob.progress)}%
                 </div>
               </div>
             )}

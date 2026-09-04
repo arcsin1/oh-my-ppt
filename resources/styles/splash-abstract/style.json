@@ -15,6 +15,9 @@
     "活力"
   ],
   "styleCase": "影视音乐、艺术视觉、品牌营销",
+  "imageGeneration": {
+    "prompt": "Energetic abstract dopamine splash painting with orange-red, hot magenta, violet, teal and electric-blue ink splashes, a restrained rainbow burst, starbursts, liquid swirls and irregular overlapping brush marks on warm white. Keep one clear focal area for slide content. Do not render text, logos, UI, watermarks, photorealistic objects, or dark muddy colors."
+  },
   "version": "2.0.2",
   "source": "builtin"
 }

@@ -7,6 +7,7 @@ import fs from 'fs'
 import log from 'electron-log/main.js'
 import { type LayoutIntent } from '@shared/layout-intent'
 import { isPlaceholderPageHtml, validatePersistedPageHtml } from '../presentation/html/html-utils'
+import { validateLayoutSlots } from './layout-slot-validator'
 import { buildProjectIndexHtml, type DeckPageFile } from '../session/template-builder'
 import {
   buildDesignContractWithLLM,
@@ -23,9 +24,11 @@ import {
   normalizeGeneratePayload,
   type RuntimeJobExecutionContext,
   resolveCommonContext,
+  resolveSessionReferenceDocumentPath,
   resolveSourceDocuments
 } from './context'
 import { canUseSourcePlanDirectly, mapSourcePlanToOutlineItems } from './source-plan'
+import { createPageImageFinalizer } from './page-image-finalizer'
 
 const pageSlugId = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 10)
 
@@ -50,6 +53,8 @@ export async function resolveDeckContext(
     mode: 'generate',
     sessionRecord: common.sessionRecord
   })
+  const referenceDocumentPath =
+    resolveSessionReferenceDocumentPath(common.projectDir, common.sessionRecord) ?? undefined
 
   await db.addMessage(input.sessionId, {
     role: 'user',
@@ -80,6 +85,7 @@ export async function resolveDeckContext(
     runId: common.runId,
     styleId: common.styleId,
     styleSkill: common.styleSkill,
+    imageGenerationPrompt: common.imageGenerationPrompt,
     styleKey: common.styleKey,
     styleName: common.styleName,
     styleVersion: common.styleVersion,
@@ -102,12 +108,15 @@ export async function resolveDeckContext(
     imagePaths: [],
     videoPaths: [],
     sourceDocumentPaths,
+    referenceDocumentPath,
     sourcePlan: common.sourcePlan,
     topic: common.topic,
     deckTitle: common.deckTitle,
     appLocale: common.appLocale,
     fontSelection: common.fontSelection,
-    animationPreferences: input.animationPreferences
+    animationPreferences: input.animationPreferences,
+    visualEnabled: common.visualEnabled,
+    imageModelConfigId: common.imageModelConfigId
   }
 }
 
@@ -325,6 +334,18 @@ export async function executeDeckGeneration(
       htmlPath: page.htmlPath,
       status: 'pending'
     })
+    await db.upsertSessionPage({
+      id: page.id,
+      sessionId: context.sessionId,
+      legacyPageId: page.pageId.match(/^page-\d+$/) ? page.pageId : null,
+      fileSlug: page.pageId,
+      pageNumber: page.pageNumber,
+      title: page.title,
+      htmlPath: page.htmlPath,
+      layoutIntent: outlineItems[page.pageNumber - 1]?.layoutIntent || null,
+      status: 'pending',
+      error: null
+    })
   }
 
   await fs.promises.writeFile(
@@ -398,12 +419,44 @@ export async function executeDeckGeneration(
       projectId: context.projectId
     })
   }
+  const persistSessionPageLayoutSource = async (
+    page: {
+      pageNumber: number
+      pageId: string
+      title: string
+      htmlPath: string
+      layoutIntent?: LayoutIntent
+      layoutId: string
+      layoutContractVersion: number
+    },
+    status: 'completed' | 'failed',
+    error: string | null
+  ): Promise<void> => {
+    const pageRef = pageRefs.find((item) => item.pageId === page.pageId)
+    if (!pageRef) return
+    await db.upsertSessionPage({
+      id: pageRef.id,
+      sessionId: context.sessionId,
+      legacyPageId: page.pageId.match(/^page-\d+$/) ? page.pageId : null,
+      fileSlug: page.pageId,
+      pageNumber: page.pageNumber,
+      title: page.title,
+      htmlPath: page.htmlPath,
+      layoutIntent: page.layoutIntent || null,
+      layoutId: page.layoutId,
+      layoutContractVersion: page.layoutContractVersion,
+      status,
+      error
+    })
+  }
   const persistCompletedGeneratedPage = async (page: {
     pageNumber: number
     pageId: string
     title: string
     contentOutline: string
     layoutIntent?: LayoutIntent
+    layoutId: string
+    layoutContractVersion: number
     htmlPath: string
   }): Promise<void> => {
     if (!fs.existsSync(page.htmlPath)) {
@@ -414,6 +467,17 @@ export async function executeDeckGeneration(
     if (!validation.valid) {
       throw new Error(`HTML 验证失败 (${page.pageId}): ${validation.errors.join('; ')}`)
     }
+    const slotValidation = validateLayoutSlots({
+      html,
+      layoutIntent: page.layoutIntent,
+      layoutId: page.layoutId,
+      layoutContractVersion: page.layoutContractVersion
+    })
+    if (!slotValidation.valid) {
+      throw new Error(
+        `Layout slot validation failed (${page.pageId}): ${slotValidation.errors.join('; ')}`
+      )
+    }
     await db.upsertGenerationPage({
       runId: context.runId,
       sessionId: context.sessionId,
@@ -422,9 +486,12 @@ export async function executeDeckGeneration(
       title: page.title,
       contentOutline: page.contentOutline,
       layoutIntent: page.layoutIntent,
+      layoutId: page.layoutId,
+      layoutContractVersion: page.layoutContractVersion,
       htmlPath: page.htmlPath,
       status: 'completed'
     })
+    await persistSessionPageLayoutSource(page, 'completed', null)
     persistedFailedPagesById.delete(page.pageId)
     persistedGeneratedPagesById.set(page.pageId, {
       pageNumber: page.pageNumber,
@@ -459,6 +526,8 @@ export async function executeDeckGeneration(
     title: string
     contentOutline: string
     layoutIntent?: LayoutIntent
+    layoutId: string
+    layoutContractVersion: number
     htmlPath: string
     reason: string
   }): Promise<void> => {
@@ -470,10 +539,13 @@ export async function executeDeckGeneration(
       title: page.title,
       contentOutline: page.contentOutline,
       layoutIntent: page.layoutIntent,
+      layoutId: page.layoutId,
+      layoutContractVersion: page.layoutContractVersion,
       htmlPath: page.htmlPath,
       status: 'failed',
       error: page.reason
     })
+    await persistSessionPageLayoutSource(page, 'failed', page.reason)
     persistedGeneratedPagesById.delete(page.pageId)
     persistedFailedPagesById.set(page.pageId, {
       pageId: page.pageId,
@@ -494,6 +566,7 @@ export async function executeDeckGeneration(
     temperature: PAGE_GENERATION_TEMPERATURE,
     styleId: context.styleId,
     styleSkillPrompt: context.styleSkill.prompt,
+    hasStyleImageDirection: Boolean(context.imageGenerationPrompt.trim()),
     styleKey: context.styleKey,
     styleName: context.styleName,
     styleVersion: context.styleVersion,
@@ -513,7 +586,10 @@ export async function executeDeckGeneration(
       layoutIntent: outlineItems[index]?.layoutIntent
     })),
     sourceDocumentPaths: context.sourceDocumentPaths,
+    referenceDocumentPath: context.referenceDocumentPath,
+    sourcePlan: context.sourcePlan,
     generationMode: 'generate',
+    visualEnabled: context.visualEnabled,
     designContract,
     projectDir: context.projectDir,
     indexPath,
@@ -521,6 +597,24 @@ export async function executeDeckGeneration(
     pageNumbers,
     agentManager,
     emit: (chunk) => emitDeckChunk(chunk),
+    finalizePage: createPageImageFinalizer(ctx, {
+      sessionId: context.sessionId,
+      runId: context.runId,
+      visualEnabled: context.visualEnabled,
+      imageModelConfigId: context.imageModelConfigId,
+      imageGenerationPrompt: context.imageGenerationPrompt,
+      imagePromptDirector: {
+        provider: context.provider,
+        apiKey: context.apiKey,
+        model: context.model,
+        baseUrl: context.providerBaseUrl,
+        maxTokens: context.maxTokens,
+        modelRuntime: context.modelRuntime,
+        modelTimeoutMs: context.modelTimeouts.agent,
+        locale: context.appLocale
+      },
+      abortSignal: context.abortSignal
+    }),
     onPageCompleted: persistCompletedGeneratedPage,
     onPageFailed: persistFailedGeneratedPage,
     runId: context.runId,
@@ -825,7 +919,6 @@ export async function executeDeckGeneration(
         )
   await emitAssistant(context, agentSummary.trim() || fallbackCompletionSummary)
 
-  await db.updateGenerationRunStatus(context.runId, 'completed', null)
   await finalizeGenerationSuccess(ctx, {
     context,
     indexPath,

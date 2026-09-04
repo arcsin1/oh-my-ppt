@@ -6,6 +6,7 @@ import type {
   ResolvedImageModelConfig
 } from '../types'
 import { collectImageResults, readJsonResponse, readRecord, readString } from './utils'
+import { resolveConfiguredDefaultImageSize } from './default-size'
 //https://www.volcengine.com/docs/85621/1616429?lang=zh v3
 const DEFAULT_ENDPOINT = 'https://visual.volcengineapi.com'
 const DEFAULT_REQ_KEY = 'jimeng_t2i_v30'
@@ -245,6 +246,10 @@ const toErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
 export const jimengAdapter: ImageGenerationProviderAdapter = {
+  getDefaultSize(config) {
+    return resolveConfiguredDefaultImageSize(config) || '1664x936'
+  },
+
   async generate(config, input) {
     const startedAt = Date.now()
     const reqKey = resolveReqKey(config)

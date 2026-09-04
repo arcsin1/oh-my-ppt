@@ -84,6 +84,12 @@ const parseHistorySessionStyleState = (
     'styleSkill'
   ]
   if (requiredStrings.some((key) => typeof snapshot[key] !== 'string')) return undefined
+  if (
+    snapshot.imageGenerationPrompt !== undefined &&
+    typeof snapshot.imageGenerationPrompt !== 'string'
+  ) {
+    return undefined
+  }
   if (typeof snapshot.createdAt !== 'number' || !Number.isFinite(snapshot.createdAt)) {
     return undefined
   }

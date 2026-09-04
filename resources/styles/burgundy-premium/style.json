@@ -14,6 +14,9 @@
     "红金"
   ],
   "styleCase": "时尚潮流、品牌营销、艺术视觉",
+  "imageGeneration": {
+    "prompt": "Luxury editorial still life in deep burgundy red, matte black and restrained rose-gold metallic accents. Favor velvet, polished surfaces and dramatic directional studio lighting with sophisticated negative space for slide text. Do not render text, logos, labels, UI, watermarks, crowded product arrangements, or generic corporate stock imagery."
+  },
   "version": "2.0.2",
   "source": "builtin"
 }

@@ -7,6 +7,7 @@ import {
 } from '@renderer/lib/ipc'
 import type { ConfigurableModelTimeoutProfile } from '@shared/model-timeout.js'
 import type { ThinkingParameterMode } from '@shared/model-config.js'
+import type { ImageModelVerificationResult } from '@shared/image-generation.js'
 
 interface Settings {
   theme: string
@@ -63,7 +64,7 @@ interface SettingsStore {
   verifyImageModel: (
     provider: ImageModelProvider,
     modelConfig: string
-  ) => Promise<boolean>
+  ) => Promise<ImageModelVerificationResult>
   chooseStoragePath: () => Promise<string | null>
 }
 
@@ -251,19 +252,19 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   verifyImageModel: async (provider, modelConfig) => {
     try {
-      const { valid, message } = await ipc.verifyImageModel({
+      const result = await ipc.verifyImageModel({
         provider,
         modelConfig
       })
-      set({ verificationMessage: message || null })
-      return valid
+      set({ verificationMessage: result.message || null })
+      return result
     } catch (error) {
       const message =
         error instanceof Error && error.message
           ? error.message
           : fallbackMessage('发送生图验证请求失败。', 'Failed to verify image model.')
       set({ verificationMessage: message })
-      return false
+      return { valid: false, message }
     }
   },
 

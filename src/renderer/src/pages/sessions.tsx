@@ -169,14 +169,13 @@ export function SessionsPage(): React.JSX.Element {
     void Promise.all([
       ipc.listActiveGenerateRuns(),
       ipc.listActivePageEditRuns(),
-      ipc.listActivePageBeautifyRuns(),
       ipc.listActiveDeckEditRuns()
     ])
-      .then(([generationRuns, pageEditRuns, pageBeautifyRuns, deckEditRuns]) => {
+      .then(([generationRuns, pageEditRuns, deckEditRuns]) => {
         if (!mounted) return
         setActiveRuns(
           Object.fromEntries(
-            [...generationRuns, ...pageEditRuns, ...pageBeautifyRuns, ...deckEditRuns]
+            [...generationRuns, ...pageEditRuns, ...deckEditRuns]
               .filter(
                 (run): run is ActiveGenerateRun =>
                   run.status === 'queued' || run.status === 'running'
@@ -237,8 +236,6 @@ export function SessionsPage(): React.JSX.Element {
                 ? 'page-edit'
                 : chunk.payload.activityKind === 'deck-edit'
                   ? 'deck-edit'
-                : chunk.payload.activityKind === 'page-beautify'
-                  ? 'page-beautify'
                   : chunk.payload.activityKind === 'addPage'
                     ? 'add-page'
                     : chunk.payload.activityKind === 'single-page-retry'

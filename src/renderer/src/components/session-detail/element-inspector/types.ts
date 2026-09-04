@@ -59,7 +59,18 @@ export function hasCapability(
   selection: EditSelectionPayload | null,
   capability: EditableCapability
 ): boolean {
-  return Boolean(selection?.capabilities?.includes(capability))
+  if (!selection) return false
+  if (selection.capabilities?.includes(capability)) return true
+
+  // Media semantics are intrinsic to the element tag. Keep the inspector
+  // usable for pages produced by older runtimes that omitted the derived
+  // capability list from the selection payload.
+  if (capability === 'media' || capability === 'appearance') {
+    const tag = String(selection.elementTag || selection.snapshot?.elementTag || '').toLowerCase()
+    return tag === 'img' || tag === 'video'
+  }
+
+  return false
 }
 
 export function isArtTextSelection(selection: EditSelectionPayload | null): boolean {

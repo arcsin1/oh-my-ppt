@@ -3,6 +3,7 @@ import type {
   AnimationPreferencesPayload,
   DesignContract,
   FontSelection,
+  PageReferenceContext,
   SelectedElementRuntimeContext,
   SourceDocumentPlan
 } from '@shared/generation'
@@ -28,6 +29,7 @@ export type FinalizeContext = {
   modelConfigName?: string
   runModel?: string
   animationPreferences?: AnimationPreferencesPayload | null
+  abortSignal?: AbortSignal
 }
 
 export type GenerationRunContext = {
@@ -51,6 +53,7 @@ export type GenerationRunContext = {
   runId: string
   styleId: string
   styleSkill: CommonGenerationContext['styleSkill']
+  imageGenerationPrompt: string
   styleKey: string
   styleName: string
   styleVersion: string
@@ -73,12 +76,17 @@ export type GenerationRunContext = {
   imagePaths: string[]
   videoPaths: string[]
   sourceDocumentPaths: string[]
+  /** Durable session reference document; excludes transient attachments. */
+  referenceDocumentPath?: string
+  pageReferenceContexts?: Record<string, PageReferenceContext>
   sourcePlan: SourceDocumentPlan | null
   topic: string
   deckTitle: string
   appLocale: 'zh' | 'en'
   fontSelection: FontSelection
   animationPreferences: AnimationPreferencesPayload | null
+  visualEnabled: boolean
+  imageModelConfigId?: string
 }
 
 export type DeckContext = GenerationRunContext & { effectiveMode: 'generate' }

@@ -5,6 +5,7 @@ import type {
   ResolvedImageModelConfig
 } from '../types'
 import { collectImageResults, joinUrl, readRecord, readString } from './utils'
+import { resolveConfiguredDefaultImageSize } from './default-size'
 
 const DEFAULT_BASE_URL = 'https://api.openai.com/v1'
 const DEFAULT_MODEL = 'gpt-image-1'
@@ -149,6 +150,10 @@ const buildMessages = (config: ResolvedImageModelConfig, prompt: string): ChatMe
 }
 
 export const openAiChatCompletionsAdapter: ImageGenerationProviderAdapter = {
+  getDefaultSize(config) {
+    return resolveConfiguredDefaultImageSize(config) || 'auto'
+  },
+
   async generate(config, input) {
     const startedAt = Date.now()
     const baseUrl = resolveBaseUrl(config)

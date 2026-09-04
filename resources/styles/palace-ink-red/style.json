@@ -15,6 +15,9 @@
     "ink-red"
   ],
   "styleCase": "传统文化、品牌营销、商业汇报",
+  "imageGeneration": {
+    "prompt": "Minimal Chinese palace-inspired still life with a matte ink-red wall, rice-paper texture, dark stone steps, simplified lattice architecture and one understated vermilion seal-like accent. Keep subdued museum lighting and generous negative space. Do not render text, seal lettering, logos, UI, watermarks, ornate borders, or glossy 3D."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

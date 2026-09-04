@@ -14,6 +14,9 @@
     "cyberpunk"
   ],
   "styleCase": "技术分享、品牌营销、产品发布",
+  "imageGeneration": {
+    "prompt": "Cinematic cyberpunk city at night with rain-slick black streets reflecting neon magenta and cyan light, subtle holographic glow and restrained glitch texture. Keep the scene graphic and spacious enough for slide content. Do not render readable signs, typography, logos, UI, watermarks, character close-ups, or bright daytime imagery."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

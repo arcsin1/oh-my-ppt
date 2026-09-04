@@ -52,14 +52,13 @@ export function useGenerationNotifications(): void {
       if (!isCompleted && !isFailed) return
       if (isFailed && event.payload.cancelled === true) return
 
-      // Edit-job activities (page-beautify, page-edit, deck-edit, style-switch) emit their own
+      // Edit-job activities (page-edit, deck-edit, style-switch) emit their own
       // dedicated toasts from session-detail.tsx. Showing the global "生成完成 / 查看" notification
       // on top would double up toasts for the same run, which is noisy and redundant. The global
       // notification is reserved for full-deck generation runs where the user may have navigated
       // away from the session and needs a pull-back cue.
       const activityKind = 'activityKind' in event.payload ? event.payload.activityKind : undefined
       if (
-        activityKind === 'page-beautify' ||
         activityKind === 'page-edit' ||
         activityKind === 'deck-edit' ||
         activityKind === 'style-switch' ||

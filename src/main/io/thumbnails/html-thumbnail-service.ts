@@ -46,6 +46,13 @@ export type HtmlThumbnailTask = {
   error?: string
 }
 
+export type HtmlPageScreenshotRequest = {
+  sourcePath: string
+  pageId: string
+  width: number
+  height: number
+}
+
 let thumbnailDb: PPTDatabase | null = null
 const thumbnailLimit = pLimit(HTML_THUMBNAIL_CONCURRENCY)
 const backgroundTasks = new Map<string, HtmlThumbnailTask>()
@@ -214,16 +221,19 @@ export async function waitForHtmlThumbnailTask(
       finish(task)
     })
 
-    timeoutRef = setTimeout(() => {
-      finish({
-        resourceType,
-        resourceId,
-        variant: normalizedVariant,
-        status: 'failed',
-        thumbnailPath: null,
-        error: 'Thumbnail generation timed out'
-      })
-    }, Math.max(1_000, timeoutMs))
+    timeoutRef = setTimeout(
+      () => {
+        finish({
+          resourceType,
+          resourceId,
+          variant: normalizedVariant,
+          status: 'failed',
+          thumbnailPath: null,
+          error: 'Thumbnail generation timed out'
+        })
+      },
+      Math.max(1_000, timeoutMs)
+    )
 
     void getHtmlThumbnailTask(resourceType, resourceId, normalizedVariant)
       .then((task) => {
@@ -257,7 +267,8 @@ export async function getFreshHtmlThumbnailPath(
 
   try {
     const sourceMtimeMs = Math.floor(fs.statSync(normalized.sourcePath).mtimeMs)
-    return record.signature === requestSignature(normalized) && record.sourceMtimeMs >= sourceMtimeMs
+    return record.signature === requestSignature(normalized) &&
+      record.sourceMtimeMs >= sourceMtimeMs
       ? record.thumbnailPath
       : null
   } catch {
@@ -413,7 +424,9 @@ async function captureThumbnail(
     )
     pageUrl.searchParams.set(
       '_pptMasterElementsExpected',
-      fs.existsSync(path.join(path.dirname(request.sourcePath), 'master', 'master.html')) ? '1' : '0'
+      fs.existsSync(path.join(path.dirname(request.sourcePath), 'master', 'master.html'))
+        ? '1'
+        : '0'
     )
 
     const readyWaitPromise = waitForPrintReady(
@@ -466,6 +479,35 @@ async function captureThumbnail(
     .toPNG()
 }
 
+/** Captures one persisted page at its logical canvas size without creating a thumbnail record. */
+export async function captureHtmlPageScreenshot(args: HtmlPageScreenshotRequest): Promise<Buffer> {
+  const sourcePath = path.resolve(args.sourcePath)
+  const pageId = String(args.pageId || '').trim()
+  if (!pageId) throw new Error('Page screenshot requires a page id')
+  if (!fs.existsSync(sourcePath)) throw new Error('Page screenshot source does not exist')
+
+  const request = normalizeRequest({
+    resourceType: 'session',
+    resourceId: 'temporary-page-screenshot',
+    variant: 'temporary',
+    sourcePath,
+    pageId,
+    captureWidth: args.width,
+    captureHeight: args.height,
+    thumbnailWidth: args.width,
+    thumbnailHeight: args.height
+  })
+
+  return thumbnailLimit(async () => {
+    const window = createCaptureWindow()
+    try {
+      return await captureThumbnail(window, request)
+    } finally {
+      if (!window.isDestroyed()) window.destroy()
+    }
+  })
+}
+
 async function persistTask(
   request: Required<HtmlThumbnailRequest>,
   status: HtmlThumbnailTaskStatus,
@@ -497,11 +539,7 @@ export async function enqueueHtmlThumbnail(
 ): Promise<HtmlThumbnailTask> {
   const normalized = normalizeRequest(request)
   validateRequest(normalized)
-  const key = thumbnailTaskKey(
-    normalized.resourceType,
-    normalized.resourceId,
-    normalized.variant
-  )
+  const key = thumbnailTaskKey(normalized.resourceType, normalized.resourceId, normalized.variant)
   const existing = backgroundTasks.get(key)
   if (existing?.status === 'queued' || existing?.status === 'running') return { ...existing }
 
@@ -553,7 +591,9 @@ export async function enqueueHtmlThumbnail(
       let png: Buffer | null = null
       let capturedSourceMtimeMs = 0
       for (let attempt = 0; attempt < MAX_SOURCE_STABILITY_ATTEMPTS; attempt += 1) {
-        const sourceMtimeBefore = Math.floor((await fs.promises.stat(normalized.sourcePath)).mtimeMs)
+        const sourceMtimeBefore = Math.floor(
+          (await fs.promises.stat(normalized.sourcePath)).mtimeMs
+        )
         const window = createCaptureWindow()
         try {
           png = await captureThumbnail(window, normalized)

@@ -8,7 +8,10 @@ import {
 } from '../components/html-editor/HtmlEditorCanvas'
 import { HtmlEditorInsertRibbon } from '../components/html-editor/HtmlEditorInsertRibbon'
 import { HtmlEditorHistoryDialog } from '../components/html-editor/HtmlEditorHistoryDialog'
-import { HtmlEditorToolbar } from '../components/html-editor/HtmlEditorToolbar'
+import {
+  HtmlEditorToolbar,
+  type HtmlEditorMode
+} from '../components/html-editor/HtmlEditorToolbar'
 import { HtmlEditorAiPanel } from '../components/html-editor/HtmlEditorAiPanel'
 import { HtmlEditorInspectorPanel } from '../components/html-editor/HtmlEditorInspectorPanel'
 import { TooltipProvider } from '../components/ui/Tooltip'
@@ -42,9 +45,11 @@ export function EditHtmlPage(): ReactElement {
 
   const canvasRef = useRef<HtmlEditorCanvasHandle>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [mode, setMode] = useState<HtmlEditorMode>('preview')
+  const [activePreviewUrl, setActivePreviewUrl] = useState<string | undefined>()
 
-  // 始终编辑模式：导入即编辑，预览用浏览器打开
-  const isEditing = Boolean(docId)
+  const isEditing = mode === 'edit'
+  const isAiInspecting = isEditing && aiModeEnabled
 
   // 挂载：注入 htmlEditStore 上下文
   useEffect(() => {
@@ -70,6 +75,7 @@ export function EditHtmlPage(): ReactElement {
 
   useEffect(() => {
     useHtmlEditorAiStore.getState().reset()
+    setActivePreviewUrl(undefined)
   }, [docId])
 
   // 按 :id 打开文档（列表页/导入跳转过来时加载）
@@ -91,6 +97,23 @@ export function EditHtmlPage(): ReactElement {
     useHtmlEditStore.getState().reset()
     useHtmlEditHistoryStore.getState().clear()
     useHtmlEditorUiStore.getState().bumpPreviewKey()
+  }, [])
+
+  const handleModeChange = useCallback(
+    (nextMode: HtmlEditorMode): void => {
+      if (nextMode === mode) return
+      if (nextMode === 'preview') {
+        useHtmlEditorAiStore.getState().setEnabled(false)
+        useHtmlEditorUiStore.getState().clearSelectedElement()
+        useHtmlEditStore.getState().cancelEdit()
+      }
+      setMode(nextMode)
+    },
+    [mode]
+  )
+
+  const handleActiveUrlChange = useCallback((url: string): void => {
+    setActivePreviewUrl((current) => (current === url ? current : url))
   }, [])
 
   // 键盘：撤销/重做/保存/删除/退出
@@ -171,17 +194,23 @@ export function EditHtmlPage(): ReactElement {
     <TooltipProvider delayDuration={180}>
       <div className="flex h-screen w-screen flex-col bg-[#efe9dc]">
         {/* 顶部工具条 */}
-        <HtmlEditorToolbar onOpenHistory={() => setHistoryOpen(true)} />
+        <HtmlEditorToolbar
+          onOpenHistory={() => setHistoryOpen(true)}
+          mode={mode}
+          onModeChange={handleModeChange}
+        />
 
         <div className="flex min-h-0 flex-1">
           {/* 左侧插入条（hover 画廊） */}
-          <HtmlEditorInsertRibbon insertion={insertion} disabled={!docId || aiModeEnabled} />
+          {isEditing && (
+            <HtmlEditorInsertRibbon insertion={insertion} disabled={!docId || aiModeEnabled} />
+          )}
 
           {/* 画布 */}
           <main className="relative min-w-0 flex-1">
             <div
               className={`absolute inset-0 overflow-hidden ${
-                aiModeEnabled ? 'rounded-xl bg-[#e8e1d4] p-3' : 'bg-[#f5f1e8]'
+                isAiInspecting ? 'rounded-xl bg-[#e8e1d4] p-3' : 'bg-[#f5f1e8]'
               }`}
             >
               <HtmlEditorCanvas
@@ -193,9 +222,12 @@ export function EditHtmlPage(): ReactElement {
                 designWidth={designWidth || 1280}
                 reloadSignal={reloadSignal}
                 inspectable
-                inspecting={aiModeEnabled}
-                interactionMode={aiModeEnabled ? 'ai-inspect' : 'edit'}
-                editMode={isEditing && !aiModeEnabled}
+                playback={!isEditing}
+                activeUrl={activePreviewUrl}
+                onActiveUrlChange={handleActiveUrlChange}
+                inspecting={isAiInspecting}
+                interactionMode={isAiInspecting ? 'ai-inspect' : isEditing ? 'edit' : 'preview'}
+                editMode={isEditing && !isAiInspecting}
                 onSelectorSelected={(selector, label, elementTag, elementText) =>
                   useHtmlEditorUiStore
                     .getState()
@@ -220,9 +252,9 @@ export function EditHtmlPage(): ReactElement {
           </main>
 
           {/* 右侧检视面板（仅选中元素时显示） */}
-          {aiModeEnabled ? (
+          {isAiInspecting ? (
             <HtmlEditorAiPanel />
-          ) : selection ? (
+          ) : isEditing && selection ? (
             <aside className="flex w-72 shrink-0 flex-col border-l border-[#e2dccf] bg-[#f5f1e8]">
               <div className="flex shrink-0 items-center gap-1 border-b border-[#e2dccf] px-2 py-1.5">
                 <button

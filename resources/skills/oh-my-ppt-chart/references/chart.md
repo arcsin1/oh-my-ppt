@@ -75,12 +75,12 @@ Calculation steps:
 6. Subtract a 24-40px safety reserve
 7. This gives the **content slot** for the chart zone.
 8. Subtract only sibling modules stacked above/below the chart inside the same column or vertical zone. Side-by-side modules in other columns share width, not height; do **not** divide the content slot by column count, and do not subtract a left metric rail from a right-column chart height.
-9. Choose chart height from the chart slot without creating a dense wall of content: hero/main 380–560px only when the chart is the primary evidence, standard 280–360px with 1–2 support items, compact supporting 220–280px. If the computed chart slot is 600px+ and the chart is the primary evidence, use the top of the hero/main range (usually 520–560px). Do not calculate a 600+ slot and then choose 340px for the primary chart.
-10. If the chart slot is below 220px, redesign the chart/support relationship and run the layout width/height self-check again.
+9. Choose chart height from the chart slot without creating a dense wall of content: hero/main 380–560px when the chart is the primary evidence, standard 280–360px with a compact support set, compact supporting 220–280px. Keep an actual nonzero gap between independent chart and support modules. If the computed chart slot is 600px+ and the chart is the primary evidence, use the top of the hero/main range (usually 520–560px). Do not calculate a 600+ slot and then choose 340px for the primary chart.
+10. If the chart slot is below the space needed for its labels, axes, and intended reading distance (often around 220px on a 1600×900 canvas), redesign the chart/support relationship and run the layout width/height self-check again.
 
 Column budget rule: columns share width, not height. If the page uses `grid-cols-2`, the chart column still receives the full post-title vertical content slot. A bad calc is `content slot = 732; left metrics = 732/2; right side = 366`; the correct calc is `right column content slot = 732`, then subtract only the right-column heading, insight card, gaps, padding, and reserve.
 
-Never place a two-row bottom card grid under a standard/tall chart. Additional facts should use a density-appropriate structure such as in-chart annotations, one short evidence rail, grouped labels, or a compact table.
+Avoid a two-row bottom card grid when it competes with a standard/tall chart. Additional facts can use in-chart annotations, an evidence rail, grouped labels, a compact table, or a compact aligned data mosaic with an explicit budget and a clearly dominant chart.
 
 ### Data semantics — one axis, one meaning
 
@@ -106,7 +106,7 @@ Canvas sizing rule: the `<canvas>` should only use `class="h-full w-full"`. Do n
 The chart fills its computed slot — these ranges guide the role and proportion; they are NOT a reason to stop short and leave the zone empty:
 
 - Hero/main chart: the chart is the slide's primary module (it lives in the dominant zone). Size the frame to the computed chart slot, typically 380–560px. Do not cap it at 240/340 and leave the rest empty.
-- Standard chart: 280–360px, when the chart shares the slide with 1–2 support modules that sit beside/below it with breathing room.
+- Standard chart: 280–360px, when the chart shares the slide with 1–2 support modules that sit beside/below it with an actual nonzero gap.
 - Compact supporting chart: 220–280px, when the chart is one small module inside a dense layout and other modules stay concise.
 
 Size the chart frame so the zone feels intentional. Do NOT cap the chart at a tiny height and leave a large accidental empty band below it — if the chart is the main module, it should be visually dominant. Exception: if the chart's cell/zone is much taller than the chart needs (e.g. a 5-bar chart in a ~600px grid cell), do not stretch the chart to an awkward height and do not fill the rest with multiple cards — keep it readable and add only the support the content actually needs, in the form that best serves the reading path. If the slot is smaller than the role minimum, reduce text/modules before shrinking the chart further.
@@ -127,7 +127,22 @@ Do not generate these patterns:
 <canvas id="chart" width="600" height="300" style="height: 300px"></canvas>
 ```
 
-## Chart type selection guide
+## Chart selection guide
+
+### First decide whether this is a chart
+
+Use Chart.js only when the source contains a factual relationship that benefits from visual encoding. Never create numbers, proportions, or time allocations merely to make a chart.
+
+| Source relationship | Use | Do not substitute |
+| --- | --- | --- |
+| Same-unit values across categories or a ranking | Bar; horizontal bar for long labels | A doughnut, which makes ranking harder to read |
+| Ordered observations over time | Line; area only for cumulative magnitude | A bar chart when continuity/change is the message |
+| Verified, mutually exclusive parts of one stated total | Doughnut or pie, 4-6 slices; values must add to the shown total or 100% | A topic list, agenda, or invented allocation |
+| Scores on the same scale across dimensions | Radar, with 4-8 shared-scale axes | Mixed metrics or unrelated concepts |
+| Two or three numeric variables | Scatter or bubble | Category cards pretending to show correlation |
+| No numeric relationship: course map, agenda, process, stages, hierarchy, qualitative comparison | Page-native cards, route, matrix, process, or relationship diagram | Any Chart.js chart |
+
+For example, "40 minutes and four course themes" is a four-part course map unless the source explicitly allocates the minutes. Do not label an invented split as a chart. A confirmed equal allocation may use four equal segments, but it should still read as a course map rather than evidence of a meaningful difference.
 
 ### bar — comparisons across categories
 
@@ -192,9 +207,9 @@ Best for: monthly trends, growth trajectories, multi-series comparison over time
 
 Use `tension: 0.3` for smooth curves. Use `fill: true` with `backgroundColor` at low opacity for area charts.
 
-### pie / doughnut — parts of a whole
+### pie / doughnut — verified parts of a whole
 
-Best for: market share, budget allocation, category breakdown. Limit to 4–6 slices for readability.
+Best for: market share, budget allocation, category breakdown. Limit to 4–6 slices for readability; use only when slices are mutually exclusive, share one unit, and add to a stated total or 100%.
 
 ```js
 {
@@ -216,7 +231,7 @@ Best for: market share, budget allocation, category breakdown. Limit to 4–6 sl
 }
 ```
 
-Doughnut is usually better than pie — the center can hold a total or label.
+Doughnut is usually better than pie — the center can hold a total or label. Do not use either for an agenda, four equal topics, a process, or an estimated allocation that the source does not state.
 
 ### radar — multi-axis profiles
 
@@ -344,7 +359,7 @@ ticks: {
 - Place charts as dedicated visual modules in the grid, not nested inside cards with other content.
 - Always set `responsive: true` and `maintainAspectRatio: false` — they work with the explicit-height frame.
 - For a chart + metric cards layout, use `grid grid-cols-[1fr_1fr]` or `grid grid-cols-3` with the chart spanning 2 columns.
-- Keep support modules to 0-2 compact blocks around a standard/tall chart. Do not add a second row of summary cards below it.
+- Start with 0-2 compact support blocks around a standard/tall chart. Add a larger parallel set only when the chart remains dominant and the full layout budget stays clear.
 - Axis-heavy horizontal bars (6+ categories, long y labels, negative+positive x ranges, or wide percentage ticks) need 40-60px of internal axis/tick budget. Use `layout.padding.bottom`, tick padding, and a modest `maxTicksLimit`; if the chart still needs more room, recompose the support content into a side rail, annotation band, compact table, or in-chart callouts.
 
 ## Common patterns

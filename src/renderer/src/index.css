@@ -111,7 +111,6 @@ body {
 
 :root {
   --app-titlebar-height: 48px;
-  --app-titlebar-control-safe-area: 136px;
 }
 
 .app-drag-region {
@@ -132,11 +131,6 @@ body {
 .app-titlebar {
   height: var(--app-titlebar-height);
   flex-shrink: 0;
-}
-
-.app-titlebar-content {
-  padding-left: 64px;
-  padding-right: var(--app-titlebar-control-safe-area);
 }
 
 .app-shell {

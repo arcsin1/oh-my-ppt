@@ -34,6 +34,7 @@ export interface StyleCatalogItem {
   source: StyleSource
   editable: boolean
   styleCase: string
+  imageGenerationPrompt: string
 }
 
 let _db: PPTDatabase | null = null
@@ -174,7 +175,8 @@ async function writeUserStylePackage(
       aliases: row.aliases,
       source: row.source,
       version: row.version,
-      styleCase: row.styleCase
+      styleCase: row.styleCase,
+      imageGenerationPrompt: row.imageGenerationPrompt
     })
   } catch (error) {
     throw new Error(
@@ -297,7 +299,8 @@ export function listStyleCatalog(): StyleCatalogItem[] {
     category: row.category || (row.source === 'builtin' ? '内置' : '自定义'),
     source: row.source as StyleSource,
     editable: row.source !== 'builtin',
-    styleCase: row.styleCase
+    styleCase: row.styleCase,
+    imageGenerationPrompt: row.imageGenerationPrompt || ''
   }))
 }
 
@@ -317,6 +320,7 @@ export function getStyleDetail(styleId: string): {
   category: string
   version: string
   styleCase: string
+  imageGenerationPrompt: string
   packageDir: string
 } {
   const db = getDb()
@@ -339,6 +343,7 @@ export function getStyleDetail(styleId: string): {
       category: row.category || (row.source === 'builtin' ? '内置' : '自定义'),
       version: row.version,
       styleCase: row.styleCase,
+      imageGenerationPrompt: row.imageGenerationPrompt || '',
       packageDir: row.packageDir || ''
     }
   }
@@ -359,6 +364,7 @@ export async function upsertStyleSkill(input: {
   aliases?: string[]
   prompt: string
   styleCase?: string
+  imageGenerationPrompt?: string
 }): Promise<{ id: string; source: StyleSource }> {
   const db = getDb()
   const id = normalizeStyleId(input.id)
@@ -382,6 +388,9 @@ export async function upsertStyleSkill(input: {
       source: nextSource,
       styleSkill: input.prompt.trim(),
       styleCase: (input.styleCase || '').trim(),
+      ...(input.imageGenerationPrompt !== undefined
+        ? { imageGenerationPrompt: input.imageGenerationPrompt.trim() }
+        : {}),
       packageDir: 'user/' + id
     })
   } else {
@@ -398,6 +407,7 @@ export async function upsertStyleSkill(input: {
       source: nextSource,
       styleSkill: input.prompt.trim(),
       styleCase: (input.styleCase || '').trim(),
+      imageGenerationPrompt: input.imageGenerationPrompt?.trim() || '',
       packageDir: 'user/' + id
     })
   }
@@ -417,6 +427,7 @@ export async function createStyleSkill(input: {
   aliases?: string[]
   prompt: string
   styleCase?: string
+  imageGenerationPrompt?: string
 }): Promise<{ id: string; source: StyleSource }> {
   const id = normalizeStyleId(input.id)
   if (hasStyleSkill(id)) {
@@ -433,6 +444,7 @@ export async function updateStyleSkill(input: {
   aliases?: string[]
   prompt: string
   styleCase?: string
+  imageGenerationPrompt?: string
 }): Promise<{ id: string; source: StyleSource }> {
   const id = normalizeStyleId(input.id)
   if (!hasStyleSkill(id)) {
@@ -512,6 +524,7 @@ async function installStylePackage(
       styleSkill: stylePackage.skillMarkdown,
       version: json.version,
       styleCase: json.styleCase,
+      imageGenerationPrompt: json.imageGeneration?.prompt || '',
       packageDir: 'user/' + id,
       active: true
     })
@@ -529,6 +542,7 @@ async function installStylePackage(
       styleSkill: stylePackage.skillMarkdown,
       version: json.version,
       styleCase: json.styleCase,
+      imageGenerationPrompt: json.imageGeneration?.prompt || '',
       packageDir: 'user/' + id
     })
   }

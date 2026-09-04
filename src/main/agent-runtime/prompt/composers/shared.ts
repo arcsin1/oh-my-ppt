@@ -1,5 +1,6 @@
 import { formatLayoutIntentPrompt } from '@shared/layout-intent'
-import type { DesignContract } from '@shared/generation'
+import type { DesignContract, PageReferenceContext } from '@shared/generation'
+import { DATA_ANIM_SUPPORTED_TYPES } from '@shared/element-animation'
 import type { SessionDeckGenerationContext } from '../../agent/types'
 import { requireSlideSize, type SlideSizePreset } from '@shared/slide-size'
 import {
@@ -19,7 +20,7 @@ import {
   VERTICAL_9_16_LAYOUT_SKILL_NAME,
   formatSkillUsageRequirement,
   resolveLayoutSkillName,
-  type RequiredProductSkillName,
+  type RequiredProductSkillName
 } from '../../../product-skills/contract'
 
 function describeLayoutSkill(skillName: RequiredProductSkillName): string {
@@ -57,7 +58,7 @@ export const CONTENT_LANGUAGE_RULES = [
 ].join('\n')
 
 export const SOURCE_UNSUPPORTED_CLAIMS =
-  'exact facts, metrics, dates, system names, status claims, examples, risks, decisions, or conclusions'
+  'specific facts, metrics, dates, system names, status claims, examples, risks, decisions, or conclusions'
 
 export const SOURCE_MATERIAL_PLANNING_RULES = [
   '## Source-grounded planning rules',
@@ -93,7 +94,47 @@ export const SOURCE_GROUNDED_EXPANSION_RULES = [
   '- This is expansion of reasoning and presentation structure, not invention of new evidence: do not fabricate unsupported exact facts, metrics, dates, cases, quotes, source names, risks, decisions, or conclusions.'
 ].join('\n')
 
-export { buildCanvasScenarioContentRules, buildCanvasScenarioDeliveryGuard, buildCanvasScenarioExpansionRules }
+export const buildReferenceRangeContentBoundaryRules = (
+  referenceDocumentPath: string,
+  pageReferenceContext?: PageReferenceContext,
+  options?: { sourceReadRequired?: 'always' | 'when-content-changes' }
+): string =>
+  [
+    '## Reference Range Content Boundary (required)',
+    `- Reference Markdown: ${referenceDocumentPath}.`,
+    options?.sourceReadRequired === 'when-content-changes'
+      ? `- For a pure visual edit, do not read the source. If the edit changes wording or facts: ${formatSkillUsageRequirement(SOURCE_READING_SKILL_NAME)}, then read the raw Markdown source heading and range before writing.`
+      : `- Before writing: ${formatSkillUsageRequirement(SOURCE_READING_SKILL_NAME)}`,
+    options?.sourceReadRequired === 'when-content-changes'
+      ? ''
+      : '- Retrieved snippets are navigation only. Read the raw Markdown source heading and range before writing.',
+    pageReferenceContext
+      ? `- Page source heading: ${pageReferenceContext.sourceHeading}\n- Page source range: lines ${pageReferenceContext.sourceRange.lineStart}-${pageReferenceContext.sourceRange.lineEnd}.`
+      : '- When no page range is available, use the relevant source heading as the content boundary and do not assume the whole document is available.',
+    '- The selected Source range is the only factual and content boundary for this page. Do not take specific material from outside that range or from another uploaded document.',
+    '- For cross-page context, use grep to locate related headings, terms, or neighboring passages, then read only the targeted sections you need; do not read the whole reference document merely for context.',
+    '- Other ranges may inform narrative continuity, terminology, and transition design, but they are context only. Facts rendered or rewritten on this page must remain grounded in its selected Source range.',
+    '- You may rephrase for presentation, summarize repetition, break or combine sentences, reorder the visual layout, and convert source lists into timelines, process diagrams, matrices, charts, metric cards, or relationship maps.',
+    '- You may create neutral structural headings, labels, chart titles, and directly source-derived headings needed to organize the page. Expression may change; factual relationships must not.',
+    '- Preserve the source meaning when summarizing or reorganizing, especially numbers, dates, proper nouns, qualifiers, conditions, comparison objects, uncertainty, causal relations, conclusion strength, and necessary discrete list items. Do not treat every source sentence as an equal-weight visible module.',
+    '- Do not introduce facts, numbers, dates, examples, quotes, sources, proper nouns, conditions, causal claims, or business conclusions from outside the selected range.',
+    '- Do not turn uncertain or conditional source language into a definite claim, strengthen a result, weaken a limitation, or drop a qualifier that changes the meaning.',
+    '- A user instruction may override this boundary only when it explicitly identifies the source fact to replace and the replacement value. Generic requests for impact, polish, or expansion do not authorize new facts.',
+    '- For dense content, group and visualize first. As a last layout measure, scale only a bounded internal module with `transform: scale(...)` and compensate its layout. Never scale the page root, section/page shell, canvas, or `main[data-role="content"]`; never use clipping or hidden overflow to conceal rendered content.',
+    pageReferenceContext?.isSectionAgenda
+      ? pageReferenceContext.agendaItems?.length
+        ? `- Section agenda page: the following Agenda items are the only permitted child-topic source: ${JSON.stringify(pageReferenceContext.agendaItems)}. Do not infer child topics from reason text or from the document body outside the recorded range.`
+        : '- Legacy section agenda page without structured Agenda items: preserve the existing agenda behavior and do not infer additional child topics from the document body.'
+      : ''
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+export {
+  buildCanvasScenarioContentRules,
+  buildCanvasScenarioDeliveryGuard,
+  buildCanvasScenarioExpansionRules
+}
 
 export const STABLE_HTML_FRAGMENT_PROTOCOL = [
   '## HTML 片段协议',
@@ -103,7 +144,10 @@ export const STABLE_HTML_FRAGMENT_PROTOCOL = [
   '- 标签全部成对闭合、末尾完整——这是最常见的失败，写完自检每个 <div>/<section>/<ul>/<li>/<table>。'
 ].join('\n')
 
-export function buildCanvasConstraints(input: SlideSizePreset): string {
+export function buildCanvasConstraints(
+  input: SlideSizePreset,
+  options?: { referenceTextLocked?: boolean }
+): string {
   const slideSize = requireSlideSize(input)
   const layoutSkillName = resolveLayoutSkillName(slideSize)
   const isPortrait = slideSize.height > slideSize.width
@@ -114,9 +158,18 @@ export function buildCanvasConstraints(input: SlideSizePreset): string {
         ? `- 这是非 PPT 竖版画布：优先顶部标题 + 中部主体 + 底部结论的纵向叙事或上下模块栈，不要照搬横向三列；必须使用 ${layoutSkillName}。`
         : slideSize.id === 'square-1-1'
           ? `- 这是 1:1 方形画布：围绕中心焦点、四象限/上下两段/中心主体 + 周边支撑组织，避免套用宽屏 PPT 骨架；必须使用 ${layoutSkillName}。`
-        : slideSize.id === 'standard-4-3'
-          ? `- 这是非 16:9 的 4:3 画布：减少横向密集信息，图表和卡片按更方正的区域组织；不要套用 16:9 PPT skeleton，必须使用 ${layoutSkillName}。`
-          : '- 这是横版画布：可以使用左右分栏、横向时间线和宽表格，但仍需围绕单一视觉焦点。'
+          : slideSize.id === 'standard-4-3'
+            ? `- 这是非 16:9 的 4:3 画布：减少横向密集信息，图表和卡片按更方正的区域组织；不要套用 16:9 PPT skeleton，必须使用 ${layoutSkillName}。`
+            : '- 这是横版画布：可以使用左右分栏、横向时间线和宽表格，但仍需围绕单一视觉焦点。'
+
+  const densityRule = options?.referenceTextLocked
+    ? '- Reference Range Content Boundary applies. If the source is dense, first clarify hierarchy, group related material, and choose a compact visualization; then reduce decoration and internal padding while preserving actual nonzero gaps between independent modules. Only as a last measure, scale a bounded internal content group, card, chart, or visual module with `transform: scale(...)`, an explicit transform origin, and layout compensation. Never scale the page root, section/page shell, `main[data-role="content"]`, canvas, or their wrapper.'
+    : '- 密度由内容决定：氛围/叙事页低密度，多数页中密度，表格/多指标对比才高密度；内容过密先压缩、归并、换表达，仍放不下时才缩放承载内容的局部模块并补偿其 grid/flex 占位。'
+  const overflowRule = options?.referenceTextLocked
+    ? '- Reference-bound content must remain fully inside the logical canvas. Preserve source meaning while restructuring; if it still does not fit, scale only a bounded internal module as a last measure. Never scale the page root, section/page shell, `main[data-role="content"]`, canvas, or their wrapper, and never hide overflow to conceal content.'
+    : `- 所有可见内容必须落在 ${slideSize.width}×${slideSize.height}px 逻辑画布内；放不下先重组结构，再对承载过密内容的局部模块做缩放并补偿占位，不能靠裁切或 hidden overflow 遮住。`
+  const fontRule =
+    '- 字号：默认正文、普通标签和卡片说明不小于 18px；标题至少 24px，按层级和版面需要自由放大，不设上限。只有确属高密度且内部重组后仍放不下的局部模块，才可标记 `data-ppt-density="high"`，将其中正文/普通标签降至 16px，并配合模块缩放与布局占位补偿；注释、页脚、页码、来源/出处等辅助信息可以小于 18px，但不得小于 12px。'
 
   return [
     `## 画布与技法（${slideSize.label} / ${slideSize.width}×${slideSize.height}）`,
@@ -124,10 +177,11 @@ export function buildCanvasConstraints(input: SlideSizePreset): string {
     `- 根容器不带默认 padding，用 Tailwind grid/flex；背景可铺满 ${slideSize.width}×${slideSize.height}，正文四边留 24-40px。`,
     `- 已有内容在画布上占稳、对齐、按构图需要合理伸展，让版面协调——目标是平衡，不是把每寸塞满。对应逻辑画布宽 ${slideSize.width}px、高 ${slideSize.height}px；不为填满而新增卡片/注释/第二行模块，也不能溢出画布。`,
     ratioGuidance,
-    '- 密度由内容决定：氛围/叙事页低密度，多数页中密度，表格/多指标对比才高密度；内容够了就不扩展，只压缩、归并、换表达。',
-    `- 内容过多先总结再布局：如果标题 + 图表/表格/列表/卡片会超出 ${slideSize.height}px 或显得过密，必须先重写信息架构（主旨、分组、优先级、紧凑表达）再写 HTML；不要靠缩小字号、增加卡片、堆更多行或把所有事实等权上屏来硬塞。`,
+    densityRule,
+    overflowRule,
     '- 图表高度：注释里写 `@ppt-chart-height=N`，且 N 与 class 的 `h-[Npx]` 一致（写 560 就配 h-[560px]）。',
-    '- 字号下限：正文、普通标签和卡片说明不小于 `text-lg`(18px)；任何标题不小于 `text-2xl`(24px)，标题仍可按层级放大，最大 `text-5xl`(48px)。注释、页脚、页码、来源/出处等辅助信息可以小于 18px，但不得小于 12px；使用 `<footer>` / `<small>` / `<figcaption>`，或显式标记 `data-ppt-text-role="auxiliary"`。空间紧时调密度与层级，不靠缩小正文或标题硬塞；用 grid/flex 解决，不用 100vw/100vh/w-screen/h-screen/iframe。'
+    fontRule,
+    '- 用 grid/flex 解决结构，不用 100vw/100vh/w-screen/h-screen/iframe。'
   ].join('\n')
 }
 
@@ -136,7 +190,8 @@ export function buildLayoutCollisionRules(input: SlideSizePreset): string {
   return [
     '## 布局防重叠',
     `- Full collision guide for this canvas is in the ${describeLayoutSkill(layoutSkillName)} skill ${layoutSkillName}. ${formatSkillUsageRequirement(layoutSkillName)}`,
-    '- 正文内容用 grid/flex 正常文档流。absolute/fixed 仅用于背景装饰、连接线。正文卡片不得用 absolute/fixed。'
+    '- 标题、章节栏、正文、卡片、图表、流程节点、页眉页脚必须各占自己的 grid/flex 区域，不能互相重叠、层叠或越出画布；正文结构不要用 absolute/fixed。',
+    '- 图片、视频可作为背景，文字或透明内容面板可有意叠在媒体上；媒体本身仍必须完整位于画布内。其他 absolute/fixed 仅用于背景装饰和连接线。'
   ].join('\n')
 }
 
@@ -160,6 +215,7 @@ export const FRONTEND_CAPABILITIES = [
   '- Prefer `data-anim-sequence="with|after"` over overloading `data-anim-trigger` when you only need load-order composition.',
   '- Use `data-anim-click-group="name"` only for contiguous click-triggered elements that should reveal on the same click step.',
   '- Prefer bounded emphasis labels such as `pulse-soft|pulse|pulse-strong` and `grow-shrink-soft|grow-shrink|grow-shrink-strong` over ad hoc scale choreography.',
+  `- For data-anim, use only these exact public values: ${DATA_ANIM_SUPPORTED_TYPES.join('|')}. Never use CSS-style aliases such as fade-in, fade-in-up, fade-in-down, fade-in-left, or fade-in-right.`,
   '- Use `data-anim="path"` only with an inline linear path string such as `M 0 0 L 120 30`; do not use selector-based SVG path choreography in normal generated pages.',
   '- Do not use `data-anim-easing`, `data-anim-repeat`, or `data-anim-direction` in normal generated pages; those are runtime-only compatibility knobs and are not preserved by the editable PPTX lane.',
   '- Keep the editable lane focused on whole-element motion. Do not use split-text/per-letter effects, SVG morph/draw helpers, or arbitrary path choreography in normal generated pages.',
@@ -169,14 +225,19 @@ export const FRONTEND_CAPABILITIES = [
   '- Use \\( \\) or $$ $$ for math; do not use single-dollar inline math.'
 ].join('\n')
 
-export const CONTENT_WRITING_RULES = [
-  '## 内容与视觉',
-  '- 用真实文案与数据填模块；少用 emoji/贴纸装饰。',
-  '- 布局靠 grid/flex 文档流：items-center/justify-* 的父节点配 flex 或 grid，正文卡片留在文档流里，absolute/fixed 只给背景装饰与连接线。',
-  '- 装饰块保持扁平（单层绝对定位 div / 几个并列 div / 一个 SVG）。',
-  '- 模块占稳各自位置、彼此对齐，形成均衡版面与干净间距——不堆在顶部，也不塞到溢出。',
-  '- 内容超载时按这个优先级解决：(1) 总结精简——用更少的字表达同等信息量（长描述压成短句、词组、单一数据点），不丢信息只去水分 → (2) 合并/归并相关点为一个带共享标签的块 → (3) 把长清单重写成一个 hero 指标 + 一句解释 → (4) 换更紧凑的 pattern（如对比矩阵/ranking/2x2）。绝不靠缩字号到下限以下、也不靠超出画布高度来解决——竖版/小红书/方图本来就是低密度载体，内容多时模型必须更狠地总结精简，不是把 16:9 的信息量硬塞进来。'
-].join('\n')
+export const buildContentWritingRules = (options?: { referenceTextLocked?: boolean }): string =>
+  [
+    '## 内容与视觉',
+    '- 用真实文案与数据填模块；少用 emoji/贴纸装饰。',
+    '- 布局靠 grid/flex 文档流：items-center/justify-* 的父节点配 flex 或 grid，正文结构各占自己的区域；图片、视频可作为背景或有意的媒体叠层，其他正文不要用 absolute/fixed。',
+    '- 装饰块保持扁平（单层绝对定位 div / 几个并列 div / 一个 SVG）。',
+    '- 模块占稳各自位置、彼此对齐，形成均衡版面与干净间距——不堆在顶部，也不塞到溢出。',
+    options?.referenceTextLocked
+      ? '- Reference Range Content Boundary applies: preserve source facts, qualifiers, relationships, and uncertainty while allowing presentation rephrasing, grouping, and visualization. When dense, first clarify hierarchy, group related material, and use a compact internal layout; scale a bounded internal content module with `transform: scale(...)` plus layout compensation only as a final measure. Never scale the page root, section/page shell, `main[data-role="content"]`, or canvas.'
+      : '- 内容超载时按这个优先级解决：(1) 总结精简——用更少的字表达同等信息量（长描述压成短句、词组、单一数据点），不丢信息只去水分 → (2) 合并/归并相关点为一个带共享标签的块 → (3) 把长清单重写成一个 hero 指标 + 一句解释 → (4) 换更紧凑的 pattern（如对比矩阵/ranking/2x2）→ (5) 仍放不下时，仅对承载过密内容的 `data-ppt-density="high"` 内部模块使用缩放并补偿布局。不能重叠、越出画布或用 hidden overflow 遮挡内容。'
+  ].join('\n')
+
+export const CONTENT_WRITING_RULES = buildContentWritingRules()
 
 export const STYLE_FIDELITY_RULES = [
   '## 尺寸布局与风格合成闸门',
@@ -194,7 +255,8 @@ export function resolveContextStylePrompt(context: SessionDeckGenerationContext)
   presetId: string
   stylePrompt: string
 } {
-  const presetLabel = context.styleName?.trim() || context.styleKey?.trim() || context.styleId || 'Session style'
+  const presetLabel =
+    context.styleName?.trim() || context.styleKey?.trim() || context.styleId || 'Session style'
   const presetId = context.styleKey?.trim() || context.styleId || 'session-style'
   const stylePrompt = context.styleSkillPrompt?.trim()
   if (!stylePrompt) {

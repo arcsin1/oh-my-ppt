@@ -15,6 +15,9 @@
     "梦幻"
   ],
   "styleCase": "时尚潮流、婚庆浪漫、品牌营销",
+  "imageGeneration": {
+    "prompt": "Dreamy romantic sky in blush pink, misty lavender-blue and deep indigo, with soft clouds, crescent moon, drifting petals, tiny stars and translucent liquid forms. Use frosted glow and gentle gradients with roomy negative space. Do not render text, logos, UI, watermarks, hard edges, photorealism, or dense compositions."
+  },
   "version": "2.0.2",
   "source": "builtin"
 }

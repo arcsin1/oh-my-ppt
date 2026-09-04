@@ -1,0 +1,19 @@
+{
+  "style": "red-research-framework",
+  "name": {
+    "zh": "丹朱教研",
+    "en": "Red Research Framework"
+  },
+  "description": "白底中国红骨架，强调教学与研究逻辑的模块化风格",
+  "category": "教育 · 正式",
+  "aliases": [
+    "教研",
+    "教学设计",
+    "中国红",
+    "思政",
+    "框架"
+  ],
+  "styleCase": "教学设计、教研成果汇报、职业教育说课、党政培训、课程框架展示",
+  "version": "1.0.0",
+  "source": "builtin"
+}

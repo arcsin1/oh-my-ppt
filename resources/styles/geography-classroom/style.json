@@ -1,0 +1,22 @@
+{
+  "style": "geography-classroom",
+  "name": {
+    "zh": "地理课堂·蓝图",
+    "en": "Geography Classroom Atlas"
+  },
+  "description": "面向中学地理教学的地貌、区域与课堂讲解风格",
+  "category": "教育 · 地理",
+  "aliases": [
+    "地理课件",
+    "地理教学",
+    "自然环境",
+    "地图课件",
+    "地理图册"
+  ],
+  "styleCase": "中学地理课堂、自然环境、区域地理、地貌与地图教学、地理复习课件",
+  "imageGeneration": {
+    "prompt": "Educational geography classroom visual, rendered as a documentary landform photograph, aerial terrain view, field observation scene, or clean geographic illustration only when the slide subject benefits from a concrete visual. Use a white paper and pale ice-blue base with deep navy, teal, slate-blue, coral-red and lemon-yellow accents, clear atlas-like composition and a text-safe area. Preserve recognizable terrain structure and natural daylight; a full-bleed cover background is allowed when it improves the opening. Do not render readable labels, map text, equations, logos, UI, watermarks, glossy 3D, neon colors, generic corporate stock imagery, or cluttered collage."
+  },
+  "version": "1.0.0",
+  "source": "builtin"
+}

@@ -1,6 +1,6 @@
 {
   "name": "oh-my-ppt",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "Oh My PPT - Local-first AI presentation workbench",
   "main": "./out/main/index.js",
   "author": "arcsin1",
@@ -37,7 +37,7 @@
     "@arcsin1/html2pptx": "0.0.10",
     "@arcsin1/pptx-ooxml-geometry": "0.0.2",
     "@arcsin1/pptx2json": "0.1.9",
-    "@arcsin1/presentation-editor-runtime": "0.0.6",
+    "@arcsin1/presentation-editor-runtime": "0.0.8",
     "@chenglou/pretext": "^0.0.6",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",

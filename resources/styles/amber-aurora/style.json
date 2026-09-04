@@ -14,6 +14,9 @@
     "黄昏"
   ],
   "styleCase": "传统文化、疗愈冥想、年度庆典",
+  "imageGeneration": {
+    "prompt": "A poetic Chinese-inspired dusk landscape, muted lentil-purple sky fading into honey-orange sunset water, soft ink-like clouds, glowing firefly specks and reflective ripples. Keep an elegant, calming atmosphere with generous negative space for slide content. Do not render text, logos, UI, watermarks, borders, neon, or photorealistic stock imagery."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

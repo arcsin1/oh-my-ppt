@@ -95,15 +95,6 @@ describe('useGenerationNotifications', () => {
     expect(toastMock.success).toHaveBeenCalledTimes(1)
   })
 
-  it('suppresses the toast for a page-beautify run (dedicated in-page toast handles it)', async () => {
-    captured!({
-      type: 'run_completed',
-      payload: { runId: 'run-2', totalPages: 1, sessionId: 's1', activityKind: 'page-beautify' }
-    })
-    await flushAsync()
-    expect(toastMock.success).not.toHaveBeenCalled()
-  })
-
   it('suppresses the toast for page-edit, deck-edit, and style-switch runs', async () => {
     const kinds = ['page-edit', 'deck-edit', 'style-switch'] as const
     for (const activityKind of kinds) {
@@ -114,20 +105,6 @@ describe('useGenerationNotifications', () => {
     }
     await flushAsync()
     expect(toastMock.success).not.toHaveBeenCalled()
-  })
-
-  it('suppresses the error toast for a failed page-beautify run (session-detail owns the error path)', async () => {
-    captured!({
-      type: 'run_error',
-      payload: {
-        runId: 'run-fail',
-        sessionId: 's1',
-        activityKind: 'page-beautify',
-        message: 'boom'
-      }
-    })
-    await flushAsync()
-    expect(toastMock.error).not.toHaveBeenCalled()
   })
 
   it('suppresses the error toast for a failed single-page retry', async () => {

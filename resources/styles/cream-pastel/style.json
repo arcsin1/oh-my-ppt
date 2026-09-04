@@ -14,6 +14,9 @@
     "高级"
   ],
   "styleCase": "餐饮美食、生活方式、亲子儿童",
+  "imageGeneration": {
+    "prompt": "Minimal lifestyle still life with eucalyptus leaves, olive branches and cotton stems on a creamy off-white surface. Use muted blush-pink and matcha-green accents, soft natural daylight and a tactile matte calm, preserving generous text-safe space. Do not render words, logos, UI, watermarks, clutter, hard shadows, or high-saturation colors."
+  },
   "version": "2.0.2",
   "source": "builtin"
 }

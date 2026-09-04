@@ -25,5 +25,7 @@ export interface ImageGenerationResult {
 }
 
 export interface ImageGenerationProviderAdapter {
+  /** Returns the model-specific default used when generation has no user-selected size. */
+  getDefaultSize(config: ResolvedImageModelConfig): string
   generate(config: ResolvedImageModelConfig, input: ImageGenerationInput): Promise<ImageGenerationResult[]>
 }

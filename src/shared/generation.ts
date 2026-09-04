@@ -93,6 +93,23 @@ export interface DocumentPlanPageSkeletonItem {
   lineStart: number
   lineEnd: number
   reason: string
+  agendaItems?: DocumentPlanAgendaItem[]
+}
+
+export interface DocumentPlanAgendaItem {
+  title: string
+  lineStart: number
+}
+
+export interface PageReferenceContext {
+  referenceDocumentPath: string
+  sourceHeading: string
+  sourceRange: {
+    lineStart: number
+    lineEnd: number
+  }
+  agendaItems?: DocumentPlanAgendaItem[]
+  isSectionAgenda: boolean
 }
 
 export const SECTION_AGENDA_OUTLINE_MARKER = 'Page role: section-agenda'
@@ -510,7 +527,6 @@ export interface GenerateStagePayload {
     | 'deck-edit'
     | 'edit'
     | 'style-switch'
-    | 'page-beautify'
     | 'single-page-retry'
     | 'addPage'
 }
@@ -543,7 +559,6 @@ export type GenerateChunkEvent =
           | 'deck-edit'
           | 'edit'
           | 'style-switch'
-          | 'page-beautify'
           | 'single-page-retry'
           | 'addPage'
       }
@@ -579,7 +594,6 @@ export type GenerateChunkEvent =
           | 'deck-edit'
           | 'edit'
           | 'style-switch'
-          | 'page-beautify'
           | 'single-page-retry'
           | 'addPage'
       }
@@ -599,7 +613,6 @@ export type GenerateChunkEvent =
           | 'deck-edit'
           | 'edit'
           | 'style-switch'
-          | 'page-beautify'
           | 'single-page-retry'
           | 'addPage'
       }

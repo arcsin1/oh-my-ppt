@@ -144,6 +144,7 @@ export const en = {
     fonts: 'Fonts',
     tokenUsage: 'Token usage',
     settings: 'Settings',
+    helpDocs: 'Help docs',
     backToSessions: 'Back to sessions',
     newPresentation: 'New presentation',
     tagline: 'AI presentation workbench'
@@ -219,6 +220,12 @@ export const en = {
     slideSizeSquare: 'Square 1:1',
     slideSizePortrait: 'Portrait 3:4',
     slideSizeXiaohongshu: 'Xiaohongshu',
+    enableImageGeneration: 'Enable image generation',
+    imageGenerationHint: 'Pages generate images only when a layout visual slot benefits from one.',
+    imageModel: 'Image model',
+    imageModelPlaceholder: 'Select an image model',
+    imageModelRequired: 'Select an available image model before enabling image generation.',
+    imageModelUnavailable: 'Configure an available image model in Settings first.',
     brief: 'Detailed brief',
     animationPreferences: 'Animation preferences',
     animationPreferenceOptions: {
@@ -472,7 +479,14 @@ export const en = {
     verifyHint:
       'Uses the current provider preset, model, api_key, and base_url for a real connectivity check. Local Ollama can use any value.',
     imageVerifyHint:
-      'Image verification only checks basic fields. The real endpoint is verified on first generation to avoid unnecessary cost.',
+      'Verification generates one real test image at the provider default size and only passes when an image is returned.',
+    imageVerificationPreview: 'Verification image',
+    imageVerificationPreviewAlt: 'Image generated during image model verification',
+    imageVerificationPrompt: 'Test prompt: Generate a cartoon cat',
+    imageVerifyPassed: 'Image model verified',
+    imageVerifyPassedDescription: 'A test image was generated successfully',
+    imageVerifyFailed: 'Image model verification failed',
+    imageVerifyFailedDescription: 'Check the model configuration and API credentials',
     modelPlaceholder: 'Example: deepseek-v4-flash',
     imageModelPlaceholder:
       'Example: Jimeng 3.0 / Jimeng 4.0 / Agnes AI / SiliconFlow / OpenAI compatible / Gemini',
@@ -508,6 +522,7 @@ export const en = {
     fillApiKey: 'Enter api_key first',
     fillModel: 'Enter model first',
     verifyBeforeSave: 'Verify the model before saving.',
+    verifyImageBeforeSave: 'Generate a test image successfully before saving the image model.',
     verifyPassed: 'API Key verified',
     verifyPassedDescription: 'The current configuration can call the model',
     verifyFailed: 'API Key verification failed',
@@ -532,6 +547,7 @@ export const en = {
     importMenu: 'Import Style',
     importMenuTooltip: 'Import a packaged style ZIP or a style folder.',
     officialSkillLabel: 'Official style skill: arcsin1/style-generate-skill',
+    supportsImageGeneration: 'Image generation',
     importPackage: 'Import Style ZIP',
     importPackageTooltip: 'Import a packaged style ZIP.',
     importPackageDirectory: 'Import Style Folder',
@@ -567,6 +583,11 @@ export const en = {
     noMatchingStyles: 'No styles match this use case',
     searchPlaceholder: 'Search by name or use case…',
     clearSearch: 'Clear search',
+    aiRecommend: 'AI Recommend',
+    aiRecommending: 'Recommending…',
+    aiRecommendationTopicRequired: 'Enter a topic first',
+    aiRecommendationFailed: 'AI recommendation failed. Try again.',
+    clearRecommendation: 'Show all styles',
     favoriteStyles: 'Favorites',
     favoriteStyle: 'Favorite style',
     unfavoriteStyle: 'Remove favorite',
@@ -637,7 +658,7 @@ export const en = {
     promptRef4:
       '## Layout: Specify alignment, information hierarchy, whitespace and density, e.g. "modular sections, centered or left-aligned, moderate density"',
     promptRef5:
-      '## Animation: Describe entrance animations, duration, easing, e.g. "fade-in or gentle slide-up, 0.4s–0.6s, ease-out"',
+      '## Animation: Describe entrance animations with public data-anim values, duration, easing, e.g. "fade or gentle slide-up, 0.4s–0.6s, ease-out"',
     promptRef6:
       '## Use case: Define target audience and scenario, e.g. "business reports, product intros, project summaries — formal but not dull"',
     promptRef7:
@@ -966,6 +987,13 @@ Business presentations, product introductions, project summaries — formal but 
     imageGeneratedDescription: 'Generated {count} image(s)',
     imageGenerateFailed: 'Failed to generate image',
     imageHistoryLoadFailed: 'Failed to load image history',
+    autoImageInProgress: 'Finalizing the automatic illustration for this slide.',
+    autoImageDegraded: 'The illustration failed; the fallback layout was kept.',
+    autoImageLayoutFailed: 'The generated image was not adopted by the current layout.',
+    autoImageCancelled: 'The automatic illustration was cancelled; the original layout was kept.',
+    autoImageRetry: 'Retry illustration',
+    autoImageRetryStarted: 'Retrying failed illustration',
+    autoImageRetryFailed: 'Failed to retry illustration',
     imageResultEmpty: 'No generated images yet',
     imagePreviewTitle: 'Image preview',
     imagePreviewOpen: 'Open larger preview',
@@ -982,7 +1010,7 @@ Business presentations, product introductions, project summaries — formal but 
     imageOutlineTitle: 'Slide title',
     imageOutlineContent: 'Slide outline',
     imageOutlineConstraints:
-      'Use this as a slide background or illustration. Do not include any readable text, titles, logos, watermarks, or fake chart labels. Leave clean space for typography, and do not mention aspect ratios, sizes, or resolutions.',
+      'Use this as a slide background or illustration. Avoid garbled text, pseudo-text, random glyph-like marks, and copy unrelated to the current content. Only keep a short, clearly legible phrase when its exact wording is explicitly provided and the scene genuinely needs it. Leave clean space for typography, and do not mention aspect ratios, sizes, or resolutions.',
     editText: 'Edit text',
     exitTextEdit: 'Exit edit',
     previewMode: 'Preview',
@@ -1008,18 +1036,6 @@ Business presentations, product introductions, project summaries — formal but 
     styleSwitchCompleted: 'Style switched',
     styleSwitchFailed: 'Failed to switch style',
     styleSwitchCancelFailed: 'Failed to cancel style switch',
-    pageBeautify: 'Beautify',
-    pageBeautifying: 'Beautifying',
-    pageBeautifyCompleted: 'Page beautified',
-    pageBeautifyUnchanged: 'Page already looks good',
-    pageBeautifyTooltip:
-      "Improve this page's layout and visual hierarchy without changing text or data",
-    pageBeautifyNoPage: 'Select a page to beautify',
-    pageBeautifyFailed: 'Failed to beautify page',
-    pageBeautifyTimeout: 'Model response timed out, please retry',
-    pageBeautifyBusy:
-      'Another job is running in this session. Wait for it to finish before beautifying.',
-    cancelPageBeautify: 'Stop beautifying',
     styleSwitchConfirmTitle: 'Switch the entire deck style?',
     styleSwitchConfirmDescription:
       'All slides will be redrawn using “{style}”. Each slide keeps its original text and data, while its layout and visual structure may be redesigned.',

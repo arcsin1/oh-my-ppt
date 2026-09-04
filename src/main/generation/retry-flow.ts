@@ -21,8 +21,10 @@ import {
   type RuntimeJobExecutionContext,
   normalizeGeneratePayload,
   resolveCommonContext,
+  resolveSessionReferenceDocumentPath,
   resolveSourceDocuments
 } from './context'
+import { createPageImageFinalizer } from './page-image-finalizer'
 
 export async function resolveRetryContext(
   ctx: GenerationContext,
@@ -47,6 +49,8 @@ export async function resolveRetryContext(
     mode: 'retry',
     sessionRecord: common.sessionRecord
   })
+  const referenceDocumentPath =
+    resolveSessionReferenceDocumentPath(common.projectDir, common.sessionRecord) ?? undefined
 
   return {
     sessionId: input.sessionId,
@@ -68,6 +72,7 @@ export async function resolveRetryContext(
     runId: common.runId,
     styleId: common.styleId,
     styleSkill: common.styleSkill,
+    imageGenerationPrompt: common.imageGenerationPrompt,
     styleKey: common.styleKey,
     styleName: common.styleName,
     styleVersion: common.styleVersion,
@@ -90,12 +95,15 @@ export async function resolveRetryContext(
     imagePaths: [],
     videoPaths: [],
     sourceDocumentPaths,
+    referenceDocumentPath,
     sourcePlan: common.sourcePlan,
     topic: common.topic,
     deckTitle: common.deckTitle,
     appLocale: common.appLocale,
     fontSelection: common.fontSelection,
-    animationPreferences
+    animationPreferences,
+    visualEnabled: common.visualEnabled,
+    imageModelConfigId: common.imageModelConfigId
   }
 }
 
@@ -137,7 +145,10 @@ export async function executeRetryFailedPages(
       page_id: page.file_slug,
       title: page.title || snapshot?.title || page.file_slug,
       content_outline: snapshot?.content_outline || '',
-      layout_intent: snapshot?.layout_intent || null,
+      layout_intent: page.layout_intent || snapshot?.layout_intent || null,
+      layout_id: page.layout_id || snapshot?.layout_id || null,
+      layout_contract_version:
+        page.layout_contract_version ?? snapshot?.layout_contract_version ?? null,
       html_path: resolvePageHtmlPath({
         projectDir: context.projectDir,
         fileSlug: page.file_slug,
@@ -200,6 +211,8 @@ export async function executeRetryFailedPages(
     title: page.title || page.page_id,
     contentOutline: page.content_outline || '',
     layoutIntent: page.layout_intent ? normalizeLayoutIntent(page.layout_intent) : undefined,
+    layoutId: page.layout_id,
+    layoutContractVersion: page.layout_contract_version,
     htmlPath: resolvePageHtmlPath({
       projectDir: context.projectDir,
       fileSlug: page.page_id,
@@ -221,6 +234,9 @@ export async function executeRetryFailedPages(
       pageId: string
       title: string
       htmlPath: string
+      layoutIntent?: LayoutIntent
+      layoutId?: string | null
+      layoutContractVersion?: number | null
     },
     status: 'completed' | 'failed' | 'pending',
     error: string | null
@@ -236,6 +252,10 @@ export async function executeRetryFailedPages(
       pageNumber: page.pageNumber,
       title: page.title,
       htmlPath: page.htmlPath,
+      layoutIntent: page.layoutIntent ?? existing?.layout_intent ?? null,
+      layoutId: page.layoutId ?? existing?.layout_id ?? null,
+      layoutContractVersion:
+        page.layoutContractVersion ?? existing?.layout_contract_version ?? null,
       status,
       error
     })
@@ -248,6 +268,10 @@ export async function executeRetryFailedPages(
       page_number: page.pageNumber,
       title: page.title,
       html_path: page.htmlPath,
+      layout_intent: page.layoutIntent ?? existing?.layout_intent ?? null,
+      layout_id: page.layoutId ?? existing?.layout_id ?? null,
+      layout_contract_version:
+        page.layoutContractVersion ?? existing?.layout_contract_version ?? null,
       status,
       error,
       created_at: existing?.created_at || Math.floor(Date.now() / 1000),
@@ -285,6 +309,8 @@ export async function executeRetryFailedPages(
       title: page.title,
       contentOutline: page.contentOutline,
       layoutIntent: page.layoutIntent,
+      layoutId: page.layoutId,
+      layoutContractVersion: page.layoutContractVersion,
       htmlPath: page.htmlPath,
       status: 'pending',
       retryCount: page.retryCount
@@ -314,6 +340,8 @@ export async function executeRetryFailedPages(
     title: string
     contentOutline: string
     layoutIntent?: LayoutIntent
+    layoutId: string
+    layoutContractVersion: number
     htmlPath: string
   }): Promise<void> => {
     if (!fs.existsSync(page.htmlPath)) {
@@ -333,6 +361,8 @@ export async function executeRetryFailedPages(
       title: page.title,
       contentOutline: page.contentOutline,
       layoutIntent: page.layoutIntent,
+      layoutId: page.layoutId,
+      layoutContractVersion: page.layoutContractVersion,
       htmlPath: page.htmlPath,
       status: 'completed',
       retryCount: retryPage?.retryCount || 0
@@ -369,6 +399,8 @@ export async function executeRetryFailedPages(
     title: string
     contentOutline: string
     layoutIntent?: LayoutIntent
+    layoutId: string
+    layoutContractVersion: number
     htmlPath: string
     reason: string
   }): Promise<void> => {
@@ -381,6 +413,8 @@ export async function executeRetryFailedPages(
       title: page.title,
       contentOutline: page.contentOutline,
       layoutIntent: page.layoutIntent,
+      layoutId: page.layoutId,
+      layoutContractVersion: page.layoutContractVersion,
       htmlPath: page.htmlPath,
       status: 'failed',
       error: page.reason,
@@ -407,6 +441,7 @@ export async function executeRetryFailedPages(
     temperature: PAGE_GENERATION_TEMPERATURE,
     styleId: context.styleId,
     styleSkillPrompt: context.styleSkill.prompt,
+    hasStyleImageDirection: Boolean(context.imageGenerationPrompt.trim()),
     styleKey: context.styleKey,
     styleName: context.styleName,
     styleVersion: context.styleVersion,
@@ -429,13 +464,18 @@ export async function executeRetryFailedPages(
       layoutIntent: page.layoutIntent
     })),
     sourceDocumentPaths: context.sourceDocumentPaths,
+    referenceDocumentPath: context.referenceDocumentPath,
+    sourcePlan: context.sourcePlan,
     generationMode: 'retry',
+    visualEnabled: context.visualEnabled,
     pageTasks: retryPages.map((page) => ({
       pageNumber: page.pageNumber,
       pageId: page.pageId,
       title: page.title,
       contentOutline: page.contentOutline,
-      layoutIntent: page.layoutIntent
+      layoutIntent: page.layoutIntent,
+      layoutId: page.layoutId,
+      layoutContractVersion: page.layoutContractVersion
     })),
     designContract,
     projectDir: context.projectDir,
@@ -444,6 +484,24 @@ export async function executeRetryFailedPages(
     pageNumbers,
     agentManager,
     emit: (chunk) => emitRetryChunk(chunk),
+    finalizePage: createPageImageFinalizer(ctx, {
+      sessionId: context.sessionId,
+      runId: context.runId,
+      visualEnabled: context.visualEnabled,
+      imageModelConfigId: context.imageModelConfigId,
+      imageGenerationPrompt: context.imageGenerationPrompt,
+      imagePromptDirector: {
+        provider: context.provider,
+        apiKey: context.apiKey,
+        model: context.model,
+        baseUrl: context.providerBaseUrl,
+        maxTokens: context.maxTokens,
+        modelRuntime: context.modelRuntime,
+        modelTimeoutMs: context.modelTimeouts.agent,
+        locale: context.appLocale
+      },
+      abortSignal: context.abortSignal
+    }),
     onPageCompleted: persistCompletedRetryPage,
     onPageFailed: persistFailedRetryPage,
     runId: context.runId,
@@ -471,6 +529,8 @@ export async function executeRetryFailedPages(
           title: page.title,
           contentOutline: page.contentOutline,
           layoutIntent: page.layoutIntent,
+          layoutId: page.layoutId,
+          layoutContractVersion: page.layoutContractVersion,
           htmlPath: page.htmlPath,
           status: 'failed',
           error: failure?.reason || '页面重试失败',
@@ -493,6 +553,8 @@ export async function executeRetryFailedPages(
           title: page.title,
           contentOutline: page.contentOutline,
           layoutIntent: page.layoutIntent,
+          layoutId: page.layoutId,
+          layoutContractVersion: page.layoutContractVersion,
           htmlPath: page.htmlPath,
           status: 'failed',
           error: reason,
@@ -517,6 +579,8 @@ export async function executeRetryFailedPages(
           title: page.title,
           contentOutline: page.contentOutline,
           layoutIntent: page.layoutIntent,
+          layoutId: page.layoutId,
+          layoutContractVersion: page.layoutContractVersion,
           htmlPath: page.htmlPath,
           status: 'failed',
           error: reason,
@@ -543,6 +607,8 @@ export async function executeRetryFailedPages(
         title: page.title,
         contentOutline: page.contentOutline,
         layoutIntent: page.layoutIntent,
+        layoutId: page.layoutId,
+        layoutContractVersion: page.layoutContractVersion,
         htmlPath: page.htmlPath,
         status: 'completed',
         retryCount: page.retryCount
@@ -658,7 +724,6 @@ export async function executeRetryFailedPages(
     `Failed pages were retried. ${retrySuccessPages.length} pages were fixed.`
   )
   await emitAssistant(context, agentSummary.trim() || fallbackCompletionSummary)
-  await db.updateGenerationRunStatus(context.runId, 'completed', null)
   await finalizeGenerationSuccess(ctx, {
     context,
     indexPath,

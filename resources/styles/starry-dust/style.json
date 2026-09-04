@@ -14,6 +14,9 @@
     "少女"
   ],
   "styleCase": "亲子儿童、婚庆浪漫、品牌营销",
+  "imageGeneration": {
+    "prompt": "Soft fairytale illustration in misty lavender, champagne pink and starry blue, with glowing stars, crescent moon, fluffy clouds, a unicorn and rainbow when relevant. Use frosted dreamy light, rounded candy-like shapes and an airy composition. Do not render text, logos, UI, watermarks, photorealism, hard edges, or dense scenes."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

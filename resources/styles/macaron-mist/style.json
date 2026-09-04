@@ -14,6 +14,9 @@
     "甜品"
   ],
   "styleCase": "餐饮美食、婚庆浪漫、生活方式",
+  "imageGeneration": {
+    "prompt": "Soft pastel macaron dessert still life with mint green, coral pink and lavender tones, dreamy matte haze, delicate pastry details and gentle diffused light. Keep rounded playful forms on a cream background with ample negative space. Do not render text, logos, packaging labels, UI, watermarks, dark lighting, or clutter."
+  },
   "version": "2.0.2",
   "source": "builtin"
 }

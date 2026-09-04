@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   isDeckEditGenerationEvent,
-  isPageBeautifyGenerationEvent,
   isPageEditGenerationEvent,
   isStyleSwitchGenerationEvent
 } from '../../../src/renderer/src/components/session-detail/shared/pageEditGenerationEvent'
@@ -38,18 +37,6 @@ describe('isPageEditGenerationEvent', () => {
         { runId: 'deck-edit-run' }
       )
     ).toBe(true)
-    expect(
-      isPageBeautifyGenerationEvent(
-        { runId: 'beautify-run', activityKind: 'page-beautify' },
-        { runId: 'beautify-run' }
-      )
-    ).toBe(true)
-    expect(
-      isPageBeautifyGenerationEvent(
-        { runId: 'other-run', activityKind: 'page-beautify' },
-        { runId: 'beautify-run' }
-      )
-    ).toBe(false)
   })
 
   it('claims the first tagged event while an optimistic job is still waiting for its run id', () => {

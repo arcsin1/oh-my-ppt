@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type ReactElement } from 'react'
+import { useState, useEffect, useCallback, useMemo, type ReactElement } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -11,8 +11,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { StyleSelect } from '../style/StyleSelect'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
+import { Checkbox } from '../ui/Checkbox'
 import { useT, type I18nKey } from '@renderer/i18n'
 import { ipc, type FontListItem } from '@renderer/lib/ipc'
+import {
+  getImageModelConfigLabel,
+  getUsableImageModelConfigs,
+  resolveDefaultImageModelConfigId
+} from '@renderer/lib/image-model-config'
 import type { FontSelection, SourceDocumentPlan } from '@shared/generation'
 import {
   DEFAULT_SLIDE_SIZE_ID,
@@ -23,6 +29,7 @@ import type { ThinkingPrepareGenerationResult } from '@shared/thinking'
 import { Sparkles } from 'lucide-react'
 import { ModelSplitButton } from '../model/ModelActionButton'
 import { useModelAction } from '@renderer/hooks/useModelAction'
+import { useSettingsStore } from '@renderer/store'
 
 type FontPairRef = Extract<FontSelection, { mode: 'pair' }>['title']
 
@@ -59,6 +66,7 @@ interface StyleOption {
   description: string
   aliases?: string[]
   styleCase?: string
+  imageGenerationPrompt?: string
   thumbnailPath?: string | null
   previewPath?: string | null
   favoriteAt?: number | null
@@ -149,6 +157,8 @@ interface GenerationConfirmDialogProps {
     referenceDocumentPath: string
     sourcePlan?: SourceDocumentPlan
     modelConfigId?: string
+    visualEnabled: boolean
+    imageModelConfigId?: string
   }) => void
 }
 
@@ -161,6 +171,7 @@ export function GenerationConfirmDialog({
   const t = useT()
   const modelAction = useModelAction()
   const { selectedModelConfigId, ensureModelActive } = modelAction
+  const imageModelConfigs = useSettingsStore((state) => state.imageModelConfigs)
   const [confirming, setConfirming] = useState(false)
   const [topic, setTopic] = useState('')
   const [pageCount, setPageCount] = useState('5')
@@ -170,6 +181,26 @@ export function GenerationConfirmDialog({
   const [titleFontId, setTitleFontId] = useState('auto')
   const [bodyFontId, setBodyFontId] = useState('auto')
   const [slideSizeId, setSlideSizeId] = useState<SlideSizePresetId>(DEFAULT_SLIDE_SIZE_ID)
+  const [visualEnabled, setVisualEnabled] = useState(false)
+  const [selectedImageModelConfigId, setSelectedImageModelConfigId] = useState('')
+  const usableImageModelConfigs = useMemo(
+    () => getUsableImageModelConfigs(imageModelConfigs),
+    [imageModelConfigs]
+  )
+
+  useEffect(() => {
+    if (usableImageModelConfigs.length === 0) {
+      setVisualEnabled(false)
+      setSelectedImageModelConfigId('')
+      return
+    }
+    if (!visualEnabled) return
+    setSelectedImageModelConfigId((current) =>
+      usableImageModelConfigs.some((config) => config.id === current)
+        ? current
+        : resolveDefaultImageModelConfigId(usableImageModelConfigs)
+    )
+  }, [usableImageModelConfigs, visualEnabled])
 
   useEffect(() => {
     if (prepared) {
@@ -217,6 +248,7 @@ export function GenerationConfirmDialog({
         description: item.description,
         aliases: item.aliases,
         styleCase: item.styleCase,
+        imageGenerationPrompt: item.imageGenerationPrompt,
         thumbnailPath: item.thumbnailPath,
         previewPath: item.previewPath,
         favoriteAt: item.favoriteAt
@@ -262,6 +294,12 @@ export function GenerationConfirmDialog({
 
   const handleConfirm = async (modelConfigId = selectedModelConfigId): Promise<void> => {
     if (!resolvedConfirmStyleId || confirming) return
+    if (
+      visualEnabled &&
+      !usableImageModelConfigs.some((config) => config.id === selectedImageModelConfigId)
+    ) {
+      return
+    }
     const resolvedModelConfigId = await ensureModelActive(modelConfigId)
     if (!resolvedModelConfigId) return
     setConfirming(true)
@@ -278,7 +316,9 @@ export function GenerationConfirmDialog({
           prepared.sourcePlan?.pageSkeleton.length === resolvedPageCount
             ? prepared.sourcePlan
             : undefined,
-        modelConfigId: resolvedModelConfigId
+        modelConfigId: resolvedModelConfigId,
+        visualEnabled,
+        imageModelConfigId: visualEnabled ? selectedImageModelConfigId : undefined
       })
       onOpenChange(false)
     } finally {
@@ -310,6 +350,7 @@ export function GenerationConfirmDialog({
                 onChange={setStyleId}
                 options={styleOptions}
                 placeholder={t('home.stylePlaceholder')}
+                recommendation={{ topic, modelConfigId: selectedModelConfigId }}
                 className="h-8 min-w-0 py-0 text-xs"
                 dropdownClassName="w-[min(640px,calc(100vw-3rem))]"
               />
@@ -425,6 +466,45 @@ export function GenerationConfirmDialog({
               </Select>
             </div>
           </div>
+
+          <div className="min-w-0 rounded-md border border-[#d8ccb5]/70 bg-[#fffdf8]/70 p-3">
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+              <Checkbox
+                checked={visualEnabled}
+                disabled={usableImageModelConfigs.length === 0}
+                onCheckedChange={(checked) => {
+                  const enabled = checked === true
+                  setVisualEnabled(enabled)
+                  setSelectedImageModelConfigId(
+                    enabled ? resolveDefaultImageModelConfigId(usableImageModelConfigs) : ''
+                  )
+                }}
+              />
+              <span>{t('home.enableImageGeneration')}</span>
+            </label>
+            {visualEnabled ? (
+              <div className="mt-3 min-w-0">
+                <label className="block font-medium">{t('home.imageModel')}</label>
+                <Select value={selectedImageModelConfigId} onValueChange={setSelectedImageModelConfigId}>
+                  <SelectTrigger className="min-w-0">
+                    <SelectValue placeholder={t('home.imageModelPlaceholder')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {usableImageModelConfigs.map((config) => (
+                      <SelectItem key={config.id} value={config.id}>
+                        {getImageModelConfigLabel(config)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+            <p className="mt-2 text-xs text-muted-foreground">
+              {usableImageModelConfigs.length > 0
+                ? t('home.imageGenerationHint')
+                : t('home.imageModelUnavailable')}
+            </p>
+          </div>
         </div>
 
         <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:items-center">
@@ -442,7 +522,11 @@ export function GenerationConfirmDialog({
             label={t('home.createAndStart')}
             loadingLabel={t('home.creating')}
             loading={confirming}
-            disabled={!resolvedConfirmStyleId}
+            disabled={
+              !resolvedConfirmStyleId ||
+              (visualEnabled &&
+                !usableImageModelConfigs.some((config) => config.id === selectedImageModelConfigId))
+            }
             icon={Sparkles}
             tone="primary"
             className="w-full sm:w-auto"

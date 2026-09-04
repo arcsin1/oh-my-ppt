@@ -12,6 +12,9 @@
     "家居"
   ],
   "styleCase": "杂志编辑、艺术视觉、生活方式",
+  "imageGeneration": {
+    "prompt": "Mid-century modern interior photograph with warm cream walls, mustard yellow, burnt orange and teal accents, iconic curved furniture and organic geometric decor. Use soft daylight, tasteful vintage editorial styling and uncluttered negative space. Do not render people, text, logos, UI, watermarks, or anachronistic furniture."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

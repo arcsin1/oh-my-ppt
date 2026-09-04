@@ -15,6 +15,9 @@
     "诗意"
   ],
   "styleCase": "传统文化、疗愈冥想、教学科普",
+  "imageGeneration": {
+    "prompt": "Serene East Asian ink-and-wash illustration with bamboo silhouettes, a moon, drifting mist, rocks and a small stone lantern on warm rice paper. Use restrained green, blue and vermilion accents with poetic negative space. Do not render text, seal lettering, logos, UI, watermarks, photorealism, or dense ornament."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

@@ -29,6 +29,7 @@ import {
 } from '../../ui/DropdownMenu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/Tooltip'
 import { useT } from '@renderer/i18n'
+import { ipc } from '@renderer/lib/ipc'
 import { SaveTemplateDialog } from '../../templates/SaveTemplateDialog'
 import { SaveAsNewSessionDialog } from './SaveAsNewSessionDialog'
 import { useSessionToolbarController } from './useSessionToolbarController'
@@ -38,7 +39,7 @@ const btnClass =
 const iconClass = 'mr-1.5 h-3.5 w-3.5'
 const dropIconClass = 'mr-2 h-3.5 w-3.5 text-[#6b7280]'
 
-const isMac = window.electron?.process?.platform === 'darwin'
+const isMac = ipc.getPlatform() === 'darwin'
 
 export function SessionToolbar({
   sessionId,

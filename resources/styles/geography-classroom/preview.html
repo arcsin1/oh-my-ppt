@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>地理课堂·蓝图</title>
+    <style>
+      :root { --navy:#173b56; --teal:#2e7c83; --ice:#eef6f8; --blue:#5e9fb3; --red:#d85b4a; --yellow:#f0d34a; --ink:#1e2a31; }
+      * { box-sizing:border-box; }
+      body { margin:0; min-height:100vh; background:#dbe8ec; color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+      .deck { width:min(92vw,1120px); margin:4vh auto; display:grid; gap:24px; }
+      .slide { position:relative; aspect-ratio:16/9; overflow:hidden; background:#fff; border:1px solid rgba(23,59,86,.15); box-shadow:0 10px 28px rgba(23,59,86,.14); }
+      .cover { display:grid; place-items:center; background:linear-gradient(150deg,rgba(46,124,131,.38),rgba(23,59,86,.18)),linear-gradient(135deg,#6ea8b4 0 34%,#d6e4d2 34% 53%,#608c93 53% 70%,#254f65 70%); }
+      .cover:after { content:""; position:absolute; inset:12% 12% 16%; background:rgba(255,255,255,.92); clip-path:polygon(2% 9%,96% 0,100% 87%,8% 100%,0 68%); }
+      .cover-copy { position:relative; z-index:1; text-align:center; }
+      .eyebrow { color:var(--teal); font-size:clamp(12px,1.2vw,18px); font-weight:700; letter-spacing:.08em; }
+      h1 { margin:16px 0 8px; color:#111; font-family:Georgia,"Songti SC",serif; font-size:clamp(32px,6vw,82px); letter-spacing:.12em; }
+      .subtitle { color:var(--navy); font-weight:700; }
+      .lesson { display:grid; grid-template-rows:auto 1fr; padding:18px 24px 24px; background:linear-gradient(#f7fbfc,#fff); }
+      .bar { display:flex; align-items:center; gap:14px; color:#fff; background:var(--navy); padding:10px 16px; font-weight:700; }
+      .icon { display:grid; place-items:center; width:42px; aspect-ratio:1; color:#fff; background:var(--teal); font-size:22px; }
+      .lesson-body { display:grid; grid-template-columns:1fr 1.15fr; gap:24px; align-items:center; padding:24px 12px 0; }
+      .copy h2 { margin:0 0 16px; color:var(--teal); font-size:clamp(22px,3vw,42px); }
+      .copy p { margin:0; line-height:1.7; font-size:clamp(14px,1.55vw,22px); }
+      .evidence { position:relative; min-height:78%; background:radial-gradient(circle at 58% 46%,rgba(240,211,74,.7) 0 14%,transparent 15%),linear-gradient(160deg,transparent 0 22%,rgba(46,124,131,.75) 23% 31%,transparent 32% 46%,rgba(216,91,74,.75) 47% 54%,transparent 55%),#d9edf0; border:2px solid rgba(23,59,86,.18); }
+      .evidence:before,.evidence:after { content:""; position:absolute; inset:14% 18%; border:2px solid rgba(23,59,86,.42); border-radius:48% 32% 56% 38%; transform:rotate(-14deg); }
+      .evidence:after { inset:25% 30% 28% 8%; transform:rotate(18deg); border-color:rgba(46,124,131,.62); }
+      .tag { position:absolute; right:5%; bottom:7%; padding:5px 10px; color:#111; background:var(--yellow); font-weight:700; }
+    </style>
+  </head>
+  <body>
+    <main class="deck">
+      <section class="slide cover">
+        <div class="cover-copy">
+          <div class="eyebrow">七年级地理 · 自然环境</div>
+          <h1>地理课堂</h1>
+          <div class="subtitle">地貌、区域与自然观察</div>
+        </div>
+      </section>
+      <section class="slide lesson">
+        <div class="bar"><span class="icon">≋</span><span>一、地势起伏大</span></div>
+        <div class="lesson-body">
+          <div class="copy"><h2>先看地形，再读证据</h2><p>用最适合本页的问题的证据解释自然环境：照片、剖面、地图或关系图均可。</p></div>
+          <div class="evidence"><span class="tag">高 → 低</span></div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

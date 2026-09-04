@@ -5,6 +5,7 @@ import type {
   ResolvedImageModelConfig
 } from '../types'
 import { collectImageResults, joinUrl, readJsonResponse, readRecord, readString } from './utils'
+import { resolveConfiguredDefaultImageSize } from './default-size'
 
 const DEFAULT_BASE_URL = 'https://api.siliconflow.cn/v1'
 const DEFAULT_ENDPOINT_PATH = '/images/generations'
@@ -104,6 +105,11 @@ const toErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
 export const siliconFlowAdapter: ImageGenerationProviderAdapter = {
+  getDefaultSize(config) {
+    const model = readString(config.modelConfig, 'model') || DEFAULT_MODEL
+    return resolveConfiguredDefaultImageSize(config) || resolveSizeMap(model)['16:9'] || '1280x720'
+  },
+
   async generate(config, input) {
     const startedAt = Date.now()
     const endpoint = buildEndpoint(config)

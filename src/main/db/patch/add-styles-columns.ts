@@ -18,6 +18,9 @@ export const patchStylesColumns = async (client: LibSqlClient): Promise<void> =>
   if (!nextColumnNames.has('style_case')) {
     await client.execute("ALTER TABLE styles ADD COLUMN style_case TEXT NOT NULL DEFAULT ''")
   }
+  if (!nextColumnNames.has('image_generation_prompt')) {
+    await client.execute("ALTER TABLE styles ADD COLUMN image_generation_prompt TEXT NOT NULL DEFAULT ''")
+  }
   if (!nextColumnNames.has('style_name_zh')) {
     await client.execute("ALTER TABLE styles ADD COLUMN style_name_zh TEXT NOT NULL DEFAULT ''")
     await client.execute("UPDATE styles SET style_name_zh = style_name WHERE style_name_zh = ''")
@@ -49,6 +52,7 @@ export const patchStylesColumns = async (client: LibSqlClient): Promise<void> =>
       source TEXT NOT NULL,
       version TEXT NOT NULL DEFAULT '1.0.0',
       style_case TEXT NOT NULL DEFAULT '',
+      image_generation_prompt TEXT NOT NULL DEFAULT '',
       package_dir TEXT NOT NULL DEFAULT '',
       style_skill TEXT NOT NULL DEFAULT '',
       created_at INTEGER NOT NULL
@@ -56,6 +60,7 @@ export const patchStylesColumns = async (client: LibSqlClient): Promise<void> =>
   `)
   await ensureSessionSnapshotColumn(client, 'style_name_zh', "TEXT NOT NULL DEFAULT ''")
   await ensureSessionSnapshotColumn(client, 'style_name_en', "TEXT NOT NULL DEFAULT ''")
+  await ensureSessionSnapshotColumn(client, 'image_generation_prompt', "TEXT NOT NULL DEFAULT ''")
   await ensureSessionSnapshotColumn(client, 'package_dir', "TEXT NOT NULL DEFAULT ''")
   await client.execute(
     'CREATE UNIQUE INDEX IF NOT EXISTS session_style_snapshots_session_id_unique ON session_style_snapshots(session_id)'
@@ -125,6 +130,7 @@ const migrateStyleVersionToText = async (
       style_skill TEXT NOT NULL DEFAULT '',
       version TEXT NOT NULL DEFAULT '1.0.0',
       style_case TEXT NOT NULL DEFAULT '',
+      image_generation_prompt TEXT NOT NULL DEFAULT '',
       package_dir TEXT NOT NULL DEFAULT '',
       active INTEGER NOT NULL DEFAULT 1,
       favorite_at INTEGER,
@@ -135,7 +141,7 @@ const migrateStyleVersionToText = async (
   await client.execute(`
     INSERT INTO styles (
       id, style, style_name, description, category, aliases, source, style_skill,
-      version, style_case, style_name_zh, style_name_en, package_dir, active, favorite_at, created_at, updated_at
+      version, style_case, image_generation_prompt, style_name_zh, style_name_en, package_dir, active, favorite_at, created_at, updated_at
     )
     SELECT
       id, style, style_name,
@@ -146,6 +152,7 @@ const migrateStyleVersionToText = async (
       COALESCE(style_skill, ''),
       '1.0.0',
       ${legacyColumn('style_case', "''")},
+      ${legacyColumn('image_generation_prompt', "''")},
       style_name,
       '',
       '',
@@ -185,6 +192,7 @@ const backfillSessionStyleSnapshots = async (client: LibSqlClient): Promise<void
       source,
       version,
       style_case,
+      image_generation_prompt,
       package_dir,
       style_skill,
       created_at
@@ -203,6 +211,7 @@ const backfillSessionStyleSnapshots = async (client: LibSqlClient): Promise<void
       COALESCE(chosen.source, 'custom'),
       COALESCE(chosen.version, '1.0.0'),
       COALESCE(chosen.style_case, ''),
+      COALESCE(chosen.image_generation_prompt, ''),
       COALESCE(chosen.package_dir, ''),
       COALESCE(chosen.style_skill, ''),
       strftime('%s', 'now')
@@ -216,6 +225,15 @@ const backfillSessionStyleSnapshots = async (client: LibSqlClient): Promise<void
       FROM session_style_snapshots
       WHERE session_style_snapshots.session_id = sessions.id
     )
+  `)
+  await client.execute(`
+    UPDATE session_style_snapshots
+    SET image_generation_prompt = COALESCE((
+      SELECT styles.image_generation_prompt
+      FROM styles
+      WHERE styles.id = session_style_snapshots.style_id
+    ), '')
+    WHERE COALESCE(image_generation_prompt, '') = ''
   `)
   await client.execute(`
     UPDATE sessions

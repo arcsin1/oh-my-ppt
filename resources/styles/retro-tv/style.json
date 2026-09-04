@@ -13,6 +13,9 @@
     "CRT"
   ],
   "styleCase": "杂志编辑、品牌营销、生活方式",
+  "imageGeneration": {
+    "prompt": "Nostalgic 1980s CRT television glowing warm amber in a cozy cream-colored living room, with subtle scanlines, analog grain and tasteful retro illustration texture. Keep the object clearly framed with space for slide content. Do not render readable screen text, logos, UI, watermarks, people, or excessive visual clutter."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

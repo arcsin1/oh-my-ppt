@@ -24,6 +24,7 @@ import { applyProxy } from '../utils/proxy'
 import { configureLogging, scheduleUpdateNotification } from './lifecycle'
 import { createTray, destroyTray, showTrayHideBalloon } from './tray'
 import { createMainWindow, showMainWindow } from './window'
+import { attachWindowControlStateEvents, registerWindowControlHandlers } from './window-controls'
 
 /** Owns the main-process composition state; `index.ts` only wires Electron lifecycle events. */
 export class MainApplication {
@@ -125,6 +126,7 @@ export class MainApplication {
 
     registerLocalAssetProtocol()
     setupIPC(window, this.db, this.agentManager)
+    registerWindowControlHandlers()
     scheduleUpdateNotification(window)
 
     try {
@@ -170,6 +172,7 @@ export class MainApplication {
       isTrayEnabled: () => this.isTrayEnabled,
       onHideToTray: showTrayHideBalloon
     })
+    attachWindowControlStateEvents(window)
     this.mainWindow = window
     return window
   }

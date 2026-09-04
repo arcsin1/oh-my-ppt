@@ -10,6 +10,7 @@ import type {
 } from './style-switch-job-types'
 import type { IpcContext } from '../ipc/context'
 import { readStyleSwitchFileSnapshot } from './style-switch-job-files'
+import { LAYOUT_SLOT_PRESERVATION_REQUIREMENT } from '../generation/layout-slot-validator'
 
 export async function runStyleSwitchPageFlow(args: {
   ctx: IpcContext
@@ -38,15 +39,19 @@ export async function runStyleSwitchPageFlow(args: {
     appLocale: job.context.appLocale,
     topic: job.context.topic,
     deckTitle: job.context.deckTitle,
-    userMessage: buildDeckEditPageUserMessage({
-      originalUserMessage: job.context.userMessage,
-      pageId: page.pageId
-    }),
+    userMessage: [
+      buildDeckEditPageUserMessage({
+        originalUserMessage: job.context.userMessage,
+        pageId: page.pageId
+      }),
+      LAYOUT_SLOT_PRESERVATION_REQUIREMENT
+    ].join('\n\n'),
     outlineTitles: job.pageRefs.map((item) => item.title),
     outlineItems: job.pageRefs.map((item) => ({
       title: item.title,
       contentOutline: item.contentOutline,
-      layoutIntent: item.layoutIntent
+      layoutIntent: item.layoutIntent,
+      layoutId: item.layoutId || undefined
     })),
     sourceDocumentPaths: job.context.sourceDocumentPaths,
     projectDir: job.context.projectDir,

@@ -3,8 +3,8 @@
 ## P0 - Not Deliverable
 
 - Content exceeds 1200x1600 or is clipped.
-- Text-bearing modules use absolute/fixed positioning instead of grid/flex flow.
-- Body text is below 18px, headings below 24px, or auxiliary text below 12px.
+- Non-media text-bearing modules use absolute/fixed positioning instead of grid/flex flow, overlap another content module, or escape the canvas. Intentional text or transparent-panel overlays on image/video are allowed.
+- Body text is below 32px outside a bounded `data-ppt-density="high"` module or below 28px inside one, headings below 43px, or auxiliary text below 21px.
 - The poster has no strong visual or conceptual anchor.
 - Chart/table/list content is unreadable.
 

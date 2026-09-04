@@ -15,12 +15,10 @@ const {
   assessPageEditMock,
   cancelDeckEditMock,
   cancelGenerateMock,
-  cancelPageBeautifyMock,
   cancelPageEditMock,
   cancelStyleSwitchMock,
   getDeckEditStateMock,
   getGenerateStateMock,
-  getPageBeautifyStateMock,
   getPageEditStateMock,
   getStyleSwitchStateMock,
   startDeckEditMock,
@@ -32,12 +30,10 @@ const {
   assessPageEditMock: vi.fn(),
   cancelDeckEditMock: vi.fn().mockResolvedValue({ success: true }),
   cancelGenerateMock: vi.fn().mockResolvedValue({ success: true }),
-  cancelPageBeautifyMock: vi.fn().mockResolvedValue({ success: true }),
   cancelPageEditMock: vi.fn().mockResolvedValue({ success: true }),
   cancelStyleSwitchMock: vi.fn().mockResolvedValue({ success: true }),
   getDeckEditStateMock: vi.fn(),
   getGenerateStateMock: vi.fn(),
-  getPageBeautifyStateMock: vi.fn(),
   getPageEditStateMock: vi.fn(),
   getStyleSwitchStateMock: vi.fn(),
   startDeckEditMock: vi.fn(),
@@ -55,13 +51,11 @@ vi.mock('../../../src/renderer/src/lib/ipc', () => ({
   ipc: {
     assessPageEdit: assessPageEditMock,
     cancelDeckEdit: cancelDeckEditMock,
-    cancelPageBeautify: cancelPageBeautifyMock,
     cancelPageEdit: cancelPageEditMock,
     cancelStyleSwitch: cancelStyleSwitchMock,
     cancelGenerate: cancelGenerateMock,
     getDeckEditState: getDeckEditStateMock,
     getGenerateState: getGenerateStateMock,
-    getPageBeautifyState: getPageBeautifyStateMock,
     getPageEditState: getPageEditStateMock,
     getStyleSwitchState: getStyleSwitchStateMock,
     startDeckEdit: startDeckEditMock,
@@ -102,12 +96,10 @@ describe('useChatPanelController page edit scope', () => {
     assessPageEditMock.mockReset()
     cancelDeckEditMock.mockReset().mockResolvedValue({ success: true })
     cancelGenerateMock.mockReset().mockResolvedValue({ success: true })
-    cancelPageBeautifyMock.mockReset().mockResolvedValue({ success: true })
     cancelPageEditMock.mockReset().mockResolvedValue({ success: true })
     cancelStyleSwitchMock.mockReset().mockResolvedValue({ success: true })
     getDeckEditStateMock.mockReset()
     getGenerateStateMock.mockReset()
-    getPageBeautifyStateMock.mockReset()
     getPageEditStateMock.mockReset()
     getStyleSwitchStateMock.mockReset()
     startDeckEditMock.mockReset()

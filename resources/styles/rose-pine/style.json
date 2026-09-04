@@ -13,6 +13,9 @@
     "柔和暗色"
   ],
   "styleCase": "技术分享、艺术视觉、教学科普",
+  "imageGeneration": {
+    "prompt": "Moody poetic still life of a single muted rose among dark pine silhouettes at purple-black dusk, with soft rose-pink highlights and restrained pine-teal accents. Use atmospheric painterly light, a calm focal point and generous negative space. Do not render text, logos, UI, watermarks, glossy 3D, or dense floral arrangements."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

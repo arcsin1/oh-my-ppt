@@ -26,7 +26,7 @@ describe('getDeckProgressStageBounds', () => {
     expect(getDeckProgressStageBounds('whatever')).toEqual({ min: 0, max: 90 })
   })
 
-  it('lets finalizing reach 100 so page-beautify milestones are not stalled at 90', () => {
+  it('lets finalizing reach 100 so single-page edit milestones are not stalled at 90', () => {
     // Regression: post-agent emits (83/87/91/95/100) used to be clamped to ≤90 by the
     // default branch, making the bar freeze one tick short of done. The finalizing stage
     // exists specifically to let single-page workflows complete visibly.

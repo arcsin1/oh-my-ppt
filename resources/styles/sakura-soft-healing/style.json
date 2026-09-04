@@ -15,6 +15,9 @@
     "春日"
   ],
   "styleCase": "疗愈冥想、婚庆浪漫、生活方式",
+  "imageGeneration": {
+    "prompt": "Soft watercolor and colored-pencil spring lakeside scene with a blooming sakura canopy, calm lake, reeds, pale flowers and a girl in a yellow straw hat seen from behind under the tree. Use a muted Morandi pink, blue and green palette with soft bleeding edges and generous negative space. Do not render text, logos, UI, watermarks, photorealism, or crowded detail."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

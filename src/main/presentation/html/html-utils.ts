@@ -16,6 +16,7 @@ import {
   parseChartHeightClass,
   resolveChartHeightFromNearbyComment
 } from './chart-height'
+import { normalizeDataAnimTrigger } from '@shared/element-animation'
 
 // ── HTML parsing ──
 
@@ -100,6 +101,36 @@ export const PAGE_PLACEHOLDER_TEXT = '等待模型填充这一页内容'
 
 export const isPlaceholderPageHtml = (html: string): boolean =>
   html.includes(PAGE_PLACEHOLDER_TEXT) || /data-placeholder-page\s*=\s*["']1["']/i.test(html)
+
+const LEGACY_DATA_ANIM_TYPE_ALIASES: Record<string, string> = {
+  'fade-in': 'fade',
+  'fade-in-up': 'fade-up',
+  'fade-in-down': 'fade-down',
+  'fade-in-left': 'fade-left',
+  'fade-in-right': 'fade-right'
+}
+
+/**
+ * Normalize only the legacy animation spellings the editor already understands.
+ * Persisted pages remain strict: unknown values still fail validateDataAnimContract.
+ */
+export const normalizeLegacyDataAnimAttributes = (html: string): string => {
+  try {
+    const $ = cheerio.load(html, { scriptingEnabled: false }, false)
+    $('[data-anim]').each((_index, node) => {
+      const raw = ($(node).attr('data-anim') || '').trim().toLowerCase()
+      const normalized = LEGACY_DATA_ANIM_TYPE_ALIASES[raw]
+      if (normalized) $(node).attr('data-anim', normalized)
+    })
+    $('[data-anim-trigger]').each((_index, node) => {
+      const normalized = normalizeDataAnimTrigger($(node).attr('data-anim-trigger'))
+      if (normalized) $(node).attr('data-anim-trigger', normalized)
+    })
+    return $.root().html() || html
+  } catch {
+    return html
+  }
+}
 
 const getInlineScriptSyntaxErrors = (html: string): string[] => {
   const errors: string[] = []
@@ -377,6 +408,7 @@ export const validatePersistedPageHtml = (
   errors.push(...getVisibleChartHeightMarkerErrors(html))
   errors.push(...getChartHeightMarkerMismatchErrors(html))
   errors.push(...getChartHtmlLabelErrors(html))
+  errors.push(...validateDataAnimContract(html).errors)
   if (REMOTE_SCRIPT_OR_LINK_RE.test(html)) {
     errors.push('包含远程资源引用（字体已改为本地加载，禁止 CDN 链接）')
   }
@@ -414,11 +446,21 @@ export const validatePersistedPageHtml = (
     const el = $(node)
     const classRaw = el.attr('class') || ''
     const styleRaw = el.attr('style') || ''
-    if (/\bopacity-0\b|\binvisible\b/i.test(classRaw)) {
+    const animation = (el.attr('data-anim') || '').trim().toLowerCase()
+    const hasEnteringAnimation = Boolean(animation) && !animation.startsWith('exit-')
+    if (/\binvisible\b/i.test(classRaw)) {
       errors.push('包含默认隐藏态 class，可能导致内容不可见')
       return false
     }
-    if (/visibility\s*:\s*hidden|opacity\s*:\s*0(?:\.0+)?(?:;|$)/i.test(styleRaw)) {
+    if (/\bopacity-0\b/i.test(classRaw) && !hasEnteringAnimation) {
+      errors.push('包含默认隐藏态 class，可能导致内容不可见')
+      return false
+    }
+    if (/visibility\s*:\s*hidden/i.test(styleRaw)) {
+      errors.push('包含默认隐藏态 style，可能导致内容不可见')
+      return false
+    }
+    if (/opacity\s*:\s*0(?:\.0+)?(?:\s*!important)?(?:;|$)/i.test(styleRaw) && !hasEnteringAnimation) {
       errors.push('包含默认隐藏态 style，可能导致内容不可见')
       return false
     }

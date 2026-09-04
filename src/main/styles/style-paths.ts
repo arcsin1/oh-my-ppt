@@ -11,7 +11,7 @@ export function resolveBundledStylesSourcePath(): string {
 }
 
 export function resolveInstalledStylesPath(): string {
-  return path.join(app.getPath('userData'), is.dev ? 'styles-dev' : 'styles')
+  return path.join(app.getPath('userData'), is.dev ? 'styles-dev-1' : 'styles')
 }
 
 export async function ensureInstalledStylesPath(installedRootPath: string): Promise<void> {

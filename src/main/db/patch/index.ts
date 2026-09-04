@@ -11,6 +11,7 @@ import { patchModelConfigDisableTemperature } from './add-model-disable-temperat
 import { patchModelConfigThinkingParameterMode } from './add-model-thinking-parameter-mode'
 import { patchStylesColumns } from './add-styles-columns'
 import { patchDesignContractFonts } from './backfill-design-contract-fonts'
+import { patchSourcePageSkeletonAgendaItems } from './add-source-page-skeleton-agenda-items'
 
 type LibSqlClient = ReturnType<typeof createClient>
 type DrizzleDb = ReturnType<typeof drizzle>
@@ -83,7 +84,9 @@ CREATE TABLE IF NOT EXISTS sessions (
   metadata TEXT,
   design_contract TEXT,
   current_operation_id TEXT,
-  current_commit TEXT
+  current_commit TEXT,
+  visual_enabled INTEGER NOT NULL DEFAULT 0,
+  image_model_config_id TEXT REFERENCES image_model_configs(id) ON DELETE RESTRICT
 );
 
 ${MESSAGES_TABLE_SQL}
@@ -206,6 +209,8 @@ CREATE TABLE IF NOT EXISTS generation_pages (
   title TEXT NOT NULL,
   content_outline TEXT,
   layout_intent TEXT,
+  layout_id TEXT,
+  layout_contract_version INTEGER,
   html_path TEXT,
   status TEXT NOT NULL DEFAULT 'pending',
   error TEXT,
@@ -224,6 +229,9 @@ CREATE TABLE IF NOT EXISTS session_pages (
   page_number INTEGER NOT NULL,
   title TEXT NOT NULL,
   html_path TEXT NOT NULL,
+  layout_intent TEXT,
+  layout_id TEXT,
+  layout_contract_version INTEGER,
   status TEXT NOT NULL DEFAULT 'pending',
   error TEXT,
   created_at INTEGER NOT NULL,
@@ -231,6 +239,73 @@ CREATE TABLE IF NOT EXISTS session_pages (
   deleted_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_session_pages_session_number ON session_pages(session_id, page_number);
+
+CREATE TABLE IF NOT EXISTS image_fulfillment_jobs (
+  id TEXT PRIMARY KEY,
+  run_id TEXT NOT NULL REFERENCES generation_runs(id) ON DELETE CASCADE,
+  session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  session_page_id TEXT NOT NULL REFERENCES session_pages(id) ON DELETE CASCADE,
+  page_id TEXT NOT NULL,
+  layout_id TEXT,
+  layout_contract_version INTEGER,
+  image_model_config_id TEXT REFERENCES image_model_configs(id) ON DELETE SET NULL,
+  image_provider TEXT,
+  image_model TEXT,
+  attempt INTEGER NOT NULL,
+  retry_of_job_id TEXT REFERENCES image_fulfillment_jobs(id) ON DELETE SET NULL,
+  idempotency_key TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  error TEXT,
+  cancel_requested_at INTEGER,
+  lease_owner TEXT,
+  lease_expires_at INTEGER,
+  finalization_manifest_path TEXT,
+  created_at INTEGER NOT NULL,
+  started_at INTEGER,
+  updated_at INTEGER NOT NULL,
+  finished_at INTEGER
+);
+CREATE UNIQUE INDEX IF NOT EXISTS image_fulfillment_run_page_attempt_unique
+  ON image_fulfillment_jobs(run_id, session_page_id, attempt);
+CREATE UNIQUE INDEX IF NOT EXISTS image_fulfillment_idempotency_unique
+  ON image_fulfillment_jobs(session_id, idempotency_key);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_image_fulfillment_one_active_page
+  ON image_fulfillment_jobs(session_id, session_page_id)
+  WHERE status IN ('pending', 'running', 'finalizing');
+CREATE INDEX IF NOT EXISTS idx_image_fulfillment_jobs_session_page_status
+  ON image_fulfillment_jobs(session_id, session_page_id, status, updated_at);
+
+CREATE TABLE IF NOT EXISTS image_fulfillment_intents (
+  id TEXT PRIMARY KEY,
+  job_id TEXT NOT NULL REFERENCES image_fulfillment_jobs(id) ON DELETE CASCADE,
+  slot_id TEXT NOT NULL,
+  layout_slot_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  layer TEXT NOT NULL,
+  request_version INTEGER NOT NULL DEFAULT 1,
+  size_hint TEXT,
+  subject TEXT NOT NULL,
+  text_zone TEXT,
+  subject_zone TEXT,
+  negative_space TEXT,
+  avoid_json TEXT,
+  request_json TEXT NOT NULL,
+  image_history_id TEXT,
+  asset_path TEXT,
+  width INTEGER,
+  height INTEGER,
+  mime_type TEXT,
+  attempt INTEGER NOT NULL DEFAULT 1,
+  retry_of_intent_id TEXT REFERENCES image_fulfillment_intents(id) ON DELETE SET NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  error TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS image_fulfillment_intent_slot_unique
+  ON image_fulfillment_intents(job_id, slot_id);
+CREATE INDEX IF NOT EXISTS idx_image_fulfillment_intents_job_status
+  ON image_fulfillment_intents(job_id, status, updated_at);
 
 CREATE TABLE IF NOT EXISTS source_page_skeletons (
   id TEXT PRIMARY KEY,
@@ -244,6 +319,7 @@ CREATE TABLE IF NOT EXISTS source_page_skeletons (
   heading_level INTEGER NOT NULL,
   line_start INTEGER NOT NULL,
   line_end INTEGER NOT NULL,
+  agenda_items_json TEXT,
   reason TEXT,
   confidence TEXT NOT NULL DEFAULT 'high',
   created_at INTEGER NOT NULL,
@@ -274,6 +350,7 @@ CREATE TABLE IF NOT EXISTS styles (
   style_skill TEXT NOT NULL DEFAULT '',
   version TEXT NOT NULL DEFAULT '1.0.0',
   style_case TEXT NOT NULL DEFAULT '',
+  image_generation_prompt TEXT NOT NULL DEFAULT '',
   package_dir TEXT NOT NULL DEFAULT '',
   active INTEGER NOT NULL DEFAULT 1,
   favorite_at INTEGER,
@@ -314,6 +391,7 @@ CREATE TABLE IF NOT EXISTS session_style_snapshots (
   source TEXT NOT NULL,
   version TEXT NOT NULL DEFAULT '1.0.0',
   style_case TEXT NOT NULL DEFAULT '',
+  image_generation_prompt TEXT NOT NULL DEFAULT '',
   package_dir TEXT NOT NULL DEFAULT '',
   style_skill TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL
@@ -555,6 +633,21 @@ const enforceSessionsSchema = async (client: LibSqlClient): Promise<void> => {
   if (!columns.has('current_commit')) {
     await client.execute('ALTER TABLE sessions ADD COLUMN current_commit TEXT')
   }
+  if (!columns.has('visual_enabled')) {
+    await client.execute("ALTER TABLE sessions ADD COLUMN visual_enabled INTEGER NOT NULL DEFAULT 0")
+  }
+  if (!columns.has('image_model_config_id')) {
+    await client.execute('ALTER TABLE sessions ADD COLUMN image_model_config_id TEXT')
+  }
+  await client.execute(
+    'UPDATE sessions SET visual_enabled = 0 WHERE visual_enabled IS NULL OR visual_enabled NOT IN (0, 1)'
+  )
+  await client.execute(
+    'UPDATE sessions SET image_model_config_id = NULL WHERE visual_enabled = 0'
+  )
+  await client.execute(
+    'CREATE INDEX IF NOT EXISTS idx_sessions_image_model_config ON sessions(image_model_config_id)'
+  )
 }
 
 const enforceProjectsSchema = async (client: LibSqlClient): Promise<void> => {
@@ -952,6 +1045,12 @@ const enforceGenerationSchema = async (client: LibSqlClient): Promise<void> => {
   if (!columns.has('layout_intent')) {
     await client.execute('ALTER TABLE generation_pages ADD COLUMN layout_intent TEXT')
   }
+  if (!columns.has('layout_id')) {
+    await client.execute('ALTER TABLE generation_pages ADD COLUMN layout_id TEXT')
+  }
+  if (!columns.has('layout_contract_version')) {
+    await client.execute('ALTER TABLE generation_pages ADD COLUMN layout_contract_version INTEGER')
+  }
   await client.execute(
     'CREATE INDEX IF NOT EXISTS idx_generation_runs_session ON generation_runs(session_id, created_at)'
   )
@@ -990,6 +1089,15 @@ const enforceSessionPagesSchema = async (client: LibSqlClient): Promise<void> =>
   }
   if (!columns.has('deleted_at')) {
     await client.execute('ALTER TABLE session_pages ADD COLUMN deleted_at INTEGER')
+  }
+  if (!columns.has('layout_intent')) {
+    await client.execute('ALTER TABLE session_pages ADD COLUMN layout_intent TEXT')
+  }
+  if (!columns.has('layout_id')) {
+    await client.execute('ALTER TABLE session_pages ADD COLUMN layout_id TEXT')
+  }
+  if (!columns.has('layout_contract_version')) {
+    await client.execute('ALTER TABLE session_pages ADD COLUMN layout_contract_version INTEGER')
   }
   await client.execute(
     'CREATE INDEX IF NOT EXISTS idx_session_pages_session_number ON session_pages(session_id, page_number)'
@@ -1561,6 +1669,83 @@ const enforceHtmlEditorSchema = async (client: LibSqlClient): Promise<void> => {
   )
 }
 
+const enforceImageFulfillmentSchema = async (client: LibSqlClient): Promise<void> => {
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS image_fulfillment_jobs (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL REFERENCES generation_runs(id) ON DELETE CASCADE,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      session_page_id TEXT NOT NULL REFERENCES session_pages(id) ON DELETE CASCADE,
+      page_id TEXT NOT NULL,
+      layout_id TEXT,
+      layout_contract_version INTEGER,
+      image_model_config_id TEXT REFERENCES image_model_configs(id) ON DELETE SET NULL,
+      image_provider TEXT,
+      image_model TEXT,
+      attempt INTEGER NOT NULL,
+      retry_of_job_id TEXT REFERENCES image_fulfillment_jobs(id) ON DELETE SET NULL,
+      idempotency_key TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      error TEXT,
+      cancel_requested_at INTEGER,
+      lease_owner TEXT,
+      lease_expires_at INTEGER,
+      finalization_manifest_path TEXT,
+      created_at INTEGER NOT NULL,
+      started_at INTEGER,
+      updated_at INTEGER NOT NULL,
+      finished_at INTEGER
+    )
+  `)
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS image_fulfillment_intents (
+      id TEXT PRIMARY KEY,
+      job_id TEXT NOT NULL REFERENCES image_fulfillment_jobs(id) ON DELETE CASCADE,
+      slot_id TEXT NOT NULL,
+      layout_slot_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      layer TEXT NOT NULL,
+      request_version INTEGER NOT NULL DEFAULT 1,
+      size_hint TEXT,
+      subject TEXT NOT NULL,
+      text_zone TEXT,
+      subject_zone TEXT,
+      negative_space TEXT,
+      avoid_json TEXT,
+      request_json TEXT NOT NULL,
+      image_history_id TEXT,
+      asset_path TEXT,
+      width INTEGER,
+      height INTEGER,
+      mime_type TEXT,
+      attempt INTEGER NOT NULL DEFAULT 1,
+      retry_of_intent_id TEXT REFERENCES image_fulfillment_intents(id) ON DELETE SET NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      error TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `)
+  await client.execute(
+    'CREATE UNIQUE INDEX IF NOT EXISTS image_fulfillment_run_page_attempt_unique ON image_fulfillment_jobs(run_id, session_page_id, attempt)'
+  )
+  await client.execute(
+    'CREATE UNIQUE INDEX IF NOT EXISTS image_fulfillment_idempotency_unique ON image_fulfillment_jobs(session_id, idempotency_key)'
+  )
+  await client.execute(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_image_fulfillment_one_active_page ON image_fulfillment_jobs(session_id, session_page_id) WHERE status IN ('pending', 'running', 'finalizing')"
+  )
+  await client.execute(
+    'CREATE INDEX IF NOT EXISTS idx_image_fulfillment_jobs_session_page_status ON image_fulfillment_jobs(session_id, session_page_id, status, updated_at)'
+  )
+  await client.execute(
+    'CREATE UNIQUE INDEX IF NOT EXISTS image_fulfillment_intent_slot_unique ON image_fulfillment_intents(job_id, slot_id)'
+  )
+  await client.execute(
+    'CREATE INDEX IF NOT EXISTS idx_image_fulfillment_intents_job_status ON image_fulfillment_intents(job_id, status, updated_at)'
+  )
+}
+
 export const runDatabasePatches = async (args: {
   client: LibSqlClient
   db: DrizzleDb
@@ -1577,6 +1762,7 @@ export const runDatabasePatches = async (args: {
   await client.executeMultiple(MODEL_USAGE_TABLE_SQL)
   await enforceGenerationSchema(client)
   await enforceSessionPagesSchema(client)
+  await enforceImageFulfillmentSchema(client)
   await enforceSessionOperationsSchema(client)
   await enforceSessionOperationPagesSchema(client)
   await enforceHtmlEditorSchema(client)
@@ -1585,6 +1771,7 @@ export const runDatabasePatches = async (args: {
   await ensureDefaultSettings(client)
   await patchProjectRootPaths({ client, resolveStoragePath })
   await patchDesignContractFonts(client)
+  await patchSourcePageSkeletonAgendaItems(client)
   await patchGenerationRecordsFromMetadata({ client, db, resolveStoragePath })
   await patchSessionPagesFromLegacy({ client, db, resolveStoragePath })
   await patchSessionPagesFromGenerationPages({ client, db, resolveStoragePath })

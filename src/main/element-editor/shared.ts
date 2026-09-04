@@ -935,7 +935,7 @@ export function patchGenericElementProperties(
     if (!position || position === 'static') styleMap.set('position', 'relative')
     styleMap.set('z-index', String(zIndex))
   }
-  if (opacity) styleMap.set('opacity', opacity)
+  if (opacity !== null) styleMap.set('opacity', opacity)
   const backgroundAppliedToSvg = applyInsertedSvgPaintColor($, target, backgroundColor, styleMap)
   if (backgroundColor && !backgroundAppliedToSvg) styleMap.set('background-color', backgroundColor)
   if (color) styleMap.set('color', color)
@@ -947,7 +947,7 @@ export function patchGenericElementProperties(
     backgroundAppliedToSvg && target.attr('data-ppt-edit-kind') === 'icon'
   if (
     zIndex !== null ||
-    opacity ||
+    opacity !== null ||
     (backgroundColor && !backgroundAppliedToSvg) ||
     backgroundUpdatesOuterStyle ||
     color ||

@@ -15,6 +15,7 @@ import { JobCoordinator, sessionLockKey } from '../agent-runtime'
 import type { EditContext } from '../generation/types'
 import type { GenerateChunkEvent } from '@shared/generation'
 import { normalizeLayoutIntent } from '@shared/layout-intent'
+import { resolveRetainedPageLayoutSource } from '../generation/layout-slot-validator'
 import { runStyleSwitchPageFlow } from './style-switch-job-flow'
 import {
   readStyleSwitchFileSnapshot,
@@ -69,7 +70,10 @@ export class StyleSwitchJobService {
   private activeJobs = new Map<string, ActiveStyleSwitchJob>()
   private reservedJobIds = new Map<string, string>()
 
-  constructor(private ctx: IpcContext, private coordinator: JobCoordinator) {}
+  constructor(
+    private ctx: IpcContext,
+    private coordinator: JobCoordinator
+  ) {}
 
   async start(
     event: Electron.IpcMainInvokeEvent,
@@ -181,9 +185,13 @@ export class StyleSwitchJobService {
             candidates: [page.html_path]
           }),
           contentOutline: latest?.content_outline || '',
-          layoutIntent: latest?.layout_intent
-            ? normalizeLayoutIntent(latest.layout_intent)
-            : undefined,
+          layoutIntent: page.layout_intent
+            ? normalizeLayoutIntent(page.layout_intent)
+            : latest?.layout_intent
+              ? normalizeLayoutIntent(latest.layout_intent)
+              : undefined,
+          layoutId: page.layout_id || null,
+          layoutContractVersion: page.layout_contract_version || null,
           retryCount: Math.max(0, Math.floor(options?.retryCounts?.[page.file_slug] || 0))
         }
       })
@@ -224,6 +232,8 @@ export class StyleSwitchJobService {
           title: page.title,
           contentOutline: page.contentOutline,
           layoutIntent: page.layoutIntent,
+          layoutId: page.layoutId,
+          layoutContractVersion: page.layoutContractVersion,
           htmlPath: page.htmlPath,
           status: 'pending',
           retryCount: page.retryCount
@@ -675,6 +685,8 @@ export class StyleSwitchJobService {
         title: page.title,
         contentOutline: page.contentOutline,
         layoutIntent: page.layoutIntent,
+        layoutId: page.layoutId,
+        layoutContractVersion: page.layoutContractVersion,
         htmlPath: page.htmlPath,
         status: 'running',
         retryCount: page.retryCount
@@ -742,6 +754,8 @@ export class StyleSwitchJobService {
         title: page.title,
         contentOutline: page.contentOutline,
         layoutIntent: page.layoutIntent,
+        layoutId: page.layoutId,
+        layoutContractVersion: page.layoutContractVersion,
         htmlPath: page.htmlPath,
         status: 'failed',
         error: message,
@@ -790,6 +804,12 @@ export class StyleSwitchJobService {
       await this.ctx.db.listSessionPages(job.sessionId, { includeDeleted: true })
     ).find((candidate) => candidate.id === page.id || candidate.file_slug === page.pageId)
     const previousPage = existingPage ? { ...existingPage } : null
+    const retainedLayoutSource = resolveRetainedPageLayoutSource({
+      html,
+      layoutIntent: page.layoutIntent || null,
+      layoutId: page.layoutId,
+      layoutContractVersion: page.layoutContractVersion
+    })
     const relativePath = toRelativeProjectPath(job.context.projectDir, page.htmlPath)
     let appliedStyleState = false
     try {
@@ -843,6 +863,9 @@ export class StyleSwitchJobService {
           pageNumber: page.pageNumber,
           title: page.title,
           htmlPath: page.htmlPath,
+          layoutIntent: retainedLayoutSource.layoutIntent,
+          layoutId: retainedLayoutSource.layoutId,
+          layoutContractVersion: retainedLayoutSource.layoutContractVersion,
           status: 'completed',
           error: null
         })
@@ -853,7 +876,9 @@ export class StyleSwitchJobService {
           pageNumber: page.pageNumber,
           title: page.title,
           contentOutline: page.contentOutline,
-          layoutIntent: page.layoutIntent,
+          layoutIntent: retainedLayoutSource.layoutIntent,
+          layoutId: retainedLayoutSource.layoutId,
+          layoutContractVersion: retainedLayoutSource.layoutContractVersion,
           htmlPath: page.htmlPath,
           status: 'completed',
           retryCount: page.retryCount
@@ -919,6 +944,11 @@ export class StyleSwitchJobService {
           pageNumber: previousPage.page_number,
           title: previousPage.title,
           htmlPath: previousPage.html_path,
+          layoutIntent: previousPage.layout_intent
+            ? normalizeLayoutIntent(previousPage.layout_intent)
+            : null,
+          layoutId: previousPage.layout_id || null,
+          layoutContractVersion: previousPage.layout_contract_version || null,
           status: previousPage.status,
           error: previousPage.error
         })
@@ -982,6 +1012,8 @@ export class StyleSwitchJobService {
             title: page.title,
             contentOutline: page.content_outline,
             layoutIntent: page.layout_intent,
+            layoutId: page.layout_id,
+            layoutContractVersion: page.layout_contract_version,
             htmlPath: page.html_path,
             status: 'failed',
             error: reason,

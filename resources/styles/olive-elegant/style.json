@@ -14,6 +14,9 @@
     "古典"
   ],
   "styleCase": "艺术视觉、传统文化、杂志编辑",
+  "imageGeneration": {
+    "prompt": "Elegant botanical still life with olive and laurel branches against deep olive-green and ivory, restrained antique-gold line accents and classical editorial lighting. Keep the image refined, tactile and spacious for slide text. Do not render text, logos, UI, watermarks, ornate frames, or dense foliage."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

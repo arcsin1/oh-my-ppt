@@ -199,21 +199,27 @@ function SortableBrowseCard({
       className="group relative"
     >
       <div className="absolute inset-x-2 top-2 z-10 flex items-start justify-between opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-        <button
-          type="button"
-          ref={setActivatorNodeRef}
-          disabled={structureDisabled}
-          onClick={(event) => event.stopPropagation()}
-          className={`inline-flex h-8 w-8 items-center justify-center rounded bg-white/90 p-1 text-[#5d6b4d] shadow-sm transition-colors hover:bg-[#f5f1e8] hover:text-[#3e4a32] disabled:cursor-not-allowed disabled:opacity-50 ${
-            isDragging ? 'cursor-grabbing' : 'cursor-grab'
-          }`}
-          aria-label={dragHandleLabel}
-          title={dragHandleLabel}
-          {...attributes}
-          {...listeners}
-        >
-          <Move className={`h-4 w-4 ${isDragging ? 'opacity-60' : ''}`} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              ref={setActivatorNodeRef}
+              disabled={structureDisabled}
+              onClick={(event) => event.stopPropagation()}
+              className={`inline-flex h-8 w-8 items-center justify-center rounded bg-white/90 p-1 text-[#5d6b4d] shadow-sm transition-colors hover:bg-[#f5f1e8] hover:text-[#3e4a32] disabled:cursor-not-allowed disabled:opacity-50 ${
+                isDragging ? 'cursor-grabbing' : 'cursor-grab'
+              }`}
+              aria-label={dragHandleLabel}
+              {...attributes}
+              {...listeners}
+            >
+              <Move className={`h-4 w-4 ${isDragging ? 'opacity-60' : ''}`} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" align="start">
+            {dragHandleLabel}
+          </TooltipContent>
+        </Tooltip>
         <div className="flex items-center gap-1">
           {canExportPptx ? (
             <DropdownMenu>
@@ -250,45 +256,59 @@ function SortableBrowseCard({
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null}
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={(event) => {
-              event.stopPropagation()
-              onRenamePage(page)
-            }}
-            className="rounded bg-white/90 p-1 text-[#5d6b4d] shadow-sm transition-colors hover:bg-[#f5f1e8] hover:text-[#3e4a32] disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label={renameLabel}
-            title={renameLabel}
-          >
-            <PencilLine className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            disabled={disabled || structureDisabled}
-            onClick={(event) => {
-              event.stopPropagation()
-              onDuplicatePage(page)
-            }}
-            className="rounded bg-white/90 p-1 text-[#5d6b4d] shadow-sm transition-colors hover:bg-[#f5f1e8] hover:text-[#3e4a32] disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label={duplicateLabel}
-            title={duplicateLabel}
-          >
-            <Copy className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            disabled={disabled || structureDisabled || pageCount <= 1}
-            onClick={(event) => {
-              event.stopPropagation()
-              onDeletePage(page)
-            }}
-            className="rounded bg-white/90 p-1 shadow-sm transition-colors hover:bg-[#f5f1e8] disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label={deleteLabel}
-            title={deleteLabel}
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onRenamePage(page)
+                }}
+                className="rounded bg-white/90 p-1 text-[#5d6b4d] shadow-sm transition-colors hover:bg-[#f5f1e8] hover:text-[#3e4a32] disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label={renameLabel}
+              >
+                <PencilLine className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{renameLabel}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                disabled={disabled || structureDisabled}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onDuplicatePage(page)
+                }}
+                className="rounded bg-white/90 p-1 text-[#5d6b4d] shadow-sm transition-colors hover:bg-[#f5f1e8] hover:text-[#3e4a32] disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label={duplicateLabel}
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{duplicateLabel}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                disabled={disabled || structureDisabled || pageCount <= 1}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onDeletePage(page)
+                }}
+                className="rounded bg-white/90 p-1 shadow-sm transition-colors hover:bg-[#f5f1e8] disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label={deleteLabel}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" align="end">
+              {deleteLabel}
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
       <BrowseCard page={page} previewVersion={previewVersion} renderPreview={renderPreview} />
@@ -306,7 +326,6 @@ export function BrowseView(props: { sessionId: string }): React.JSX.Element {
   const isGenerating = useGenerateStore((state) => state.isGenerating)
   const isDeckEditing = useGenerateStore((state) => Boolean(state.deckEditJobs[sessionId]))
   const pageEditJob = useGenerateStore((state) => state.pageEditJobs[sessionId] || null)
-  const pageBeautifyJob = useGenerateStore((state) => state.pageBeautifyJobs[sessionId] || null)
   const styleSwitchJob = useGenerateStore((state) => state.styleSwitchJobs[sessionId] || null)
   const previewKey = useSessionDetailUiStore((state) => state.previewKey)
   const thumbnailVersions = useSessionDetailUiStore((state) => state.thumbnailVersions)
@@ -323,7 +342,6 @@ export function BrowseView(props: { sessionId: string }): React.JSX.Element {
     isAddingPage ||
     isRetryingSinglePage ||
     Boolean(pageEditJob) ||
-    Boolean(pageBeautifyJob) ||
     Boolean(styleSwitchJob)
   const isSessionWideGenerating = isGenerating && !hasPageScopedGeneration
   const structureDisabled =
@@ -339,7 +357,6 @@ export function BrowseView(props: { sessionId: string }): React.JSX.Element {
       retryingSinglePageId
     }) ||
     pageEditJob?.pageId === page.pageId ||
-    pageBeautifyJob?.pageId === page.pageId ||
     isStyleSwitchPageLocked(styleSwitchJob, page.pageId)
 
   const pageIds = useMemo(() => new Set(pages.map((page) => page.id)), [pages])

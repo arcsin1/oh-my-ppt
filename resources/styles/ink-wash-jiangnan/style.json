@@ -14,6 +14,9 @@
     "中国风"
   ],
   "styleCase": "传统文化、疗愈冥想、艺术视觉",
+  "imageGeneration": {
+    "prompt": "Traditional Chinese ink-wash Jiangnan water town with an arched stone bridge, black-canopied boat, willow trees, white walls, dark tiled roofs and misty distant hills. Use rice-paper texture, restrained vermilion accents and poetic whitespace. Do not render text, seal lettering, logos, UI, watermarks, heavy saturation, or photorealism."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

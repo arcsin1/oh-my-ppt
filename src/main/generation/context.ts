@@ -29,8 +29,11 @@ import type { RuntimeEmitters } from '../ipc/runtime/runtime-emitters'
 import type { SessionProjectResolver } from '../ipc/runtime/session-project'
 import type { SessionScaffold } from '../ipc/runtime/session-scaffold'
 import type { SessionRunStateStore } from '../ipc/runtime/session-run-state'
+import { JobCoordinator } from '../agent-runtime'
+import { resolveConfiguredImageModel } from '../image-generation/model-config'
+import { appendStyleImageGuidance } from '../agent-runtime/prompt/composers/style-image-guidance'
 
-export { resolveSourceDocuments } from './source-documents'
+export { resolveSessionReferenceDocumentPath, resolveSourceDocuments } from './source-documents'
 import { resolveGlobalModelTimeouts, resolveModelConfigForTask } from '../config/model-config-utils'
 import {
   ensureHistoryBaselineSafe,
@@ -44,10 +47,13 @@ export type GenerationDbPort = Pick<
   | 'addMessage'
   | 'createGenerationRun'
   | 'createGenerationRunWithSessionJob'
+  | 'createImageFulfillmentJob'
   | 'createProject'
   | 'getActiveModelConfig'
   | 'getAllSettings'
+  | 'getImageModelConfig'
   | 'getGenerationRun'
+  | 'getImageFulfillmentJob'
   | 'getLatestSessionJob'
   | 'getModelConfig'
   | 'getOrCreateSessionStyleSnapshot'
@@ -56,6 +62,7 @@ export type GenerationDbPort = Pick<
   | 'getSetting'
   | 'listActiveSessionJobs'
   | 'listGenerationPages'
+  | 'listImageFulfillmentIntents'
   | 'listLatestGenerationPageSnapshot'
   | 'listSessionPages'
   | 'listSourcePageSkeletons'
@@ -65,6 +72,11 @@ export type GenerationDbPort = Pick<
   | 'updateSessionJobStatus'
   | 'updateSessionMetadata'
   | 'updateSessionStatus'
+  | 'claimImageFulfillmentJob'
+  | 'completeImageFulfillmentJob'
+  | 'transitionImageFulfillmentIntent'
+  | 'transitionImageFulfillmentJob'
+  | 'insertImageGenerationHistory'
   | 'upsertGenerationPage'
   | 'upsertSessionPage'
 >
@@ -122,14 +134,19 @@ export type GenerationContext = {
   credentials: Pick<RuntimeCredentials, 'decryptApiKey'>
   history: GenerationHistory
   tuning: GenerationTuning
+  imageCoordinator: JobCoordinator
 }
 
 /**
  * IPC composition helper. The input is structural on purpose so the setup
  * layer can pass its compatibility facade without Generation importing it.
  */
-export type GenerationContextAssembly = Omit<GenerationContext, 'history' | 'tuning'> & {
+export type GenerationContextAssembly = Omit<
+  GenerationContext,
+  'history' | 'tuning' | 'imageCoordinator'
+> & {
   db: PPTDatabase
+  imageCoordinator?: JobCoordinator
   PLANNER_TEMPERATURE: number
   DESIGN_CONTRACT_TEMPERATURE: number
   PAGE_GENERATION_TEMPERATURE: number
@@ -152,6 +169,7 @@ export const createGenerationContext = (args: GenerationContextAssembly): Genera
       ensureHistoryBaselineSafe(args.db, sessionId, projectDir),
     recordOperation: (operation) => recordHistoryOperationStrict(args.db, operation)
   },
+  imageCoordinator: args.imageCoordinator || new JobCoordinator(),
   tuning: {
     plannerTemperature: args.PLANNER_TEMPERATURE,
     designContractTemperature: args.DESIGN_CONTRACT_TEMPERATURE,
@@ -191,6 +209,7 @@ export type CommonGenerationContext = {
     prompt: string
   }
   styleSkillPrompt: string
+  imageGenerationPrompt: string
   styleKey: string
   styleName: string
   styleVersion: string
@@ -201,6 +220,8 @@ export type CommonGenerationContext = {
   fontSelection: FontSelection
   sourcePlan: SourceDocumentPlan | null
   projectId: string
+  visualEnabled: boolean
+  imageModelConfigId?: string
 }
 
 /**
@@ -245,7 +266,10 @@ const PROMPT_SAFE_COMPUTED_STYLE_PROPERTIES = new Set<string>(
   SELECTED_ELEMENT_CONTEXT_COMPUTED_STYLE_PROPERTIES
 )
 
-const normalizeSelectedElementContextValue = (value: unknown, maxLength = MAX_SELECTED_ELEMENT_CONTEXT_VALUE_LENGTH): string =>
+const normalizeSelectedElementContextValue = (
+  value: unknown,
+  maxLength = MAX_SELECTED_ELEMENT_CONTEXT_VALUE_LENGTH
+): string =>
   String(value ?? '')
     .replace(/\s+/g, ' ')
     .trim()
@@ -268,7 +292,11 @@ export function normalizeSelectedElementRuntimeContext(
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
   const input = value as Record<string, unknown>
   const attributes: Record<string, string> = {}
-  if (input.attributes && typeof input.attributes === 'object' && !Array.isArray(input.attributes)) {
+  if (
+    input.attributes &&
+    typeof input.attributes === 'object' &&
+    !Array.isArray(input.attributes)
+  ) {
     for (const [key, rawValue] of Object.entries(input.attributes)) {
       if (Object.keys(attributes).length >= MAX_SELECTED_ELEMENT_CONTEXT_ENTRIES) break
       const name = normalizeSelectedElementContextValue(key, 100).toLowerCase()
@@ -278,7 +306,11 @@ export function normalizeSelectedElementRuntimeContext(
   }
 
   const inlineStyle: NonNullable<SelectedElementRuntimeContext['inlineStyle']> = {}
-  if (input.inlineStyle && typeof input.inlineStyle === 'object' && !Array.isArray(input.inlineStyle)) {
+  if (
+    input.inlineStyle &&
+    typeof input.inlineStyle === 'object' &&
+    !Array.isArray(input.inlineStyle)
+  ) {
     for (const [key, rawDeclaration] of Object.entries(input.inlineStyle)) {
       if (Object.keys(inlineStyle).length >= MAX_SELECTED_ELEMENT_CONTEXT_ENTRIES) break
       const property = normalizeSelectedElementContextValue(key, 100).toLowerCase()
@@ -296,7 +328,11 @@ export function normalizeSelectedElementRuntimeContext(
   }
 
   const computedStyle: Record<string, string> = {}
-  if (input.computedStyle && typeof input.computedStyle === 'object' && !Array.isArray(input.computedStyle)) {
+  if (
+    input.computedStyle &&
+    typeof input.computedStyle === 'object' &&
+    !Array.isArray(input.computedStyle)
+  ) {
     for (const [key, rawValue] of Object.entries(input.computedStyle)) {
       const property = normalizeSelectedElementContextValue(key, 100).toLowerCase()
       if (!PROMPT_SAFE_COMPUTED_STYLE_PROPERTIES.has(property)) continue
@@ -383,12 +419,11 @@ export function normalizeGeneratePayload(payload: unknown): NormalizedGenerateIn
   const persistUserMessage = input?.persistUserMessage !== false
   const rawClientMessageId =
     typeof input?.clientMessageId === 'string' ? input.clientMessageId.trim() : ''
-  const clientMessageId =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      rawClientMessageId
-    )
-      ? rawClientMessageId
-      : undefined
+  const clientMessageId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    rawClientMessageId
+  )
+    ? rawClientMessageId
+    : undefined
   const selectedPageId =
     typeof input?.selectedPageId === 'string' && input.selectedPageId.trim().length > 0
       ? input.selectedPageId.trim()
@@ -415,7 +450,9 @@ export function normalizeGeneratePayload(payload: unknown): NormalizedGenerateIn
     : undefined
   const chatType: GenerateChatType = input?.chatType === 'page' ? 'page' : 'main'
   const chatPageId =
-    chatType === 'page' && typeof input?.chatPageId === 'string' && input.chatPageId.trim().length > 0
+    chatType === 'page' &&
+    typeof input?.chatPageId === 'string' &&
+    input.chatPageId.trim().length > 0
       ? input.chatPageId.trim()
       : undefined
   const animationPreferences = normalizeAnimationPreferences(input?.animationPreferences)
@@ -503,6 +540,20 @@ export async function resolveCommonContext(
   const sessionMetadata = parseJsonObject(sessionRecord.metadata ?? sessionRecord.metadata_json)
   const sourcePlan = sourcePlanFromSkeletonRows(await db.listSourcePageSkeletons(sessionId))
   const previousSessionStatus = String(sessionRecord.status || 'active')
+  const visualEnabled =
+    Number(sessionRecord.visualEnabled ?? sessionRecord.visual_enabled ?? 0) === 1
+  const imageModelConfigId = String(
+    sessionRecord.imageModelConfigId ?? sessionRecord.image_model_config_id ?? ''
+  ).trim()
+  if (visualEnabled) {
+    if (!imageModelConfigId) {
+      throw new Error('Automatic image generation requires an image model configuration.')
+    }
+    await resolveConfiguredImageModel(
+      { db, decryptApiKey: ctx.credentials.decryptApiKey },
+      imageModelConfigId
+    )
+  }
 
   const modelConfigContext = {
     db,
@@ -525,6 +576,12 @@ export async function resolveCommonContext(
   const styleSnapshot = await db.getOrCreateSessionStyleSnapshot(sessionId)
   const styleId = styleSnapshot.styleId
   const styleAliases = parseJsonArray(styleSnapshot.aliases)
+  const imageGenerationPrompt = styleSnapshot.imageGenerationPrompt?.trim() || ''
+  const rawStyleSkillPrompt =
+    styleSnapshot.styleSkill?.trim() ||
+    (styleSnapshot.description
+      ? `Use ${styleSnapshot.styleKey} style: ${styleSnapshot.description}`
+      : `Use ${styleSnapshot.styleKey} style.`)
   const styleSkill = {
     preset: {
       id: styleSnapshot.styleId,
@@ -535,11 +592,10 @@ export async function resolveCommonContext(
         ? `Use ${styleSnapshot.styleKey} style: ${styleSnapshot.description}`
         : `Use ${styleSnapshot.styleKey} style.`
     },
-    prompt:
-      styleSnapshot.styleSkill?.trim() ||
-      (styleSnapshot.description
-        ? `Use ${styleSnapshot.styleKey} style: ${styleSnapshot.description}`
-        : `Use ${styleSnapshot.styleKey} style.`)
+    prompt: appendStyleImageGuidance(rawStyleSkillPrompt, {
+      visualEnabled,
+      imageGenerationPrompt
+    })
   }
 
   const existingProject = await db.getProject(sessionId)
@@ -596,6 +652,7 @@ export async function resolveCommonContext(
     styleSnapshot,
     styleSkill,
     styleSkillPrompt: styleSkill.prompt,
+    imageGenerationPrompt,
     styleKey: styleSnapshot.styleKey,
     styleName: styleSnapshot.styleName,
     styleVersion: styleSnapshot.version,
@@ -605,6 +662,8 @@ export async function resolveCommonContext(
     appLocale,
     fontSelection: normalizeFontSelection(sessionMetadata.fontSelection),
     sourcePlan,
-    projectId
+    projectId,
+    visualEnabled,
+    imageModelConfigId: visualEnabled ? imageModelConfigId : undefined
   }
 }

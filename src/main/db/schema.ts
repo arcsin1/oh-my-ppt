@@ -18,7 +18,11 @@ export const sessions = sqliteTable('sessions', {
   metadata: text('metadata'),
   designContract: text('design_contract'),
   currentOperationId: text('current_operation_id'),
-  currentCommit: text('current_commit')
+  currentCommit: text('current_commit'),
+  visualEnabled: integer('visual_enabled').notNull().default(0),
+  imageModelConfigId: text('image_model_config_id').references(() => imageModelConfigs.id, {
+    onDelete: 'restrict'
+  })
 })
 
 export const messages = sqliteTable('messages', {
@@ -136,6 +140,8 @@ export const generationPages = sqliteTable('generation_pages', {
   title: text('title').notNull(),
   contentOutline: text('content_outline'),
   layoutIntent: text('layout_intent'),
+  layoutId: text('layout_id'),
+  layoutContractVersion: integer('layout_contract_version'),
   htmlPath: text('html_path'),
   status: text('status').notNull().default('pending'),
   error: text('error'),
@@ -154,6 +160,9 @@ export const sessionPages = sqliteTable(
     pageNumber: integer('page_number').notNull(),
     title: text('title').notNull(),
     htmlPath: text('html_path').notNull(),
+    layoutIntent: text('layout_intent'),
+    layoutId: text('layout_id'),
+    layoutContractVersion: integer('layout_contract_version'),
     status: text('status').notNull().default('pending'),
     error: text('error'),
     createdAt: integer('created_at').notNull(),
@@ -184,6 +193,7 @@ export const sourcePageSkeletons = sqliteTable(
     headingLevel: integer('heading_level').notNull(),
     lineStart: integer('line_start').notNull(),
     lineEnd: integer('line_end').notNull(),
+    agendaItemsJson: text('agenda_items_json'),
     reason: text('reason'),
     confidence: text('confidence').notNull().default('high'),
     createdAt: integer('created_at').notNull(),
@@ -254,6 +264,108 @@ export const imageGenerationHistories = sqliteTable(
   })
 )
 
+export const imageFulfillmentJobs = sqliteTable(
+  'image_fulfillment_jobs',
+  {
+    id: text('id').primaryKey(),
+    runId: text('run_id')
+      .notNull()
+      .references(() => generationRuns.id, { onDelete: 'cascade' }),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => sessions.id, { onDelete: 'cascade' }),
+    sessionPageId: text('session_page_id')
+      .notNull()
+      .references(() => sessionPages.id, { onDelete: 'cascade' }),
+    pageId: text('page_id').notNull(),
+    layoutId: text('layout_id'),
+    layoutContractVersion: integer('layout_contract_version'),
+    imageModelConfigId: text('image_model_config_id').references(() => imageModelConfigs.id, {
+      onDelete: 'set null'
+    }),
+    imageProvider: text('image_provider'),
+    imageModel: text('image_model'),
+    attempt: integer('attempt').notNull(),
+    retryOfJobId: text('retry_of_job_id').references((): any => imageFulfillmentJobs.id, {
+      onDelete: 'set null'
+    }),
+    idempotencyKey: text('idempotency_key'),
+    status: text('status').notNull().default('pending'),
+    error: text('error'),
+    cancelRequestedAt: integer('cancel_requested_at'),
+    leaseOwner: text('lease_owner'),
+    leaseExpiresAt: integer('lease_expires_at'),
+    finalizationManifestPath: text('finalization_manifest_path'),
+    createdAt: integer('created_at').notNull(),
+    startedAt: integer('started_at'),
+    updatedAt: integer('updated_at').notNull(),
+    finishedAt: integer('finished_at')
+  },
+  (table) => ({
+    imageFulfillmentRunPageAttemptUnique: uniqueIndex('image_fulfillment_run_page_attempt_unique').on(
+      table.runId,
+      table.sessionPageId,
+      table.attempt
+    ),
+    imageFulfillmentIdempotencyUnique: uniqueIndex('image_fulfillment_idempotency_unique').on(
+      table.sessionId,
+      table.idempotencyKey
+    ),
+    imageFulfillmentSessionPageStatusIdx: index('idx_image_fulfillment_jobs_session_page_status').on(
+      table.sessionId,
+      table.sessionPageId,
+      table.status,
+      table.updatedAt
+    )
+  })
+)
+
+export const imageFulfillmentIntents = sqliteTable(
+  'image_fulfillment_intents',
+  {
+    id: text('id').primaryKey(),
+    jobId: text('job_id')
+      .notNull()
+      .references(() => imageFulfillmentJobs.id, { onDelete: 'cascade' }),
+    slotId: text('slot_id').notNull(),
+    layoutSlotId: text('layout_slot_id').notNull(),
+    role: text('role').notNull(),
+    layer: text('layer').notNull(),
+    requestVersion: integer('request_version').notNull().default(1),
+    sizeHint: text('size_hint'),
+    subject: text('subject').notNull(),
+    textZone: text('text_zone'),
+    subjectZone: text('subject_zone'),
+    negativeSpace: text('negative_space'),
+    avoidJson: text('avoid_json'),
+    requestJson: text('request_json').notNull(),
+    imageHistoryId: text('image_history_id'),
+    assetPath: text('asset_path'),
+    width: integer('width'),
+    height: integer('height'),
+    mimeType: text('mime_type'),
+    attempt: integer('attempt').notNull().default(1),
+    retryOfIntentId: text('retry_of_intent_id').references((): any => imageFulfillmentIntents.id, {
+      onDelete: 'set null'
+    }),
+    status: text('status').notNull().default('pending'),
+    error: text('error'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull()
+  },
+  (table) => ({
+    imageFulfillmentIntentSlotUnique: uniqueIndex('image_fulfillment_intent_slot_unique').on(
+      table.jobId,
+      table.slotId
+    ),
+    imageFulfillmentIntentStatusIdx: index('idx_image_fulfillment_intents_job_status').on(
+      table.jobId,
+      table.status,
+      table.updatedAt
+    )
+  })
+)
+
 export const memorySummaries = sqliteTable('memory_summaries', {
   id: text('id').primaryKey(),
   sessionId: text('session_id').notNull(),
@@ -287,6 +399,7 @@ export const styles = sqliteTable('styles', {
   styleSkill: text('style_skill').notNull().default(''),
   version: text('version').notNull().default('1.0.0'),
   styleCase: text('style_case').notNull().default(''),
+  imageGenerationPrompt: text('image_generation_prompt').notNull().default(''),
   packageDir: text('package_dir').notNull().default(''),
   active: integer('active', { mode: 'boolean' }).notNull().default(true),
   favoriteAt: integer('favorite_at'),
@@ -338,6 +451,7 @@ export const sessionStyleSnapshots = sqliteTable(
     source: text('source').notNull(),
     version: text('version').notNull().default('1.0.0'),
     styleCase: text('style_case').notNull().default(''),
+    imageGenerationPrompt: text('image_generation_prompt').notNull().default(''),
     packageDir: text('package_dir').notNull().default(''),
     styleSkill: text('style_skill').notNull().default(''),
     createdAt: integer('created_at').notNull()
@@ -461,6 +575,8 @@ export type SessionPage = typeof sessionPages.$inferSelect
 export type SourcePageSkeleton = typeof sourcePageSkeletons.$inferSelect
 export type ModelConfig = typeof modelConfigs.$inferSelect
 export type ImageGenerationHistory = typeof imageGenerationHistories.$inferSelect
+export type ImageFulfillmentJob = typeof imageFulfillmentJobs.$inferSelect
+export type ImageFulfillmentIntent = typeof imageFulfillmentIntents.$inferSelect
 export type MemorySummary = typeof memorySummaries.$inferSelect
 export type UserPreference = typeof userPreferences.$inferSelect
 export type SessionOperation = typeof sessionOperations.$inferSelect
@@ -481,7 +597,6 @@ export type GenerationRunMode =
   | 'import'
   | 'addPage'
   | 'retrySinglePage'
-  | 'page-beautify'
 export type GenerationPageStatus = 'pending' | 'running' | 'completed' | 'failed'
 export type SessionPageStatus = 'completed' | 'failed' | 'pending'
 export type SessionOperationType =

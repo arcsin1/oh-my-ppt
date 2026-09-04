@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate, useLocation, matchPath } from 'react-router-dom'
 import { Sidebar } from './components/layout/Sidebar'
+import { WindowControls } from './components/layout/WindowControls'
 import { HomePage } from './pages/home'
 import { SessionCreatePage } from './pages/session-create'
 import { ThinkingDetailPage } from './pages/thinking-detail'
@@ -62,7 +63,9 @@ function App(): React.JSX.Element {
     <>
       <div className="h-full min-h-0 overflow-hidden bg-background text-foreground">
         <div className="flex h-full min-h-0 flex-col">
-          <div className="app-drag-region app-titlebar bg-background/85 backdrop-blur-xl" />
+          <div className="app-drag-region app-titlebar flex bg-background/85 backdrop-blur-xl">
+            <WindowControls />
+          </div>
 
           <div className="flex min-h-0 flex-1">
             <aside className="hidden min-h-0 w-[240px] shrink-0 flex-col border-r border-border/70 bg-[#f7f0e2]/40 md:flex">

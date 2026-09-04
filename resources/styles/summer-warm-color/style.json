@@ -14,6 +14,9 @@
     "水彩绘本"
   ],
   "styleCase": "亲子儿童、教学科普、疗愈冥想",
+  "imageGeneration": {
+    "prompt": "Sunny children's picture-book watercolor and colored-pencil scene with a bright blue sky, fluffy clouds, radiant yellow sun, green meadow, a child lying on the grass looking up, paper airplanes, balloons and a pinwheel when relevant. Use soft hand-painted edges and a warm playful palette. Do not render text, logos, UI, watermarks, photorealism, or crowded detail."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

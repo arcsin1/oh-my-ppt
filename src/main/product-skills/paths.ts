@@ -9,6 +9,6 @@ export const resolveBuiltinSkillsSourcePath = (): string =>
     : path.join(process.resourcesPath, 'app.asar.unpacked', 'resources', 'skills')
 
 export const resolveInstalledSkillsPath = (): string =>
-  path.join(app.getPath('userData'), is.dev ? 'skills-dev' : 'skills')
+  path.join(app.getPath('userData'), is.dev ? 'skills-dev-1' : 'skills')
 
 export const getSystemSkillsSourcePath = (): string => SYSTEM_SKILLS_SOURCE_PATH

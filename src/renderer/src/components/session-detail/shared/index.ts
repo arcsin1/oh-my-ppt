@@ -5,7 +5,6 @@ export {
 } from './imageMessageUtils'
 export {
   isDeckEditGenerationEvent,
-  isPageBeautifyGenerationEvent,
   isPageEditGenerationEvent,
   isStyleSwitchGenerationEvent
 } from './pageEditGenerationEvent'

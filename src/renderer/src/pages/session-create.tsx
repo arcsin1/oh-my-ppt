@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Textarea } from '../components/ui/Input'
 import { Card, CardContent } from '../components/ui/Card'
 import { ScrollArea } from '../components/ui/ScrollArea'
+import { Checkbox } from '../components/ui/Checkbox'
 import {
   Select,
   SelectContent,
@@ -21,6 +22,10 @@ import { useToastStore } from '../store'
 import { ModelSplitButton } from '../components/model/ModelActionButton'
 import { useModelAction } from '../hooks/useModelAction'
 import { ipc, type FontListItem } from '@renderer/lib/ipc'
+import {
+  getUsableImageModelConfigs,
+  resolveDefaultImageModelConfigId
+} from '@renderer/lib/image-model-config'
 import {
   normalizeAnimationPreferences,
   type AnimationPreferenceId,
@@ -88,7 +93,7 @@ const resolvePageCount = (raw: string): number => {
 export function SessionCreatePage(): ReactElement {
   const navigate = useNavigate()
   const { createSession, loading } = useSessionStore()
-  const { settings } = useSettingsStore()
+  const { settings, imageModelConfigs } = useSettingsStore()
   const { success, error, warning } = useToastStore()
   const modelAction = useModelAction()
   const { modelConfigs, selectedModelConfigId, ensureModelActive } = modelAction
@@ -105,12 +110,16 @@ export function SessionCreatePage(): ReactElement {
   const [selectedStyleId, setSelectedStyleId] = useState('')
   const [selectedTitleFontId, setSelectedTitleFontId] = useState('auto')
   const [selectedBodyFontId, setSelectedBodyFontId] = useState('auto')
+  const [visualEnabled, setVisualEnabled] = useState(false)
+  const [selectedImageModelConfigId, setSelectedImageModelConfigId] = useState('')
   const [styleOptions, setStyleOptions] = useState<
     Array<{
       id: string
+      styleKey?: string
       label: string
       description: string
       styleCase?: string
+      imageGenerationPrompt?: string
       thumbnailPath?: string | null
       previewPath?: string | null
       favoriteAt?: number | null
@@ -132,6 +141,24 @@ export function SessionCreatePage(): ReactElement {
   const [applyBriefSuggestion, setApplyBriefSuggestion] = useState(false)
   const documentInputRef = useRef<HTMLInputElement | null>(null)
   const pendingImageReference = attachedReferenceFile?.type === 'image'
+  const usableImageModelConfigs = useMemo(
+    () => getUsableImageModelConfigs(imageModelConfigs),
+    [imageModelConfigs]
+  )
+
+  useEffect(() => {
+    if (usableImageModelConfigs.length === 0) {
+      setVisualEnabled(false)
+      setSelectedImageModelConfigId('')
+      return
+    }
+    if (!visualEnabled) return
+    setSelectedImageModelConfigId((current) =>
+      usableImageModelConfigs.some((config) => config.id === current)
+        ? current
+        : resolveDefaultImageModelConfigId(usableImageModelConfigs)
+    )
+  }, [usableImageModelConfigs, visualEnabled])
 
   const validateForm = (modelConfigId = selectedModelConfigId): string => {
     const topicText = topic.trim()
@@ -160,6 +187,13 @@ export function SessionCreatePage(): ReactElement {
     const resolvedStoragePath = (settings?.storagePath || '').trim()
     if (!resolvedApiKey || !resolvedModel || !resolvedStoragePath) return t('home.settingsRequired')
 
+    if (
+      visualEnabled &&
+      !usableImageModelConfigs.some((config) => config.id === selectedImageModelConfigId)
+    ) {
+      return t('home.imageModelRequired')
+    }
+
     return ''
   }
 
@@ -186,9 +220,11 @@ export function SessionCreatePage(): ReactElement {
         )
         const options = sorted.map((item) => ({
           id: item.id,
+          styleKey: item.styleKey,
           label: item.label,
           description: item.description,
           styleCase: item.styleCase,
+          imageGenerationPrompt: item.imageGenerationPrompt,
           thumbnailPath: item.thumbnailPath,
           previewPath: item.previewPath,
           favoriteAt: item.favoriteAt
@@ -305,7 +341,9 @@ export function SessionCreatePage(): ReactElement {
         slideSizeId,
         referenceDocumentPath: referenceDocumentPath || undefined,
         sourcePlan: acceptedSourcePlan,
-        fontSelection
+        fontSelection,
+        visualEnabled,
+        imageModelConfigId: visualEnabled ? selectedImageModelConfigId : undefined
       })
       success(t('home.sessionCreated'), {
         description: t('home.generationStarted'),
@@ -826,7 +864,7 @@ export function SessionCreatePage(): ReactElement {
                 </div>
               </div>
 
-              <div className="mt-auto flex pt-1">
+              <div className="mt-1 flex">
                 <ModelSplitButton
                   modelAction={modelAction}
                   ariaLabel={t('home.createAndStart')}
@@ -857,6 +895,7 @@ export function SessionCreatePage(): ReactElement {
                         onChange={setSelectedStyleId}
                         options={styleOptions}
                         placeholder={t('home.stylePlaceholder')}
+                        recommendation={{ topic, brief, modelConfigId: selectedModelConfigId }}
                         compact
                         className="h-8 border-[#c8d6ba] bg-[#fffdf8]/90 px-2.5 py-1.5 text-xs shadow-none"
                         dropdownAlign="end"
@@ -982,6 +1021,52 @@ export function SessionCreatePage(): ReactElement {
                     </Select>
                   </div>
                   <p className="mt-2 text-xs leading-5 text-[#7f8a70]">{fontSelectHint}</p>
+                </section>
+
+                <section>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-[#3e4a32]">
+                    <Checkbox
+                      checked={visualEnabled}
+                      disabled={usableImageModelConfigs.length === 0}
+                      onCheckedChange={(checked) => {
+                        const enabled = checked === true
+                        setVisualEnabled(enabled)
+                        setSelectedImageModelConfigId(
+                          enabled ? resolveDefaultImageModelConfigId(usableImageModelConfigs) : ''
+                        )
+                      }}
+                    />
+                    <span>{t('home.enableImageGeneration')}</span>
+                  </label>
+                  {visualEnabled ? (
+                    <div className="mt-3">
+                      <label className="mb-2 block">{t('home.imageModel')}</label>
+                      <Select
+                        value={selectedImageModelConfigId}
+                        onValueChange={setSelectedImageModelConfigId}
+                      >
+                        <SelectTrigger className={settingsSelectTriggerClass}>
+                          <SelectValue placeholder={t('home.imageModelPlaceholder')} />
+                        </SelectTrigger>
+                        <SelectContent className={compactSelectContentClass}>
+                          {usableImageModelConfigs.map((config) => (
+                            <SelectItem
+                              key={config.id}
+                              value={config.id}
+                              className={compactSelectItemClass}
+                            >
+                              {config.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : null}
+                  <p className="mt-2 text-xs leading-5 text-[#7f8a70]">
+                    {usableImageModelConfigs.length > 0
+                      ? t('home.imageGenerationHint')
+                      : t('home.imageModelUnavailable')}
+                  </p>
                 </section>
 
                 <section>

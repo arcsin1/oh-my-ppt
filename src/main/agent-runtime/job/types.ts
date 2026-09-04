@@ -5,6 +5,7 @@ export type JobOwner =
   | { kind: 'session'; id: string }
   | { kind: 'style'; id: string }
   | { kind: 'image-history'; id: string }
+  | { kind: 'image-fulfillment'; id: string }
 
 export type JobLease = {
   jobId: string

@@ -19,10 +19,15 @@ import {
 import { allowLocalAssetRoot } from '../io/local-asset-roots'
 import { extractModelText, resolveModel } from '../agent-runtime/model'
 import { buildImagePromptGenerationMessages } from '../agent-runtime/prompt'
+import { resolveImageGenerationProvider } from '../agent-runtime/provider/image'
 import {
-  resolveImageGenerationProvider,
-  type ResolvedImageModelConfig
-} from '../agent-runtime/provider/image'
+  getImageModelDisplayName,
+  resolveActiveOrSelectedImageModel
+} from './model-config'
+import {
+  compactPageHtmlForImagePrompt,
+  normalizeGeneratedImagePrompt
+} from './prompt-director'
 import {
   imageHistoryLockKey,
   JobCoordinator,
@@ -34,62 +39,6 @@ import {
   type ImageRunState,
   type ImageRunStatus
 } from './run-state'
-
-const VALID_IMAGE_PROVIDERS = [
-  'jimeng',
-  'jimeng4',
-  'agnes',
-  'siliconflow',
-  'openaiCompatible',
-  'gemini',
-  'seedream'
-] as const
-
-const resolveProvider = (provider: unknown): ImageModelProvider => {
-  if (VALID_IMAGE_PROVIDERS.includes(provider as ImageModelProvider)) {
-    return provider as ImageModelProvider
-  }
-  throw new Error('Unsupported image provider')
-}
-
-const readJsonObject = (value: unknown): Record<string, unknown> => {
-  const text = typeof value === 'string' ? value.trim() : ''
-  if (!text) return {}
-  try {
-    const parsed = JSON.parse(text)
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : {}
-  } catch {
-    return {}
-  }
-}
-
-const readConfigString = (config: ResolvedImageModelConfig, key: string): string => {
-  const value = config.modelConfig[key]
-  return typeof value === 'string' ? value.trim() : ''
-}
-
-const resolveDisplayModel = (config: ResolvedImageModelConfig): string =>
-  readConfigString(config, 'model') || readConfigString(config, 'reqKey') || config.provider
-
-const resolveImageModelConfig = async (
-  ctx: IpcContext,
-  modelConfigId?: string
-): Promise<ResolvedImageModelConfig> => {
-  const raw =
-    modelConfigId && modelConfigId.trim().length > 0
-      ? await ctx.db.getImageModelConfig(modelConfigId.trim())
-      : await ctx.db.getActiveImageModelConfig()
-  if (!raw) throw new Error('请先在设置中配置并启用生图模型。')
-  return {
-    id: raw.id,
-    name: raw.name,
-    provider: resolveProvider(raw.provider),
-    active: raw.active === 1,
-    modelConfig: readJsonObject(ctx.decryptApiKey(raw.modelConfig || '{}'))
-  }
-}
 
 const resolvePageContext = async (
   ctx: IpcContext,
@@ -115,21 +64,6 @@ const resolvePageContext = async (
 
 const sanitizeExt = (extension: string): string =>
   /^\.[a-z0-9]{2,5}$/i.test(extension) ? extension.toLowerCase() : '.png'
-
-const compactPageHtmlForPrompt = (html: string): string =>
-  html
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 24000)
-
-const normalizeGeneratedImagePrompt = (raw: string): string =>
-  raw
-    .replace(/^```(?:text|markdown|md)?\s*/i, '')
-    .replace(/```$/i, '')
-    .replace(/^\s*(?:prompt|提示词)\s*[:：]\s*/i, '')
-    .trim()
 
 const resolvePromptModelConfig = async (
   ctx: IpcContext,
@@ -225,7 +159,7 @@ export function registerImageGenerationHandlers(
       sessionId,
       htmlOnly: true
     })
-    const pageHtml = compactPageHtmlForPrompt(await fs.promises.readFile(safeHtmlPath, 'utf-8'))
+    const pageHtml = compactPageHtmlForImagePrompt(await fs.promises.readFile(safeHtmlPath, 'utf-8'))
     if (!pageHtml) {
       throw new Error(uiText(locale, '当前页内容为空。', 'Current page content is empty.'))
     }
@@ -341,7 +275,7 @@ export function registerImageGenerationHandlers(
     emitImageProgress(initialState)
 
     try {
-      const modelConfig = await resolveImageModelConfig(
+      const modelConfig = await resolveActiveOrSelectedImageModel(
         ctx,
         typeof record.imageModelConfigId === 'string'
           ? record.imageModelConfigId
@@ -354,7 +288,7 @@ export function registerImageGenerationHandlers(
       throwIfCancelled(lease.signal, locale)
       resolvedPageId = pageContext.pageId
       resolvedProvider = modelConfig.provider
-      const displayModel = resolveDisplayModel(modelConfig)
+      const displayModel = getImageModelDisplayName(modelConfig)
       log.info('[images:generate] start', {
         runId,
         sessionId,

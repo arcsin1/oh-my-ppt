@@ -28,6 +28,11 @@ const PREVIEW_RESOURCE_ATTRIBUTES = new Set([
 
 export type StyleSource = 'builtin' | 'custom' | 'override'
 
+export interface StyleImageGeneration {
+  /** Image-model-specific visual direction. Presence declares automatic-image support. */
+  prompt: string
+}
+
 export interface StylePackageJson {
   style: string
   name: {
@@ -38,9 +43,12 @@ export interface StylePackageJson {
   category: string
   aliases: string[]
   styleCase: string
+  imageGeneration?: StyleImageGeneration
   version: string
   source: StyleSource
 }
+
+const MAX_IMAGE_GENERATION_PROMPT_LENGTH = 4000
 
 export interface StylePackage {
   dir: string
@@ -85,6 +93,7 @@ export function styleRowToPackageJson(input: {
   source?: StyleSource | string
   version?: string | number
   styleCase?: string
+  imageGenerationPrompt?: string
 }): StylePackageJson {
   const aliases = Array.isArray(input.aliases)
     ? input.aliases
@@ -98,6 +107,7 @@ export function styleRowToPackageJson(input: {
     category: String(input.category || '').trim(),
     aliases: aliases.map((alias) => String(alias || '').trim()).filter(Boolean),
     styleCase: String(input.styleCase || '').trim(),
+    imageGeneration: normalizeImageGeneration(input.imageGenerationPrompt),
     version: normalizeStyleVersion(input.version),
     source: normalizeSource(input.source)
   }
@@ -119,7 +129,8 @@ export async function readStylePackage(styleDir: string): Promise<StylePackage> 
     aliases: Array.isArray(parsed.aliases) ? parsed.aliases.map(String) : [],
     source: String(parsed.source || 'custom'),
     version: parsed.version as string | number | undefined,
-    styleCase: String(parsed.styleCase || '')
+    styleCase: String(parsed.styleCase || ''),
+    imageGenerationPrompt: readImageGenerationPrompt(parsed.imageGeneration)
   })
   validateStylePackageJson(json, styleJsonPath)
   const skillMarkdown = await readFile(skillPath, 'utf8')
@@ -208,6 +219,21 @@ function validateStylePackageJson(json: StylePackageJson, filePath: string): voi
   if (!['builtin', 'custom', 'override'].includes(json.source)) {
     throw new Error('Invalid style source at ' + filePath)
   }
+  if (json.imageGeneration && !json.imageGeneration.prompt.trim()) {
+    throw new Error('imageGeneration.prompt is required at ' + filePath)
+  }
+}
+
+function readImageGenerationPrompt(value: unknown): string {
+  if (typeof value === 'string') return value.trim().slice(0, MAX_IMAGE_GENERATION_PROMPT_LENGTH)
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return ''
+  const prompt = (value as Record<string, unknown>).prompt
+  return typeof prompt === 'string' ? prompt.trim().slice(0, MAX_IMAGE_GENERATION_PROMPT_LENGTH) : ''
+}
+
+function normalizeImageGeneration(value: unknown): StyleImageGeneration | undefined {
+  const prompt = readImageGenerationPrompt(value)
+  return prompt ? { prompt } : undefined
 }
 
 function validateStyleSkillMarkdown(markdown: string, filePath: string): void {

@@ -22,6 +22,7 @@ import { planNewPage } from './agent-runner'
 import type { DesignContract } from '@shared/generation'
 import type { ModelTimeoutProfile } from '@shared/model-timeout'
 import type { ModelRuntimeConfig } from '../agent-runtime/model'
+import { createPageImageFinalizer } from './page-image-finalizer'
 
 const pageSlugId = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 10)
 
@@ -47,6 +48,7 @@ export type AddPageContext = {
   abortSignal: AbortSignal
   styleId: string
   styleSkillPrompt: string
+  imageGenerationPrompt: string
   styleKey: string
   styleName: string
   styleVersion: string
@@ -60,6 +62,8 @@ export type AddPageContext = {
   messagePageId?: string
   projectId: string
   effectiveMode: 'addPage'
+  visualEnabled: boolean
+  imageModelConfigId?: string
 }
 
 export async function resolveAddPageContext(
@@ -319,6 +323,7 @@ export async function executeAddPageGeneration(
         temperature: PAGE_GENERATION_TEMPERATURE,
         styleId: context.styleId,
         styleSkillPrompt: context.styleSkillPrompt,
+        hasStyleImageDirection: Boolean(context.imageGenerationPrompt.trim()),
         styleKey: context.styleKey,
         styleName: context.styleName,
         styleVersion: context.styleVersion,
@@ -331,6 +336,7 @@ export async function executeAddPageGeneration(
         outlineItems: [planResult],
         sourceDocumentPaths: [],
         generationMode: 'generate',
+        visualEnabled: context.visualEnabled,
         renderingLabel: uiText(context.appLocale, '正在生成新增页面', 'Generating the new page'),
         pageTasks: [
           {
@@ -348,6 +354,24 @@ export async function executeAddPageGeneration(
         pageNumbers,
         agentManager,
         emit: (chunk) => emitChunk(chunk),
+        finalizePage: createPageImageFinalizer(ctx, {
+          sessionId: context.sessionId,
+          runId: context.runId,
+          visualEnabled: context.visualEnabled,
+          imageModelConfigId: context.imageModelConfigId,
+          imageGenerationPrompt: context.imageGenerationPrompt,
+          imagePromptDirector: {
+            provider: context.provider,
+            apiKey: context.apiKey,
+            model: context.model,
+            baseUrl: context.providerBaseUrl,
+            maxTokens: context.maxTokens,
+            modelRuntime: context.modelRuntime,
+            modelTimeoutMs: context.modelTimeouts.agent,
+            locale: context.appLocale
+          },
+          abortSignal: context.abortSignal
+        }),
         ...pageCallbacks,
         runId: context.runId,
         signal: context.abortSignal
@@ -363,6 +387,7 @@ export async function executeAddPageGeneration(
       )
     })
     agentSummary = generationResult.summary.trim()
+    if (context.abortSignal.aborted) throw new Error('生成已取消')
 
     // ── Step 6: Validate generated page ──
     if (!fs.existsSync(newHtmlPath)) {
@@ -375,6 +400,23 @@ export async function executeAddPageGeneration(
     if (!newPageValidation.valid) {
       throw new Error(`新页面 HTML 验证失败: ${newPageValidation.errors.join('; ')}`)
     }
+    const generatedPage = (await db.listGenerationPages(context.runId)).find(
+      (page) => page.page_id === newPageId
+    )
+    await db.upsertSessionPage({
+      id: newPageEntityId,
+      sessionId: context.sessionId,
+      legacyPageId: targetPage?.legacy_page_id || null,
+      fileSlug: newPageId,
+      pageNumber: newPageNumber,
+      title: generatedPage?.title || planResult.title,
+      htmlPath: newHtmlPath,
+      layoutIntent: generatedPage?.layout_intent || planResult.layoutIntent,
+      layoutId: generatedPage?.layout_id || null,
+      layoutContractVersion: generatedPage?.layout_contract_version || null,
+      status: 'completed',
+      error: null
+    })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Page generation failed'
     await db.upsertSessionPage({
@@ -455,6 +497,28 @@ export async function executeAddPageGeneration(
     ),
     'utf-8'
   )
+
+  const sessionPagesAfterGeneration = await db.listSessionPages(context.sessionId, {
+    includeDeleted: true
+  })
+  const sessionPageById = new Map(sessionPagesAfterGeneration.map((page) => [page.id, page]))
+  for (const page of renumberedPages) {
+    const sessionPage = sessionPageById.get(page.id)
+    await db.upsertSessionPage({
+      id: page.id,
+      sessionId: context.sessionId,
+      legacyPageId: sessionPage?.legacy_page_id || null,
+      fileSlug: page.pageId,
+      pageNumber: page.pageNumber,
+      title: page.title,
+      htmlPath: page.htmlPath,
+      layoutIntent: sessionPage?.layout_intent,
+      layoutId: sessionPage?.layout_id,
+      layoutContractVersion: sessionPage?.layout_contract_version,
+      status: sessionPage?.status || 'completed',
+      error: sessionPage?.error || null
+    })
+  }
 
   // ── Step 9: Emit page_generated event ──
   const renumberedNewPage = renumberedPages.find((p) => p.pageId === newPageId)

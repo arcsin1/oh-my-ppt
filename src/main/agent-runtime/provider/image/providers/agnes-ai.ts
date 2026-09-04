@@ -5,8 +5,10 @@ import type {
 } from '../types'
 import log from 'electron-log/main.js'
 import { collectImageResults, joinUrl, readJsonResponse, readRecord, readString } from './utils'
+import { resolveConfiguredDefaultImageSize } from './default-size'
 
 const DEFAULT_BASE_URL = 'https://apihub.agnes-ai.com/v1'
+const DEFAULT_SIZE = '1024x768'
 
 const AGNES_SIZE_MAP: Record<string, string> = {
   '1:1': '1024x1024',
@@ -41,6 +43,10 @@ const buildExtraBody = (config: ResolvedImageModelConfig): Record<string, unknow
 }
 
 export const agnesAiAdapter: ImageGenerationProviderAdapter = {
+  getDefaultSize(config) {
+    return resolveConfiguredDefaultImageSize(config) || DEFAULT_SIZE
+  },
+
   async generate(config, input) {
     const endpoint = buildEndpoint(config)
     const model = readString(config.modelConfig, 'model')

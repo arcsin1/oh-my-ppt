@@ -12,6 +12,9 @@
     "卡通插画风"
   ],
   "styleCase": "旅游出行、生活方式、亲子儿童",
-  "version": "2.0.2",
+  "imageGeneration": {
+    "prompt": "Warm hand-drawn travel-journal illustration on lightly textured cream paper. Use rounded childlike forms, flat pumpkin orange, brick red, warm brown and a small sky-blue accent, with visible warm-brown outline strokes. Favor autumn travel motifs such as maple leaves, a small house, suitcase, paper boat, path, lake or hills when relevant to the slide subject. Keep the composition airy with intentional negative space for slide text. It must feel like a hand-painted scrapbook sticker or a page from a travel notebook, never photorealistic, glossy 3D, corporate stock imagery, neon, or a generic vector icon set. Do not render words, logos, UI, watermarks, dense scenes, or decorative frames that compete with slide content."
+  },
+  "version": "2.0.3",
   "source": "builtin"
 }

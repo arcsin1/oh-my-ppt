@@ -1,4 +1,5 @@
 import {
+  CircleAlert,
   FolderOpen,
   Image as ImageIcon,
   ImagePlus,
@@ -7,14 +8,15 @@ import {
   SlidersHorizontal,
   Sparkles,
   StopCircle,
-  Wallpaper
+  Wallpaper,
+  RefreshCw
 } from 'lucide-react'
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { GeneratedImageAsset } from '@shared/image-generation.js'
 import { localAssetUrl } from '@shared/local-asset'
 import { useT } from '@renderer/i18n'
-import { ipc } from '@renderer/lib/ipc'
+import { ipc, type ImageFulfillmentJobView } from '@renderer/lib/ipc'
 import { cn } from '@renderer/lib/utils'
 import { useSessionDetailUiStore, useSettingsStore, useToastStore } from '@renderer/store'
 import { useModelAction } from '@renderer/hooks/useModelAction'
@@ -36,14 +38,8 @@ const localAssetSrc = (absolutePath?: string): string =>
 export function ImageGenerationPanel({ sessionId }: { sessionId: string }): React.JSX.Element {
   const t = useT()
   const modelAction = useModelAction()
-  const {
-    selectedPage,
-    generate,
-    cancel,
-    addToCanvas,
-    setAsBackground,
-    revealFile
-  } = useImageGenerationActions(sessionId)
+  const { selectedPage, generate, cancel, addToCanvas, setAsBackground, revealFile } =
+    useImageGenerationActions(sessionId)
   const selectedPageExists = Boolean(selectedPage?.pageId)
   const selectedPageHtmlPath = selectedPage?.htmlPath
   const selectedPageNumber = selectedPage?.pageNumber
@@ -67,6 +63,8 @@ export function ImageGenerationPanel({ sessionId }: { sessionId: string }): Reac
   const setImageSize = useSessionDetailUiStore((state) => state.setImageSize)
   const [previewAsset, setPreviewAsset] = useState<GeneratedImageAsset | null>(null)
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false)
+  const [fulfillmentJobs, setFulfillmentJobs] = useState<ImageFulfillmentJobView[]>([])
+  const [retryingFulfillmentJobId, setRetryingFulfillmentJobId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const hasImageModels = imageModelConfigs.length > 0
   const imageControlsDisabled = !hasImageModels || isGeneratingImage || isGeneratingPrompt
@@ -101,6 +99,31 @@ export function ImageGenerationPanel({ sessionId }: { sessionId: string }): Reac
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [imageMessages, isGeneratingImage, imageProgress?.progress])
+
+  useEffect(() => {
+    if (!sessionId || !selectedPage?.pageId) {
+      setFulfillmentJobs([])
+      return
+    }
+    let disposed = false
+    const loadJobs = async (): Promise<void> => {
+      try {
+        const jobs = await ipc.listImageFulfillmentJobs({
+          sessionId,
+          pageId: selectedPage.pageId
+        })
+        if (!disposed) setFulfillmentJobs(jobs)
+      } catch {
+        if (!disposed) setFulfillmentJobs([])
+      }
+    }
+    void loadJobs()
+    const timer = window.setInterval(() => void loadJobs(), 5000)
+    return () => {
+      disposed = true
+      window.clearInterval(timer)
+    }
+  }, [selectedPage?.pageId, sessionId])
 
   const handleFillFromOutline = (): void => {
     if (!hasImageModels) return
@@ -150,9 +173,36 @@ export function ImageGenerationPanel({ sessionId }: { sessionId: string }): Reac
   }
 
   const generateDisabled = imageControlsDisabled || !selectedPageExists || !imagePrompt.trim()
+  const latestFulfillmentJob = fulfillmentJobs[0]
   const optionSummary = selectedImageModel
     ? `${selectedImageModel.name} · ${selectedImageSizeOption?.label || imageSize} · ${imageCount}`
     : t('sessionDetail.imageOptions')
+
+  const retryFailedIllustration = async (): Promise<void> => {
+    if (!latestFulfillmentJob || retryingFulfillmentJobId) return
+    setRetryingFulfillmentJobId(latestFulfillmentJob.id)
+    try {
+      const result = await ipc.retryImageFulfillment({
+        sessionId,
+        jobId: latestFulfillmentJob.id
+      })
+      if (result.status === 'degraded' || result.status === 'cancelled') {
+        throw new Error(result.error || t('sessionDetail.autoImageRetryFailed'))
+      }
+      const jobs = await ipc.listImageFulfillmentJobs({
+        sessionId,
+        pageId: selectedPage?.pageId
+      })
+      setFulfillmentJobs(jobs)
+      toastSuccess(t('sessionDetail.autoImageRetryStarted'))
+    } catch (error) {
+      toastError(t('sessionDetail.autoImageRetryFailed'), {
+        description: error instanceof Error ? error.message : undefined
+      })
+    } finally {
+      setRetryingFulfillmentJobId(null)
+    }
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -171,6 +221,65 @@ export function ImageGenerationPanel({ sessionId }: { sessionId: string }): Reac
           </div>
         </div>
       </div>
+
+      {latestFulfillmentJob &&
+        (latestFulfillmentJob.status === 'pending' ||
+          latestFulfillmentJob.status === 'running' ||
+          latestFulfillmentJob.status === 'finalizing' ||
+          latestFulfillmentJob.status === 'degraded' ||
+          latestFulfillmentJob.status === 'failed' ||
+          latestFulfillmentJob.status === 'cancelled') && (
+          <div className="mx-2.5 mt-2 flex items-start gap-2 rounded-lg border border-[#ded2bd]/78 bg-[#fffaf1]/84 px-2.5 py-2 text-xs text-[#5c513f]">
+            {latestFulfillmentJob.status === 'pending' ||
+            latestFulfillmentJob.status === 'running' ||
+            latestFulfillmentJob.status === 'finalizing' ? (
+              <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-[#6f8f64]" />
+            ) : (
+              <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#b26b3c]" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="leading-5">
+                {latestFulfillmentJob.status === 'degraded'
+                  ? latestFulfillmentJob.layout_failed_count > 0
+                    ? t('sessionDetail.autoImageLayoutFailed')
+                    : t('sessionDetail.autoImageDegraded')
+                  : latestFulfillmentJob.status === 'failed'
+                    ? t('sessionDetail.autoImageRetryFailed')
+                    : latestFulfillmentJob.status === 'cancelled'
+                      ? t('sessionDetail.autoImageCancelled')
+                    : t('sessionDetail.autoImageInProgress')}
+              </p>
+              {latestFulfillmentJob.error &&
+                latestFulfillmentJob.status !== 'pending' &&
+                latestFulfillmentJob.status !== 'running' &&
+                latestFulfillmentJob.status !== 'finalizing' && (
+                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-[#8a735d]">
+                    {latestFulfillmentJob.error}
+                  </p>
+                )}
+            </div>
+            {latestFulfillmentJob.retryable_intent_count > 0 &&
+              (latestFulfillmentJob.status === 'degraded' ||
+                latestFulfillmentJob.status === 'failed' ||
+                latestFulfillmentJob.status === 'cancelled') && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 shrink-0 px-1.5 text-[11px] text-[#5d6b4d] hover:bg-[#dcebcf]/72"
+                  disabled={retryingFulfillmentJobId === latestFulfillmentJob.id}
+                  onClick={() => void retryFailedIllustration()}
+                >
+                  {retryingFulfillmentJobId === latestFulfillmentJob.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                  )}
+                  {t('sessionDetail.autoImageRetry')}
+                </Button>
+              )}
+          </div>
+        )}
 
       <ScrollArea
         data-image-results-container

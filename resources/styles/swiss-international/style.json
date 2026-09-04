@@ -1,0 +1,22 @@
+{
+  "style": "swiss-international",
+  "name": {
+    "zh": "瑞士国际主义",
+    "en": "Swiss International"
+  },
+  "description": "极致字号对比、严格网格与单一强调色的信息设计风",
+  "category": "设计 · 理性",
+  "aliases": [
+    "瑞士风",
+    "国际主义",
+    "Helvetica",
+    "网格",
+    "Vignelli"
+  ],
+  "styleCase": "科技产品发布、数据汇报、设计工程、年度总结、AI技术分享",
+  "imageGeneration": {
+    "prompt": "Minimal Swiss International visual derived from the slide subject: one precise photographic or abstract object, strict grid-aware composition, off-white ground, one saturated accent color, crisp edges, and substantial empty space for typography. The image must feel like a disciplined editorial art direction, not an interface. Do not render text, logos, UI, watermarks, rounded cards, gradients, shadows, busy scenes, or decorative clutter."
+  },
+  "version": "1.0.0",
+  "source": "builtin"
+}

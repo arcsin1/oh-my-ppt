@@ -68,6 +68,12 @@ export interface ImageGenerateResult {
   history: ImageGenerationHistoryRecord
 }
 
+export interface ImageModelVerificationResult {
+  valid: boolean
+  message?: string
+  previewDataUrl?: string
+}
+
 export interface ImageGenerationHistoryRecord {
   id: string
   sessionId: string

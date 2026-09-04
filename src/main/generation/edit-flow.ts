@@ -19,12 +19,17 @@ import path from 'path'
 import fs from 'fs'
 import { nanoid } from 'nanoid'
 import { normalizeLayoutIntent } from '@shared/layout-intent'
+import { hasCompatiblePageLayoutSource, validateLayoutSlots } from './layout-slot-validator'
 import { runDeepAgentEdit } from './agent-runner'
+import { createPageImageFinalizer } from './page-image-finalizer'
+import { buildGenerationImageIntentRules } from '../agent-runtime/prompt/composers/generation-image-intent-rules'
+import { getLayoutMasterTemplate } from '@shared/layout-master'
 import { formatSelectedElementRuntimeContext } from '../agent-runtime/prompt/selected-element-context'
 import {
   type DesignContract,
   SESSION_PAGE_EDIT_INTENTS,
   type GeneratedPagePayload,
+  type PageReferenceContext,
   type SessionPageEditAssessment,
   type SessionPageEditPlan,
   type SelectedElementRuntimeContext
@@ -39,8 +44,10 @@ import {
   normalizeGeneratePayload,
   type RuntimeJobExecutionContext,
   resolveCommonContext,
+  resolveSessionReferenceDocumentPath,
   resolveSourceDocuments
 } from './context'
+import { resolvePageReferenceContext } from './source-plan'
 import {
   buildLocalSuccessfulEditSummary,
   emitSuccessfulEditSummary
@@ -303,6 +310,8 @@ export async function resolveEditContext(
     mode: 'edit',
     sessionRecord: common.sessionRecord
   })
+  const referenceDocumentPath =
+    resolveSessionReferenceDocumentPath(common.projectDir, common.sessionRecord) ?? undefined
   const imagePaths = input.rawImagePaths
   const videoPaths = input.rawVideoPaths
   const userMessage = [
@@ -355,6 +364,9 @@ export async function resolveEditContext(
     runId: common.runId,
     styleId: common.styleId,
     styleSkill: common.styleSkill,
+    visualEnabled: common.visualEnabled,
+    imageModelConfigId: common.imageModelConfigId,
+    imageGenerationPrompt: common.imageGenerationPrompt,
     styleKey: common.styleKey,
     styleName: common.styleName,
     styleVersion: common.styleVersion,
@@ -377,6 +389,7 @@ export async function resolveEditContext(
     imagePaths,
     videoPaths,
     sourceDocumentPaths,
+    referenceDocumentPath,
     sourcePlan: common.sourcePlan,
     topic: common.topic,
     deckTitle: common.deckTitle,
@@ -429,6 +442,25 @@ export async function executeEditGeneration(
   const sessionPages = await db.listSessionPages(context.sessionId)
   if (sessionPages.length === 0) {
     throw new Error('session_pages is empty after migration; cannot edit this session')
+  }
+  const layoutSourceByPageId = new Map(
+    sessionPages.map((page) => [
+      page.file_slug,
+      {
+        layoutIntent: page.layout_intent ? normalizeLayoutIntent(page.layout_intent) : null,
+        layoutId: page.layout_id,
+        layoutContractVersion: page.layout_contract_version
+      }
+    ])
+  )
+  const pageReferenceContexts: Record<string, PageReferenceContext> = {}
+  for (const page of sessionPages) {
+    const pageReferenceContext = resolvePageReferenceContext({
+      referenceDocumentPath: context.referenceDocumentPath,
+      sourcePlan: context.sourcePlan,
+      pageNumber: page.page_number
+    })
+    if (pageReferenceContext) pageReferenceContexts[page.file_slug] = pageReferenceContext
   }
   const selectedSessionPage = resolvedSelectedPageId
     ? sessionPages.find(
@@ -557,6 +589,7 @@ export async function executeEditGeneration(
     temperature: editTemperature,
     styleId: context.styleId,
     styleSkillPrompt: context.styleSkill.prompt,
+    hasStyleImageDirection: Boolean(context.imageGenerationPrompt.trim()),
     styleKey: context.styleKey,
     styleName: context.styleName,
     styleVersion: context.styleVersion,
@@ -565,9 +598,31 @@ export async function executeEditGeneration(
     topic: context.topic,
     deckTitle: context.deckTitle,
     userMessage: context.userMessage,
+    imageIntentAddendum: (() => {
+      if (selectedSelector || !context.visualEnabled || !resolvedSelectedPageId) return ''
+      const source = layoutSourceByPageId.get(resolvedSelectedPageId)
+      if (
+        !source?.layoutIntent ||
+        !source.layoutId ||
+        !source.layoutContractVersion ||
+        !hasCompatiblePageLayoutSource(source)
+      ) {
+        return ''
+      }
+      const template = getLayoutMasterTemplate(source.layoutId)
+      return template
+        ? buildGenerationImageIntentRules({
+            visualEnabled: true,
+            template,
+            hasStyleImageDirection: Boolean(context.imageGenerationPrompt.trim())
+          })
+        : ''
+    })(),
     outlineTitles,
     outlineItems,
     sourceDocumentPaths: context.sourceDocumentPaths,
+    referenceDocumentPath: context.referenceDocumentPath,
+    pageReferenceContexts,
     projectDir: context.projectDir,
     indexPath,
     pageFileMap,
@@ -581,6 +636,61 @@ export async function executeEditGeneration(
     elementText: context.elementText,
     selectedElementContext: context.selectedElementContext,
     existingPageIds: existingPageIdsBeforeRun,
+    finalizeEditedPage: selectedSelector
+      ? undefined
+      : async (pageId, refineImageLayout) => {
+          const ref = pageRefs.find((item) => item.pageId === pageId)
+          const source = layoutSourceByPageId.get(pageId)
+          if (!ref) return
+          if (
+            !source?.layoutIntent ||
+            !source.layoutId ||
+            !source.layoutContractVersion ||
+            !hasCompatiblePageLayoutSource(source)
+          ) {
+            log.info('[images:fulfillment] page skipped', {
+              sessionId: context.sessionId,
+              runId: context.runId,
+              pageId,
+              reason: 'page edit has no compatible layout source',
+              layoutIntent: source?.layoutIntent || null,
+              layoutId: source?.layoutId || null,
+              layoutContractVersion: source?.layoutContractVersion || null
+            })
+            return
+          }
+          const finalizer = createPageImageFinalizer(ctx, {
+            sessionId: context.sessionId,
+            runId: context.runId,
+            visualEnabled: context.visualEnabled,
+            imageModelConfigId: context.imageModelConfigId,
+            imageGenerationPrompt: context.imageGenerationPrompt,
+            imagePromptDirector: {
+              provider: context.provider,
+              apiKey: context.apiKey,
+              model: context.model,
+              baseUrl: context.providerBaseUrl,
+              maxTokens: context.maxTokens,
+              modelRuntime: context.modelRuntime,
+              modelTimeoutMs: context.modelTimeouts.agent,
+              locale: context.appLocale
+            },
+            abortSignal: context.abortSignal
+          })
+          await finalizer(
+            {
+              pageNumber: ref.pageNumber,
+              pageId: ref.pageId,
+              title: ref.title,
+              contentOutline: outlineByPageId.get(ref.pageId) || '',
+              layoutIntent: source.layoutIntent || undefined,
+              layoutId: source.layoutId,
+              layoutContractVersion: source.layoutContractVersion,
+              htmlPath: ref.htmlPath
+            },
+            refineImageLayout
+          )
+        },
     agentManager,
     emit: (chunk) => emitEditChunk(chunk),
     runId: context.runId,
@@ -847,6 +957,22 @@ export async function executeEditGeneration(
     }
   }
 
+  const detachedLayoutSourcePageIds = new Set<string>()
+  if (!selectedSelector) {
+    for (const page of changedPageDescriptors) {
+      const source = layoutSourceByPageId.get(page.pageId)
+      const validation = validateLayoutSlots({
+        html: page.html,
+        layoutIntent: source?.layoutIntent,
+        layoutId: source?.layoutId,
+        layoutContractVersion: source?.layoutContractVersion
+      })
+      if (!validation.valid) {
+        detachedLayoutSourcePageIds.add(page.pageId)
+      }
+    }
+  }
+
   for (const page of changedPageDescriptors) {
     const isExisting = existingPageIdsBeforeRun.includes(page.pageId)
     const payload: GeneratedPagePayload = {
@@ -875,6 +1001,8 @@ export async function executeEditGeneration(
   const changedPageIdSet = new Set(changedPageDescriptors.map((page) => page.pageId))
   for (const page of changedPageDescriptors) {
     const outlineItem = outlineItems.find((_item, index) => pageRefs[index]?.pageId === page.pageId)
+    const source = layoutSourceByPageId.get(page.pageId)
+    const retainsLayoutSource = !detachedLayoutSourcePageIds.has(page.pageId)
     await db.upsertGenerationPage({
       runId: context.runId,
       sessionId: context.sessionId,
@@ -882,7 +1010,11 @@ export async function executeEditGeneration(
       pageNumber: page.pageNumber,
       title: page.title,
       contentOutline: outlineItem?.contentOutline || '',
-      layoutIntent: outlineItem?.layoutIntent,
+      layoutIntent: retainsLayoutSource
+        ? source?.layoutIntent || outlineItem?.layoutIntent
+        : null,
+      layoutId: retainsLayoutSource ? source?.layoutId : null,
+      layoutContractVersion: retainsLayoutSource ? source?.layoutContractVersion : null,
       htmlPath: page.htmlPath,
       status: 'completed'
     })
@@ -915,6 +1047,8 @@ export async function executeEditGeneration(
   const existingBySlug = new Map(existingSessionPages.map((sp) => [sp.file_slug, sp]))
   for (const page of generatedPagesForMetadata) {
     const existing = existingBySlug.get(page.pageId)
+    const source = layoutSourceByPageId.get(page.pageId)
+    const retainsLayoutSource = !detachedLayoutSourcePageIds.has(page.pageId)
     await db.upsertSessionPage({
       id: existing?.id || nanoid(),
       sessionId: context.sessionId,
@@ -924,6 +1058,9 @@ export async function executeEditGeneration(
       pageNumber: page.pageNumber,
       title: page.title,
       htmlPath: page.htmlPath,
+      layoutIntent: retainsLayoutSource ? source?.layoutIntent : null,
+      layoutId: retainsLayoutSource ? source?.layoutId : null,
+      layoutContractVersion: retainsLayoutSource ? source?.layoutContractVersion : null,
       status: 'completed',
       error: null
     })

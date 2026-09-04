@@ -126,6 +126,8 @@ export function registerPptxImportHandlers(ctx: IpcContext): void {
         slideSizeId: 'wide-16-9',
         slideWidth: 1600,
         slideHeight: 900,
+        visualEnabled: false,
+        imageModelConfigId: null,
         provider: 'import',
         model: 'pptx-import'
       })

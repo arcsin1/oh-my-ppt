@@ -12,6 +12,7 @@ import { StyleSwitchJobBar } from '../components/session-detail/style/StyleSwitc
 import { ElementInspectorPanel } from '../components/session-detail/element-inspector'
 import { SessionDetailRightPanel, WorkspaceRibbon } from '../components/session-detail/workspace'
 import { SessionToolbar } from '../components/session-detail/toolbar'
+import { WindowControls } from '../components/layout/WindowControls'
 import {
   AddBlankPageDialog,
   AddPageDialog,
@@ -27,7 +28,6 @@ import {
   buildImageMessageCacheKey,
   imageHistoryToMessages,
   isDeckEditGenerationEvent,
-  isPageBeautifyGenerationEvent,
   isPageEditGenerationEvent,
   isStyleSwitchGenerationEvent,
   mergeImageMessages,
@@ -95,7 +95,6 @@ export function SessionDetailPage(): React.JSX.Element {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const t = useT()
-  const isMac = window.electron?.process?.platform === 'darwin'
   const {
     currentSession,
     currentGeneratedPages,
@@ -128,7 +127,6 @@ export function SessionDetailPage(): React.JSX.Element {
   const workspaceTab = useSessionDetailUiStore((state) => state.workspaceTab)
   const activeChatRef = useRef<{ chatType: ChatType; pageId?: string }>({ chatType: 'page' })
   const pageEditStateEpochRef = useRef(0)
-  const pageBeautifyStateEpochRef = useRef(0)
   const deckEditStateEpochRef = useRef(0)
   // Dedup terminal-run toasts. StrictMode double-invokes effects in dev, and any dep
   // drift mid-run re-subscribes the generate-chunk handler; both can deliver the same
@@ -160,7 +158,6 @@ export function SessionDetailPage(): React.JSX.Element {
     []
   )
   const toastError = useToastStore((state) => state.error)
-  const toastSuccess = useToastStore((state) => state.success)
 
   const orderedPages = useMemo(
     () => [...currentPages].sort((a, b) => a.pageNumber - b.pageNumber),
@@ -332,39 +329,6 @@ export function SessionDetailPage(): React.JSX.Element {
     const saved = window.localStorage.getItem(`workbench:selected-page-id:${id}`)
     if (!saved) return
     useSessionDetailUiStore.getState().setSelectedPageId(saved)
-  }, [id])
-
-  useEffect(() => {
-    if (!id) return
-    let disposed = false
-    const requestEpoch = pageBeautifyStateEpochRef.current
-    void ipc
-      .getPageBeautifyState(id)
-      .then((state) => {
-        if (
-          disposed ||
-          requestEpoch !== pageBeautifyStateEpochRef.current ||
-          !state.hasActiveRun ||
-          state.kind !== 'page-beautify' ||
-          !state.targetPageId
-        )
-          return
-        const generateState = useGenerateStore.getState()
-        if (generateState.pageBeautifyJobs[id]) return
-        generateState.startPageBeautify(id, {
-          pageId: state.targetPageId,
-          pageNumber: state.targetPageNumber
-        })
-        generateState.updatePageBeautify(id, {
-          runId: state.runId || undefined,
-          status: state.status === 'queued' ? 'queued' : 'running',
-          progress: state.progress
-        })
-      })
-      .catch(() => {})
-    return () => {
-      disposed = true
-    }
   }, [id])
 
   useEffect(() => {
@@ -574,11 +538,9 @@ export function SessionDetailPage(): React.JSX.Element {
       const { type, payload } = event
       if (payload.sessionId && payload.sessionId !== id) return
       const activePageEditJob = useGenerateStore.getState().pageEditJobs[id] || null
-      const activePageBeautifyJob = useGenerateStore.getState().pageBeautifyJobs[id] || null
       const activeDeckEditJob = useGenerateStore.getState().deckEditJobs[id] || null
       const activeStyleSwitchJob = useGenerateStore.getState().styleSwitchJobs[id] || null
       const isPageEdit = isPageEditGenerationEvent(payload, activePageEditJob)
-      const isPageBeautify = isPageBeautifyGenerationEvent(payload, activePageBeautifyJob)
       const isDeckEdit = isDeckEditGenerationEvent(payload, activeDeckEditJob)
       const isStyleSwitch = isStyleSwitchGenerationEvent(payload, activeStyleSwitchJob)
       const isAddingPageRun =
@@ -598,18 +560,6 @@ export function SessionDetailPage(): React.JSX.Element {
             runId: payload.runId,
             status:
               activePageEditJob?.status === 'cancelling'
-                ? 'cancelling'
-                : payload.stage === 'queued'
-                  ? 'queued'
-                  : 'running',
-            label: payload.label,
-            progress: payload.progress ?? 0
-          })
-        } else if (isPageBeautify) {
-          useGenerateStore.getState().updatePageBeautify(id, {
-            runId: payload.runId,
-            status:
-              activePageBeautifyJob?.status === 'cancelling'
                 ? 'cancelling'
                 : payload.stage === 'queued'
                   ? 'queued'
@@ -706,13 +656,6 @@ export function SessionDetailPage(): React.JSX.Element {
             label: payload.label,
             progress: payload.progress ?? 0
           })
-        } else if (isPageBeautify) {
-          useGenerateStore.getState().updatePageBeautify(id, {
-            runId: payload.runId,
-            status: activePageBeautifyJob?.status === 'cancelling' ? 'cancelling' : 'running',
-            label: payload.label,
-            progress: payload.progress ?? 0
-          })
         } else if (isDeckEdit) {
           useGenerateStore.getState().updateDeckEdit(id, {
             runId: payload.runId,
@@ -762,7 +705,6 @@ export function SessionDetailPage(): React.JSX.Element {
         })
         if (
           !isPageEdit &&
-          !isPageBeautify &&
           !isDeckEdit &&
           !isStyleSwitch &&
           payload.focusPage !== false
@@ -819,15 +761,6 @@ export function SessionDetailPage(): React.JSX.Element {
         if (isPageEdit) {
           pageEditStateEpochRef.current += 1
           useGenerateStore.getState().finishPageEdit(id)
-        } else if (isPageBeautify) {
-          pageBeautifyStateEpochRef.current += 1
-          useGenerateStore.getState().finishPageBeautify(id)
-          toastSuccess(
-            payload.outcome === 'unchanged'
-              ? t('sessionDetail.pageBeautifyUnchanged')
-              : t('sessionDetail.pageBeautifyCompleted')
-          )
-          void loadSession(id)
         } else if (isDeckEdit) {
           deckEditStateEpochRef.current += 1
           const retryPayload = activeDeckEditJob?.payload
@@ -888,14 +821,6 @@ export function SessionDetailPage(): React.JSX.Element {
           useGenerateStore.getState().finishPageEdit(id)
           if (!payload.cancelled) {
             useGenerateStore.getState().setSessionError(id, payload.message)
-          }
-          void loadSession(id)
-        } else if (isPageBeautify) {
-          pageBeautifyStateEpochRef.current += 1
-          useGenerateStore.getState().finishPageBeautify(id)
-          if (!payload.cancelled) {
-            useGenerateStore.getState().setSessionError(id, payload.message)
-            toastError(payload.message || t('sessionDetail.pageBeautifyFailed'))
           }
           void loadSession(id)
         } else if (isDeckEdit) {
@@ -967,7 +892,7 @@ export function SessionDetailPage(): React.JSX.Element {
     return () => {
       unsubscribe?.()
     }
-  }, [addMessage, id, t, toastError, toastSuccess, updateProgress])
+  }, [addMessage, id, t, toastError, updateProgress])
 
   useEffect(() => {
     if (!id) return
@@ -1564,14 +1489,11 @@ export function SessionDetailPage(): React.JSX.Element {
     <TooltipProvider delayDuration={180}>
       <div className="flex h-full min-h-0 flex-col bg-[#f5f1e8] text-foreground outline-none">
         <header className="app-drag-region app-titlebar relative shrink-0 bg-[#f5f1e8]/95 shadow-[0_10px_26px_rgba(93,107,77,0.055)] backdrop-blur-xl">
-          <div
-            className={`relative flex h-full items-center ${
-              isMac ? '' : 'pr-[calc(var(--app-titlebar-control-safe-area)+16px)]'
-            }`}
-          >
+          <div className="relative flex h-full items-center">
             <div className="flex-1">
               <SessionToolbar sessionId={id} isSavingEdits={isSavingEdits} />
             </div>
+            <WindowControls />
           </div>
         </header>
 

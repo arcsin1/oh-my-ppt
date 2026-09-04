@@ -4,7 +4,6 @@ import {
   ChartLine,
   ChartPie,
   ChevronDown,
-  CircleStop,
   Copy,
   Donut,
   ImagePlus,
@@ -17,8 +16,7 @@ import {
   Sparkles,
   Trash2,
   Type,
-  Video,
-  WandSparkles
+  Video
 } from 'lucide-react'
 import { ART_TEXT_TEMPLATES } from '@renderer/lib/artTextTemplates'
 import {
@@ -33,15 +31,9 @@ import {
   type InsertChartType
 } from '@renderer/components/session-detail/workspace/insert-charts'
 import { useT, type I18nKey } from '@renderer/i18n'
-import { ipc } from '@renderer/lib/ipc'
-import { useModelAction } from '@renderer/hooks/useModelAction'
 import {
   useEditSessionStore,
-  useGenerateStore,
-  useSessionDetailRuntimeStore,
-  useSessionDetailUiStore,
-  useSessionStore,
-  useToastStore
+  useSessionDetailRuntimeStore
 } from '@renderer/store'
 import {
   AlertDialog,
@@ -284,123 +276,14 @@ const artTextPreviewStyles = `
 
 export function InsertToolRow({ disabled }: ToolRowProps): React.JSX.Element {
   const t = useT()
-  const { ensureModelActive } = useModelAction()
   const [artTextOpen, setArtTextOpen] = useState(false)
   const [shapeOpen, setShapeOpen] = useState(false)
   const [iconOpen, setIconOpen] = useState(false)
   const [chartOpen, setChartOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const actions = useSessionDetailRuntimeStore((state) => state.workspaceRibbonActions)
-  const currentSession = useSessionStore((state) => state.currentSession)
-  const selectedPageEntityId = useSessionDetailUiStore((state) => state.selectedPageId)
-  const currentPages = useGenerateStore((state) => state.currentPages)
-  const selectedPage = currentPages.find((page) => page.id === selectedPageEntityId) || null
-  const pageBeautifyJob = useGenerateStore((state) =>
-    currentSession ? state.pageBeautifyJobs[currentSession.id] || null : null
-  )
-  const toastError = useToastStore((state) => state.error)
   const selection = useEditSessionStore((state) => state.selection)
   const isApplyingSyncElement = useEditSessionStore((state) => state.isApplyingSyncElement)
-  const isPageBeautifying = Boolean(pageBeautifyJob)
-
-  const handlePageBeautify = async (): Promise<void> => {
-    if (!currentSession) return
-
-    if (pageBeautifyJob) {
-      useGenerateStore.getState().updatePageBeautify(currentSession.id, { status: 'cancelling' })
-      try {
-        const result = await ipc.cancelPageBeautify(currentSession.id)
-        // The backend legitimately returns { success: false } when the local job has already
-        // ended or never existed (crash recovery, race with terminal event, etc.). In that
-        // case no terminal chunk will ever arrive, so the editor would stay locked in
-        // `cancelling` forever. Reconcile against the authoritative backend state: if no
-        // page-beautify run is active, clear the optimistic job and unlock the editor.
-        if (!result.success) {
-          try {
-            const snapshot = await ipc.getPageBeautifyState(currentSession.id)
-            if (snapshot.hasActiveRun && snapshot.status !== 'cancelled') {
-              useGenerateStore.getState().updatePageBeautify(currentSession.id, {
-                status: snapshot.status === 'queued' ? 'queued' : 'running'
-              })
-            } else {
-              useGenerateStore.getState().finishPageBeautify(currentSession.id)
-            }
-          } catch {
-            // Reconciliation itself failed. The cancel result already confirmed no cancellable
-            // page-beautify job exists, so restoring `running` would lock the editor with no
-            // terminal event to clear it. Finish the optimistic job to unlock.
-            useGenerateStore.getState().finishPageBeautify(currentSession.id)
-          }
-        }
-      } catch (error) {
-        useGenerateStore.getState().updatePageBeautify(currentSession.id, { status: 'running' })
-        toastError(error instanceof Error ? error.message : t('generating.failed'))
-      }
-      return
-    }
-
-    if (!selectedPage?.pageId) {
-      toastError(t('sessionDetail.pageBeautifyNoPage'))
-      return
-    }
-
-    const saveResult = await useEditSessionStore.getState().save()
-    if (saveResult.error) {
-      toastError(saveResult.error)
-      return
-    }
-
-    const modelConfigId = await ensureModelActive()
-    if (!modelConfigId) return
-
-    // The visible preview already has the page's real fonts, runtime CSS, and chart
-    // layout applied. Measure it once at click time so non-multimodal models receive
-    // concrete overflow and boundary facts without another render pass.
-    const layoutAudit = await useEditSessionStore.getState().iframeHandle?.readPageLayoutAudit()
-
-    useGenerateStore.getState().startPageBeautify(currentSession.id, {
-      pageId: selectedPage.pageId,
-      pageNumber: selectedPage.pageNumber
-    })
-    try {
-      const result = await ipc.startPageBeautify({
-        sessionId: currentSession.id,
-        selectedPageId: selectedPage.pageId,
-        modelConfigId,
-        layoutAudit: layoutAudit || undefined
-      })
-      if (result.alreadyRunning) {
-        // `alreadyRunning` is reported by the session-wide coordinator and can refer to a
-        // page-edit, deck-edit, style-switch, or generation run — NOT necessarily this
-        // beautify attempt. Attaching that foreign runId to pageBeautifyJobs would lock the
-        // editor: the foreign run's terminal event is handled by its own branch and would
-        // never clear the beautify job. Hydrate from the authoritative page-beautify state
-        // instead, and only keep the optimistic job if a page-beautify run is truly active.
-        const snapshot = await ipc.getPageBeautifyState(currentSession.id)
-        if (snapshot.hasActiveRun && snapshot.status !== 'cancelled') {
-          useGenerateStore.getState().updatePageBeautify(currentSession.id, {
-            runId: snapshot.runId || result.runId,
-            status: snapshot.status === 'queued' ? 'queued' : 'running',
-            progress: snapshot.progress ?? 0
-          })
-        } else {
-          useGenerateStore.getState().finishPageBeautify(currentSession.id)
-          toastError(t('sessionDetail.pageBeautifyBusy'))
-        }
-      } else {
-        const currentJob = useGenerateStore.getState().pageBeautifyJobs[currentSession.id]
-        if (currentJob && result.runId) {
-          useGenerateStore.getState().updatePageBeautify(currentSession.id, {
-            runId: result.runId,
-            status: currentJob.status === 'cancelling' ? 'cancelling' : 'running'
-          })
-        }
-      }
-    } catch (error) {
-      useGenerateStore.getState().finishPageBeautify(currentSession.id)
-      toastError(error instanceof Error ? error.message : t('sessionDetail.pageBeautifyFailed'))
-    }
-  }
 
   const renderSelectedElementTools = (): React.JSX.Element | null => {
     if (!selection) return null
@@ -751,37 +634,6 @@ export function InsertToolRow({ disabled }: ToolRowProps): React.JSX.Element {
     <div className="relative">
       {renderSelectedElementTools()}
       <ToolRowShell>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              className={toolButtonClass}
-              onClick={() => void handlePageBeautify()}
-              disabled={(disabled || !selectedPage?.pageId) && !isPageBeautifying}
-              aria-label={
-                isPageBeautifying
-                  ? t('sessionDetail.cancelPageBeautify')
-                  : t('sessionDetail.pageBeautify')
-              }
-            >
-              <span className={iconWrapClass}>
-                {isPageBeautifying ? (
-                  <CircleStop className={iconClass} />
-                ) : (
-                  <WandSparkles className={iconClass} />
-                )}
-              </span>
-              {isPageBeautifying
-                ? t('sessionDetail.pageBeautifying')
-                : t('sessionDetail.pageBeautify')}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            {isPageBeautifying
-              ? t('sessionDetail.cancelPageBeautify')
-              : t('sessionDetail.pageBeautifyTooltip')}
-          </TooltipContent>
-        </Tooltip>
         <button
           type="button"
           className={toolButtonClass}

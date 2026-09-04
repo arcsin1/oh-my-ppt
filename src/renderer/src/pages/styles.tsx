@@ -50,6 +50,7 @@ type StyleSummary = {
   editable?: boolean
   category: string
   styleCase?: string
+  imageGenerationPrompt?: string
   previewPath?: string | null
   thumbnailPath?: string | null
   favoriteAt?: number | null
@@ -77,6 +78,7 @@ export function StylesPage(): React.JSX.Element {
   const [selectedStyleCase, setSelectedStyleCase] = useState('')
   const [query, setQuery] = useState('')
   const [favoriteOnly, setFavoriteOnly] = useState(false)
+  const [imageGenerationOnly, setImageGenerationOnly] = useState(false)
   const [favoriteUpdatingStyleId, setFavoriteUpdatingStyleId] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<StyleSummary | null>(null)
   const [deletingStyleId, setDeletingStyleId] = useState('')
@@ -87,10 +89,18 @@ export function StylesPage(): React.JSX.Element {
   const t = useT()
 
   const favoriteCount = useMemo(() => styles.filter((style) => style.favoriteAt != null).length, [styles])
+  const imageGenerationCount = useMemo(
+    () => styles.filter((style) => Boolean(style.imageGenerationPrompt)).length,
+    [styles]
+  )
   const styleCaseAvailableStyles = useMemo(() => {
     const byKeyword = filterByStyleKeyword(styles, query)
-    return favoriteOnly ? byKeyword.filter((style) => style.favoriteAt != null) : byKeyword
-  }, [favoriteOnly, query, styles])
+    return byKeyword.filter(
+      (style) =>
+        (!favoriteOnly || style.favoriteAt != null) &&
+        (!imageGenerationOnly || Boolean(style.imageGenerationPrompt))
+    )
+  }, [favoriteOnly, imageGenerationOnly, query, styles])
   const filteredStyles = useMemo(() => {
     const byCase = filterByStyleCase(styleCaseAvailableStyles, selectedStyleCase)
     return favoriteOnly ? [...byCase].sort(compareStylesByFavorite) : byCase
@@ -371,6 +381,20 @@ export function StylesPage(): React.JSX.Element {
             <Star className={cn('h-3.5 w-3.5', favoriteOnly && 'fill-[#d6a942] text-[#d6a942]')} />
             {`${t('styles.favoriteStyles')} · ${favoriteCount}`}
           </button>
+          <button
+            type="button"
+            onClick={() => setImageGenerationOnly((current) => !current)}
+            className={cn(
+              'inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors',
+              imageGenerationOnly
+                ? 'border-[#8fc49a] bg-[#ecf8ee] text-[#39724a]'
+                : 'border-[#8fc49a]/70 bg-white/70 text-[#39724a] hover:bg-[#ecf8ee]'
+            )}
+            aria-pressed={imageGenerationOnly}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {`${t('styles.supportsImageGeneration')} · ${imageGenerationCount}`}
+          </button>
         </div>
         <StyleCaseFilter
           className="mt-3"
@@ -555,6 +579,14 @@ export function StylesPage(): React.JSX.Element {
                 </div>
               </div>
               <div className="p-3">
+                {style.imageGenerationPrompt ? (
+                  <div className="mb-2">
+                    <span className="inline-flex items-center gap-1 rounded-md border border-[#8fc49a]/70 bg-[#ecf8ee] px-1.5 py-0.5 text-[11px] font-medium leading-4 text-[#39724a]">
+                      <Sparkles className="h-3 w-3" />
+                      {t('styles.supportsImageGeneration')}
+                    </span>
+                  </div>
+                ) : null}
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-[#3e4a32]">{style.label}</p>

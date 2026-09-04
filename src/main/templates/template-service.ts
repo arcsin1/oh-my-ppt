@@ -727,6 +727,8 @@ export async function createSessionFromTemplate(
     slideWidth: slideSize.width,
     slideHeight: slideSize.height,
     referenceDocumentPath: userReferenceDocumentPath,
+    visualEnabled: false,
+    imageModelConfigId: null,
     provider: activeModel.provider,
     model: activeModel.model.trim()
   })
@@ -837,6 +839,8 @@ export async function createEditableSessionFromTemplate(
     slideSizeId: slideSize.id,
     slideWidth: slideSize.width,
     slideHeight: slideSize.height,
+    visualEnabled: false,
+    imageModelConfigId: null,
     provider: 'import',
     model: 'template-direct-edit'
   })

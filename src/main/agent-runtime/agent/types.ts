@@ -3,6 +3,7 @@ import type {
   DeckEditScope,
   DesignContract,
   OutlineItem,
+  PageReferenceContext,
   SelectedElementRuntimeContext
 } from '@shared/generation'
 import type { SlideSizePreset } from '@shared/slide-size'
@@ -29,6 +30,8 @@ export interface SessionDeckGenerationContext {
   styleId: string | null | undefined
   /** Snapshot of the database styleSkill markdown for this run. */
   styleSkillPrompt?: string
+  /** Whether the active style snapshot has image-model-specific visual direction. */
+  hasStyleImageDirection?: boolean
   styleKey?: string
   styleName?: string
   styleVersion?: string
@@ -39,6 +42,10 @@ export interface SessionDeckGenerationContext {
   outlineTitles: string[]
   outlineItems: OutlineItem[]
   sourceDocumentPaths?: string[]
+  /** Durable session reference document; enables range-bounded source grounding. */
+  referenceDocumentPath?: string
+  /** The source boundary for this one page. Never expose a deck-wide reference context to a page agent. */
+  pageReferenceContext?: PageReferenceContext
   designContract?: DesignContract
   /** Template generation must inspect the copied template page before rewriting it. */
   templatePageReadRequired?: boolean

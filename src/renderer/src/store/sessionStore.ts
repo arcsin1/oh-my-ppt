@@ -8,6 +8,8 @@ export interface Session {
   title: string
   topic: string | null
   styleId: string | null
+  visualEnabled?: number
+  imageModelConfigId?: string | null
   page_count: number | null
   slideSizeId?: SlideSizePresetId
   slideWidth?: number
@@ -71,6 +73,8 @@ interface SessionStore {
     topic: string
     styleId: string
     modelConfigId?: string
+    visualEnabled?: boolean
+    imageModelConfigId?: string
     pageCount?: number
     slideSizeId?: SlideSizePresetId
     referenceDocumentPath?: string

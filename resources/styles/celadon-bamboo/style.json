@@ -1,0 +1,22 @@
+{
+  "style": "celadon-bamboo",
+  "name": {
+    "zh": "青瓷竹影",
+    "en": "Celadon Bamboo"
+  },
+  "description": "青瓷绿、竹简与晨雾留白构成的东方人文风",
+  "category": "东方 · 人文",
+  "aliases": [
+    "青瓷",
+    "竹简",
+    "国风",
+    "东方美学",
+    "celadon"
+  ],
+  "styleCase": "传统文化、文旅品牌、诗词美学、艺术展陈、茶文化",
+  "imageGeneration": {
+    "prompt": "Quiet East Asian editorial scene suited to the slide subject, with celadon green, bamboo, soft mist, rice-paper warmth, subtle water reflections, and a small vermilion accent. Use poetic depth, delicate hand-rendered texture, and broad negative space for typography. Do not render text, seals, logos, watermarks, UI, crowded architecture, neon color, heavy 3D, or cartoon characters."
+  },
+  "version": "1.0.0",
+  "source": "builtin"
+}

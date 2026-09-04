@@ -12,6 +12,9 @@
     "大字杂志"
   ],
   "styleCase": "杂志编辑、品牌营销、艺术视觉",
+  "imageGeneration": {
+    "prompt": "High-end editorial magazine photograph related to the slide topic, with a warm cream paper mood, refined natural lighting, sophisticated art direction and a boldly isolated subject. Leave uncluttered space for oversized typography added by the slide, but do not render typography yourself. Do not render text, logos, captions, UI, watermarks, frames, or generic stock-photo poses."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

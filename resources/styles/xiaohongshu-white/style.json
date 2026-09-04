@@ -13,6 +13,9 @@
     "xhs"
   ],
   "styleCase": "生活方式、品牌营销、亲子儿童",
+  "imageGeneration": {
+    "prompt": "Clean lifestyle editorial photo-illustration on a white or pale-blush background, with a tasteful travel, beauty, food or cafe flat-lay related to the slide topic. Use warm natural light, restrained coral-red accents and ample whitespace for the slide layout. Do not render text, logos, UI, watermarks, social-media frames, or busy collage elements."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

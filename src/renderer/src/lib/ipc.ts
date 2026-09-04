@@ -42,7 +42,8 @@ import type {
   ImagePromptGenerateResult,
   ImageGenerationHistoryRecord,
   ImageModelConfig,
-  ImageModelProvider
+  ImageModelProvider,
+  ImageModelVerificationResult
 } from '@shared/image-generation.js'
 import type { ThinkingParameterMode } from '@shared/model-config.js'
 import type { ExportProgressPayload } from '@shared/export-progress.js'
@@ -73,7 +74,21 @@ export interface StyleCategory {
     source?: 'builtin' | 'custom' | 'override'
     editable?: boolean
     styleCase?: string
+    imageGenerationPrompt?: string
   }>
+}
+
+export type ImageFulfillmentJobView = {
+  id: string
+  session_id: string
+  session_page_id: string
+  page_id: string
+  status: 'pending' | 'running' | 'finalizing' | 'completed' | 'degraded' | 'failed' | 'cancelled'
+  error: string | null
+  created_at: number
+  updated_at: number
+  layout_failed_count: number
+  retryable_intent_count: number
 }
 
 export interface StyleDetail {
@@ -92,6 +107,7 @@ export interface StyleDetail {
   category?: string
   version?: string
   styleCase?: string
+  imageGenerationPrompt?: string
   packageDir?: string
 }
 
@@ -110,6 +126,7 @@ export interface StyleListItem {
   editable?: boolean
   version?: string
   styleCase?: string
+  imageGenerationPrompt?: string
   packageDir?: string
   favoriteAt?: number | null
   previewPath?: string | null
@@ -134,6 +151,7 @@ export interface StyleParseResult {
   aliases: string[]
   styleSkill: string
   styleCase?: string
+  imageGenerationPrompt?: string
 }
 
 export interface GenerateRunStateSnapshot {
@@ -159,7 +177,6 @@ export interface GenerateRunStateSnapshot {
     | 'page-edit'
     | 'deck-edit'
     | 'style-switch'
-    | 'page-beautify'
   targetPageId?: string
   targetPageNumber?: number
   activityKind?:
@@ -167,7 +184,6 @@ export interface GenerateRunStateSnapshot {
     | 'deck-edit'
     | 'edit'
     | 'style-switch'
-    | 'page-beautify'
     | 'single-page-retry'
     | 'addPage'
   retryPayload?: GenerateStartPayload
@@ -410,6 +426,8 @@ export interface CreateSessionPayload {
   topic: string
   styleId: string
   modelConfigId?: string
+  visualEnabled?: boolean
+  imageModelConfigId?: string
   pageCount?: number
   slideSizeId?: import('@shared/slide-size').SlideSizePresetId
   referenceDocumentPath?: string
@@ -441,7 +459,12 @@ export interface ModelConfig {
   updatedAt: number
 }
 
-export type { GeneratedImageAsset, ImageModelConfig, ImageModelProvider }
+export type {
+  GeneratedImageAsset,
+  ImageModelConfig,
+  ImageModelProvider,
+  ImageModelVerificationResult
+}
 
 export interface UploadPrerequisitesResult {
   ready: boolean
@@ -490,6 +513,22 @@ export interface UploadFontPayload {
 }
 
 export const ipc = {
+  getPlatform: (): NodeJS.Platform | 'unknown' => window.electron?.getPlatform?.() ?? 'unknown',
+  getWindowControlState: () =>
+    getIpc().invoke('window:control:getState') as Promise<{ isFullscreen: boolean }>,
+  minimizeWindow: () => getIpc().invoke('window:control:minimize') as Promise<void>,
+  toggleFullscreenWindow: () =>
+    getIpc().invoke('window:control:toggleFullscreen') as Promise<{ isFullscreen: boolean }>,
+  closeWindow: () => getIpc().invoke('window:control:close') as Promise<void>,
+  onWindowControlStateChanged: (
+    callback: (state: { isFullscreen: boolean }) => void
+  ): (() => void) => {
+    const channel = 'window:control:stateChanged'
+    const handler = (_event: unknown, state: unknown): void =>
+      callback(state as { isFullscreen: boolean })
+    getIpc().on(channel, handler)
+    return () => getIpc().removeListener(channel, handler)
+  },
   createSession: (payload: CreateSessionPayload) =>
     getIpc().invoke('session:create', payload) as Promise<{ sessionId: string }>,
   listSessions: () => getIpc().invoke('session:list') as Promise<unknown[]>,
@@ -905,23 +944,6 @@ export const ipc = {
     getIpc().invoke('page-edit:listActive') as Promise<GenerateRunStateSnapshot[]>,
   cancelPageEdit: (sessionId: string) =>
     getIpc().invoke('page-edit:cancel', sessionId) as Promise<{ success: boolean }>,
-  startPageBeautify: (payload: {
-    sessionId: string
-    selectedPageId: string
-    modelConfigId?: string
-    layoutAudit?: string
-  }) =>
-    getIpc().invoke('page-beautify:start', payload) as Promise<{
-      success: boolean
-      runId?: string
-      alreadyRunning?: boolean
-    }>,
-  getPageBeautifyState: (sessionId: string) =>
-    getIpc().invoke('page-beautify:state', sessionId) as Promise<GenerateRunStateSnapshot>,
-  listActivePageBeautifyRuns: () =>
-    getIpc().invoke('page-beautify:listActive') as Promise<GenerateRunStateSnapshot[]>,
-  cancelPageBeautify: (sessionId: string) =>
-    getIpc().invoke('page-beautify:cancel', sessionId) as Promise<{ success: boolean }>,
   startDeckEdit: (payload: GenerateStartPayload) =>
     getIpc().invoke('deck-edit:start', payload) as Promise<{
       success: boolean
@@ -1152,10 +1174,7 @@ export const ipc = {
   deleteImageModelConfig: (id: string) =>
     getIpc().invoke('imageModels:delete', id) as Promise<{ success: boolean }>,
   verifyImageModel: (payload: { provider: ImageModelProvider; modelConfig: string }) =>
-    getIpc().invoke('imageModels:verify', payload) as Promise<{
-      valid: boolean
-      message?: string
-    }>,
+    getIpc().invoke('imageModels:verify', payload) as Promise<ImageModelVerificationResult>,
   verifyApiKey: (payload: {
     provider: string
     apiKey: string
@@ -1194,6 +1213,17 @@ export const ipc = {
       error: string | null
       updatedAt: number
     } | null>,
+  listImageFulfillmentJobs: (payload: { sessionId: string; pageId?: string }) =>
+    getIpc().invoke('images:listFulfillmentJobs', payload) as Promise<ImageFulfillmentJobView[]>,
+  cancelImageFulfillment: (payload: { sessionId: string; jobId: string }) =>
+    getIpc().invoke('images:cancelFulfillment', payload) as Promise<{ success: boolean }>,
+  retryImageFulfillment: (payload: { sessionId: string; jobId: string }) =>
+    getIpc().invoke('images:retryFulfillment', payload) as Promise<{
+      status: 'none' | 'completed' | 'degraded' | 'cancelled'
+      jobId?: string
+      error?: string
+      reused?: boolean
+    }>,
   getStyles: () =>
     getIpc().invoke('styles:get') as Promise<{
       categories: Record<
@@ -1213,6 +1243,8 @@ export const ipc = {
     getIpc().invoke('styles:getDetail', styleId) as Promise<StyleDetail>,
   listStyles: (payload?: { sessionId?: string }) =>
     getIpc().invoke('styles:list', payload) as Promise<{ items: StyleListItem[] }>,
+  recommendStyles: (payload: { topic: string; brief?: string; modelConfigId?: string }) =>
+    getIpc().invoke('styles:recommend', payload) as Promise<{ styleKeys: string[] }>,
   generateStylePreview: (payload: { styleId: string; modelConfigId?: string }) =>
     getIpc().invoke('styles:generatePreview', payload) as Promise<{
       success: boolean

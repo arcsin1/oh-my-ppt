@@ -4,6 +4,7 @@ import type { AnyNode } from 'domhandler'
 import { SLIDE_SIZE_PRESETS, type SlideSizePreset } from '@shared/slide-size'
 import {
   isPlaceholderPageHtml,
+  normalizeLegacyDataAnimAttributes,
   validateHtmlContent,
   validatePersistedPageHtml
 } from './html-utils'
@@ -440,7 +441,8 @@ export function replacePageContentFragment(args: {
       `检测到禁止的 CDN/远程资源引用 (${args.pageId})，仅允许使用系统预注入的本地 ./assets/*。`
     )
   }
-  const normalizedFragment = normalizeCreativePageFragment(preprocessPageHtml(args.content), {
+  const inputContent = normalizeLegacyDataAnimAttributes(args.content)
+  const normalizedFragment = normalizeCreativePageFragment(preprocessPageHtml(inputContent), {
     blockIdMode: 'strip'
   })
   const prepared = validateOrRepairHtmlContent(normalizedFragment)
@@ -455,7 +457,7 @@ export function replacePageContentFragment(args: {
   const contentNode = $('.ppt-page-root[data-ppt-guard-root="1"] .ppt-page-content').first()
   if (!contentNode.length) {
     throw new Error(
-      `一键美化无法定位页面主体容器 (${args.pageId})：页面骨架已被破坏，请先修复页面后再美化。`
+      `无法定位页面主体容器 (${args.pageId})：页面骨架已被破坏，请先修复页面后再编辑。`
     )
   }
   contentNode.html(prepared.content)
@@ -466,7 +468,7 @@ export function replacePageContentFragment(args: {
       `HTML 落盘校验失败 (${args.pageId}): ${persistedValidation.errors.join('; ')}。请修正页面片段后重试。`
     )
   }
-  return { html, content: args.content, repaired: prepared.repaired }
+  return { html, content: inputContent, repaired: prepared.repaired }
 }
 
 function hasDataAnim(html: string): boolean {
@@ -533,7 +535,9 @@ export async function normalizeAndInjectPageRuntime(
   designFonts?: { titleFont: string; bodyFont: string },
   pageNumber?: number
 ): Promise<string> {
-  const fragment = normalizeCreativePageFragment(preprocessPageHtml(content))
+  const fragment = normalizeCreativePageFragment(
+    preprocessPageHtml(normalizeLegacyDataAnimAttributes(content))
+  )
   const document = await buildScaffoldDocument({
     pageId,
     pageNumber,
@@ -573,7 +577,8 @@ export async function buildPersistedPageHtmlFromFragment(args: {
       ].join('\n')
     )
   }
-  const prepared = validateOrRepairHtmlContent(args.content)
+  const inputContent = normalizeLegacyDataAnimAttributes(args.content)
+  const prepared = validateOrRepairHtmlContent(inputContent)
   const normalizedContent = normalizeCreativePageFragment(preprocessPageHtml(prepared.content))
   const normalizedValidation = validateHtmlContent(normalizedContent)
   if (!normalizedValidation.valid) {

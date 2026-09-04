@@ -2,7 +2,9 @@ import {
   SECTION_AGENDA_OUTLINE_MARKER,
   isInternalDocumentPlanPageReason,
   isSectionAgendaReason,
+  type DocumentPlanAgendaItem,
   type OutlineItem,
+  type PageReferenceContext,
   type SourceDocumentPlan
 } from '@shared/generation'
 
@@ -31,6 +33,31 @@ const readPositiveInt = (value: unknown): number | null => {
 
 const readString = (value: unknown): string => (typeof value === 'string' ? value.trim() : '')
 
+const readArray = (value: unknown): unknown[] => {
+  if (Array.isArray(value)) return value
+  if (typeof value !== 'string' || !value.trim()) return []
+  try {
+    const parsed = JSON.parse(value) as unknown
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+const normalizeAgendaItems = (value: unknown): DocumentPlanAgendaItem[] | undefined => {
+  const agendaItems = readArray(value)
+    .slice(0, MAX_SOURCE_PLAN_PAGES)
+    .map((item) => {
+      const record = getObject(item)
+      if (!record) return null
+      const title = readString(record.title)
+      const lineStart = readPositiveInt(record.lineStart ?? record.line_start)
+      return title && lineStart ? { title, lineStart } : null
+    })
+    .filter((item): item is DocumentPlanAgendaItem => Boolean(item))
+  return agendaItems.length > 0 ? agendaItems : undefined
+}
+
 const normalizeSourcePlanReason = (reason: string): string =>
   reason && !isInternalDocumentPlanPageReason(reason) ? reason : ''
 
@@ -45,6 +72,7 @@ const normalizeSourcePlanItem = (value: unknown, fallbackPageNumber: number) => 
   const lineStart = readPositiveInt(record.lineStart) ?? 1
   const lineEnd = readPositiveInt(record.lineEnd) ?? lineStart
   const reason = readString(record.reason)
+  const agendaItems = normalizeAgendaItems(record.agendaItems ?? record.agenda_items_json)
   if (!sourceHeading || lineEnd < lineStart) return null
   return {
     pageNumber,
@@ -54,7 +82,8 @@ const normalizeSourcePlanItem = (value: unknown, fallbackPageNumber: number) => 
     headingLevel,
     lineStart,
     lineEnd,
-    reason: normalizeSourcePlanReason(reason)
+    reason: normalizeSourcePlanReason(reason),
+    agendaItems
   }
 }
 
@@ -99,7 +128,8 @@ export const sourcePlanFromSkeletonRows = (rows: unknown[]): SourceDocumentPlan 
           headingLevel: record.heading_level ?? record.headingLevel,
           lineStart: record.line_start ?? record.lineStart,
           lineEnd: record.line_end ?? record.lineEnd,
-          reason: record.reason
+          reason: record.reason,
+          agendaItems: record.agenda_items_json ?? record.agendaItems
         },
         index + 1
       )
@@ -136,11 +166,35 @@ export const canUseSourcePlanDirectly = (args: {
     !userMessageRequestsOutlineRestructure(args.userMessage)
   )
 
+export const resolvePageReferenceContext = (args: {
+  referenceDocumentPath?: string
+  sourcePlan: SourceDocumentPlan | null | undefined
+  pageNumber: number
+}): PageReferenceContext | null => {
+  const referenceDocumentPath = args.referenceDocumentPath?.trim()
+  if (!referenceDocumentPath || !args.sourcePlan) return null
+  const sourceDocumentPath = args.sourcePlan.sourceDocumentPath?.trim()
+  if (sourceDocumentPath && sourceDocumentPath !== referenceDocumentPath) return null
+  const item = args.sourcePlan.pageSkeleton.find((candidate) => candidate.pageNumber === args.pageNumber)
+  if (!item) return null
+  const isSectionAgenda = Boolean(item.agendaItems?.length) || isSectionAgendaReason(item.reason)
+  return {
+    referenceDocumentPath,
+    sourceHeading: item.sourceHeading,
+    sourceRange: {
+      lineStart: item.lineStart,
+      lineEnd: item.lineEnd
+    },
+    agendaItems: item.agendaItems,
+    isSectionAgenda
+  }
+}
+
 const inferLayoutIntentFromSkeletonTitle = (
   item: SourceDocumentPlan['pageSkeleton'][number]
 ): OutlineItem['layoutIntent'] => {
   const text = `${item.title}\n${item.sourceHeading}`
-  if (isSectionAgendaReason(item.reason)) return 'summary'
+  if (item.agendaItems?.length || isSectionAgendaReason(item.reason)) return 'summary'
   if (item.role === 'chapter-divider') return 'cover'
   if (/指标|数据|收入|增长|下降|比例|金额|率|metric|revenue|growth|decline|kpi|%|\d/.test(text)) {
     return 'data-focus'
@@ -155,11 +209,20 @@ const inferLayoutIntentFromSkeletonTitle = (
 export const mapSourcePlanToOutlineItems = (sourcePlan: SourceDocumentPlan): OutlineItem[] =>
   sourcePlan.pageSkeleton.map((item) => {
     const inferredLayoutIntent = inferLayoutIntentFromSkeletonTitle(item)
-    const isSectionAgenda = isSectionAgendaReason(item.reason)
+    const isSectionAgenda = Boolean(item.agendaItems?.length) || isSectionAgendaReason(item.reason)
+    const agendaItemsMetadata = item.agendaItems?.length
+      ? `Agenda items JSON: ${JSON.stringify(item.agendaItems)}`
+      : ''
     return {
       title: item.title,
       contentOutline: (isSectionAgenda
-        ? [SECTION_AGENDA_OUTLINE_MARKER, `Page purpose: ${item.reason}`]
+        ? [
+            SECTION_AGENDA_OUTLINE_MARKER,
+            `Source heading: ${item.sourceHeading}`,
+            `Source range: lines ${item.lineStart}-${item.lineEnd}`,
+            agendaItemsMetadata,
+            !agendaItemsMetadata && item.reason ? `Page purpose: ${item.reason}` : ''
+          ]
         : [
             `Source heading: ${item.sourceHeading}`,
             `Source range: lines ${item.lineStart}-${item.lineEnd}`,

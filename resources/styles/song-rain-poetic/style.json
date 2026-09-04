@@ -15,6 +15,9 @@
     "生活美学"
   ],
   "styleCase": "传统文化、疗愈冥想、生活方式",
+  "imageGeneration": {
+    "prompt": "Elegant Song-dynasty Chinese ink-and-wash rainy courtyard with blue-tiled eaves, banana leaves, a tea cup, oil-paper umbrella, lattice window and distant mountains. Use misty blue, tender green and warm lamp-yellow accents on rice paper with poetic negative space. Do not render text, seal lettering, logos, UI, watermarks, photorealism, or dense architecture."
+  },
   "version": "2.0.1",
   "source": "builtin"
 }

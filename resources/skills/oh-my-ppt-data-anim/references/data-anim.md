@@ -201,7 +201,7 @@ Do not manually set `opacity: 0`, `visibility: hidden`, `display: none`, or inli
 
 | Goal | Type | Notes |
 |---|---|---|
-| Subtle fade-in | `fade` | For text blocks, annotations |
+| Subtle fade | `fade` | For text blocks, annotations |
 | Standard card entrance | `fade-up` | Default choice for most elements |
 | Directional emphasis | `fly-in` + `from` | Metrics flying in from the side |
 | Strong directional entrance | `slide-down` / `slide-right` | When fade-up/left is too subtle but wipe is too hard-edged |

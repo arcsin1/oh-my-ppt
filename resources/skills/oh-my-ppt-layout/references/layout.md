@@ -89,7 +89,7 @@ Grid cells participate in document flow, expand to fit their content, and never 
 - Safety reserve = 40px -> 228px spare after reserve
 ```
 
-Chart height is chosen from the computed chart slot, not from a copied default. If the content slot is large, either size the chart enough to feel dominant or reserve the rest as intentional whitespace plus only the support the content actually needs. Do not cap the chart at a tiny default height and leave an accidental empty band; also do not fill the band with unnecessary cards.
+Chart height is chosen from the computed chart slot, not from a copied default. If the content slot is large, either size the chart enough to feel dominant or give the remaining space to the support the content actually needs, while keeping actual gaps between independent modules. Do not cap the chart at a tiny default height and leave an accidental empty band; also do not fill the band with unnecessary cards.
 
 Do not add a second row of summary cards under this layout. When a data-focus slide already has a chart plus metric row, extra facts need a density-appropriate expression such as in-chart annotations, one concise evidence rail, a compact chip row, or a small table that is included in the budget.
 

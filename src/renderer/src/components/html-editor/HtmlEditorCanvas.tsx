@@ -152,6 +152,35 @@ export interface HtmlEditorCanvasHandle {
   readEditSnapPoints: () => Promise<EditSnapPoints>
 }
 
+export function applyHtmlEditorPreviewUrlParams(
+  inputUrl: string,
+  {
+    playback,
+    thumbnail,
+    pageId
+  }: { playback: boolean; thumbnail: boolean; pageId?: string }
+): string {
+  const url = new URL(inputUrl)
+  // HtmlEditorCanvas already scales the logical slide canvas into its viewport.
+  // Disable page-level auto-fit to avoid double-scaling on specific pages.
+  url.searchParams.set('fit', 'off')
+  if (thumbnail) {
+    url.searchParams.set('thumbnail', '1')
+    if (pageId) url.searchParams.set('pageId', pageId)
+  }
+  // Editing and thumbnails must be deterministic. Interactive preview keeps the
+  // page runtime active so click handlers, page navigation, and animations run.
+  url.searchParams.set('pptPlayback', playback && !thumbnail ? '1' : '0')
+  if (playback && !thumbnail) url.searchParams.delete('print')
+  else url.searchParams.set('print', '1')
+  return url.toString()
+}
+
+export const resolveHtmlEditorCanvasSource = (
+  baseUrl: string | undefined,
+  activeUrl: string | undefined
+): string | undefined => activeUrl || baseUrl
+
 export const HtmlEditorCanvas = forwardRef<
   HtmlEditorCanvasHandle,
   {
@@ -164,6 +193,9 @@ export const HtmlEditorCanvas = forwardRef<
     inspectable?: boolean
     editMode?: boolean
     thumbnail?: boolean
+    playback?: boolean
+    activeUrl?: string
+    onActiveUrlChange?: (url: string) => void
     interactionMode?: InteractionMode
     designWidth?: number
     reloadSignal?: number
@@ -189,6 +221,9 @@ export const HtmlEditorCanvas = forwardRef<
     inspectable = false,
     editMode = false,
     thumbnail = false,
+    playback = false,
+    activeUrl,
+    onActiveUrlChange,
     interactionMode,
     designWidth = 1280,
     reloadSignal = 0,
@@ -235,20 +270,8 @@ export const HtmlEditorCanvas = forwardRef<
       .map((segment) => encodeURIComponent(segment))
       .join('/')
 
-  const applyPreviewUrlParams = (inputUrl: string): string => {
-    const url = new URL(inputUrl)
-    // HtmlEditorCanvas already scales the logical slide canvas into its viewport.
-    // Disable page-level auto-fit to avoid double-scaling on specific pages.
-    url.searchParams.set('fit', 'off')
-    // Preview surfaces are static. Only the full-screen presentation URL enables motion.
-    url.searchParams.set('print', '1')
-    url.searchParams.set('pptPlayback', '0')
-    if (thumbnail) {
-      url.searchParams.set('thumbnail', '1')
-      if (pageId) url.searchParams.set('pageId', pageId)
-    }
-    return url.toString()
-  }
+  const applyPreviewUrlParams = (inputUrl: string): string =>
+    applyHtmlEditorPreviewUrlParams(inputUrl, { playback, thumbnail, pageId })
 
   const toFileUrl = (absolutePath: string): string => {
     const normalizedPath = absolutePath.replace(/\\/g, '/')
@@ -266,11 +289,15 @@ export const HtmlEditorCanvas = forwardRef<
 
   // Always preview concrete page file (<pageId>.html). index.html is only for external full-deck preview.
   const pageHtmlPath = resolvePageHtmlPath(htmlPath, pageId)
-  const webviewSrc = pageHtmlPath
+  const baseWebviewSrc = pageHtmlPath
     ? toFileUrl(pageHtmlPath)
     : src
       ? withPreviewParams(src)
       : undefined
+  // The deck runtime can switch pages entirely in memory without changing the URL.
+  // Keep the already loaded source unchanged when entering edit mode so that runtime
+  // state, including the currently visible page, is not reset by a webview reload.
+  const webviewSrc = resolveHtmlEditorCanvasSource(baseWebviewSrc, activeUrl)
   const currentInteractionMode: InteractionMode =
     interactionMode || (editMode ? 'edit' : inspecting ? 'ai-inspect' : 'preview')
   const pointerEnabled = inspectable
@@ -957,6 +984,11 @@ export const HtmlEditorCanvas = forwardRef<
     const webview = webviewElement
     if (!webview) return
 
+    const reportNavigation = (event: Event): void => {
+      const url = (event as { url?: unknown }).url
+      if (typeof url === 'string' && url) onActiveUrlChange?.(url)
+    }
+
     webviewReadyRef.current = false
     setWebviewReady(false)
 
@@ -975,16 +1007,20 @@ export const HtmlEditorCanvas = forwardRef<
 
     webview.addEventListener('dom-ready', markReady as EventListener)
     webview.addEventListener('did-start-loading', handleStartLoading as EventListener)
+    webview.addEventListener('did-navigate', reportNavigation as EventListener)
+    webview.addEventListener('did-navigate-in-page', reportNavigation as EventListener)
 
     return () => {
       webview.removeEventListener('dom-ready', markReady as EventListener)
       webview.removeEventListener('did-start-loading', handleStartLoading as EventListener)
+      webview.removeEventListener('did-navigate', reportNavigation as EventListener)
+      webview.removeEventListener('did-navigate-in-page', reportNavigation as EventListener)
       if (webviewRef.current === webview) {
         webviewReadyRef.current = false
         setWebviewReady(false)
       }
     }
-  }, [webviewElement])
+  }, [onActiveUrlChange, webviewElement])
 
   // Selection overlay effect: handles AI inspect and animation-select.
   useEffect(() => {

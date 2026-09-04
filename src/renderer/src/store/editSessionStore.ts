@@ -12,6 +12,7 @@ import {
   rgbToHex
 } from '../components/session-detail/element-inspector/elementEditUtils'
 import type { ElementEditDraft } from '../components/session-detail/element-inspector'
+import { hasCapability } from '../components/session-detail/element-inspector/types'
 import {
   buildChartJsConfig,
   normalizeChartData,
@@ -89,11 +90,11 @@ function getCommitFieldsForSelection(selection: EditSelectionPayload): Set<keyof
   const fields = new Set<keyof ElementEditDraft>()
   const capabilities = selection.capabilities || []
   if (capabilities.includes('layer')) fields.add('layoutZIndex')
-  if (capabilities.includes('appearance')) {
+  if (hasCapability(selection, 'appearance')) {
     fields.add('opacity')
     fields.add('backgroundColor')
   }
-  if (capabilities.includes('media')) {
+  if (hasCapability(selection, 'media')) {
     fields.add('objectFit')
     fields.add('alt')
     fields.add('poster')
