@@ -31,8 +31,24 @@
 
 ---
 
+<a id="sponsors-list"></a>
+## 🏢 Sponsors
+
+| Sponsor | About |
+| --- | --- |
+| <a href="https://www.toumingren.xyz/" target="_blank"><img src="./docs/images/toumingren.png" width="200" alt="toumingren" /></a> | [Toumingren](https://www.toumingren.xyz/) — Turn subscriptions into a programmable API. No black boxes — just a transparent middle layer. |
+
+<a id="sponsors"></a>
+## 💖 Backers
+
+Thanks to everyone who has supported Oh My PPT — see [SponsorsList.md](./SponsorsList.md) for the full list.
+
+---
+
 ## Table of Contents
 
+- [Sponsors](#sponsors-list)
+- [Backers](#sponsors)
 - [Why I Built This](#why)
 - [Import Legacy PPTX Templates for Editing](#pptx-import)
 - [Export Editable PPTX from the Desktop App](#pptx-export)
@@ -45,13 +61,10 @@
 - [Local Ollama Support](#ollama)
 - [Usage Notes](#usage-notes)
   - [Configure your models first](#config)
-  - [How to add images, videos, and AI visuals to a PPT](#assets)
   - [About preview mode](#preview)
   - [About export](#export)
 - [Opening Unsigned Apps](#unsigned-app)
-- [Sponsors](#sponsors-list)
 - [Reference](#references)
-- [Backers](#sponsors)
 - [Contributors](#contributors)
 - [License](#license)
 
@@ -75,23 +88,23 @@ Output is pure HTML slides: instant browser preview, no extra software, easy to 
 
 Bring existing PPTX templates, past reports, or client files into the desktop app and keep editing. Typical PPTX imports restore close to **100%** of the original visual and structural result, converting files into pages you can drag, adjust, modify with AI, and manage through version history. Imported files can also yield reusable styles for future work.
 
-PPTX parsing and conversion to structured editable data are **fully developed in-house** by Oh My PPT. Complex shapes, charts, tables, animations, mixed text, and extreme layouts continue to improve; actual fidelity varies with the source file's PowerPoint features, fonts, and asset complexity.
+Parsing and structured conversion are **fully in-house**; complex shapes, charts, tables, and animations continue to improve, and fidelity varies with the source file's features, fonts, and asset complexity.
 
 <a id="pptx-export"></a>
 ## 📤 Export Editable PPTX from the Desktop App, Close to 100% Fidelity
 
 After creating or editing in the desktop app, export a true PPTX that remains editable in PowerPoint / Keynote. In typical cases, the exported file preserves close to **100%** of its visual and structural result, including text, images, colors, formulas, and basic layout where possible.
 
-HTML-to-editable-PPTX generation and layout handling are **fully developed in-house** by Oh My PPT. Text overlap, mixed text, complex charts, tables, shapes, and animations are still being improved.
+HTML-to-editable-PPTX generation and layout are **fully in-house**; complex charts, tables, shapes, and animations are still being improved.
 
 <a id="features"></a>
 ## ✅ What It Can Do
 
-- 📥 **Import legacy PPTX templates for editing, close to 100% fidelity** — Bring existing templates and past files into the desktop app as pages you can drag, adjust, modify with AI, and manage through version history; parsing and structured conversion are fully in-house
-- 📤 **Export editable PPTX from the desktop app, close to 100% fidelity** — Export newly created or edited decks as true PPTX files that remain editable in PowerPoint / Keynote; generation and layout are fully in-house, with complex objects still improving
+- 📥 **Import legacy PPTX templates for editing, close to 100% fidelity** — Imported files become pages you can drag, adjust, modify with AI, and manage through version history; parsing and conversion are fully in-house
+- 📤 **Export editable PPTX from the desktop app, close to 100% fidelity** — Export decks as true PPTX files that remain editable in PowerPoint / Keynote; generation and layout are fully in-house
 - 💬 **Topic-based creation** — Set the topic, detailed brief, and page options; AI plans the outline, palette, and layout, then generates a complete deck
 - 🔀 **Multi-task generation** — Submit multiple generation tasks in parallel without waiting for one to finish before starting another, with automatic notifications on completion
-- 📐 **Multi-size, multi-format canvases** — Beyond traditional PPT sizes, create widescreen decks, 4:3 projection slides, vertical 9:16 pages, portrait 3:4 pages, square 1:1 cards, Xiaohongshu/social-note formats, and more, with generation, preview, editing, and export preserving the real aspect ratio
+- 📐 **Multi-size, multi-format canvases** — 16:9, 4:3, vertical 9:16, portrait 3:4, square 1:1, Xiaohongshu/social-note formats and more, with the real aspect ratio preserved from generation to export
 - 📄 **Document-based creation** — Upload txt, md, csv, or docx files and the app prepares the topic, page count, and brief automatically; generation keeps referencing the source document to produce creative decks grounded in your content
 - 🧱 **Template library and template creation** — Save generated or edited decks as templates, import PPTX files as templates, and reuse templates to create new PPT sessions
 - 🖼️ **Image-based style and outline generation** — Upload a screenshot or design mockup to automatically extract a distinctive visual style and generate an outline (requires a multimodal AI model)
@@ -139,17 +152,11 @@ The home page supports several common entry points:
 - **Upload document parsing**: upload txt, md, csv, docx, and other files so the app can prepare the topic, page count, and detailed description, then keep referencing the source file during generation.
 - **Create from template**: choose a saved template from the Templates page to copy it into an editable PPT session, or enter a new topic/outline or upload a document so the app regenerates content while preserving the template's layout, palette, and visual rhythm.
 
-Document parsing also checks whether the outline and page count match. For example, if the outline clearly contains five pages, the creation form will try to use five pages too. Your documents stay in the local workspace; the app only prepares them as AI-readable text.
+To import a legacy PPTX template, click "Import PPTX" on the home page; typical files are restored with close to 100% fidelity for further editing. Existing sessions can also be saved to the template library and reused.
 
-If you already have a legacy PPTX template, click "Import PPTX" on the home page. Typical files are restored to editable in-app pages with close to 100% fidelity, ready for previewing, position adjustments, and chat editing.
+After configuring and verifying an image model in **Settings**, enable **Image Generation** on the creation page and pick a style marked **Image generation**; visuals are produced only where they genuinely improve the page. Automatic visuals add generation time — you can still generate images on demand in the editor when it is off.
 
-Whether you edited an imported template or created a deck in the desktop app, export it from the client as a PPTX that remains editable in PowerPoint / Keynote, with close to 100% fidelity in typical cases.
-
-You can also save an existing session to the template library, or import a PPTX as a template from the Templates page, then reuse the same structure and visual style to create new PPT sessions.
-
-After configuring and verifying an image model in **Settings**, enable **Image Generation** on the creation page. When you choose a style marked **Image generation**, the creation flow will produce visuals where they genuinely improve the page, guided by the page content and the style direction. Automatic visuals add generation time; you can still generate images on demand in the editor when this option is off.
-
-After generation, you can enter preview or presentation mode, keep editing by dragging elements, inserting images/videos, using chat edits, rolling back history, and generate speaker scripts for the full deck or the current slide.
+After generation, preview or present the deck, keep editing (drag elements, insert images/videos, chat edits, roll back history, generate speaker scripts), and export — imported or newly created alike — as an editable PPTX with close to 100% fidelity.
 
 <a id="style-skills"></a>
 ## 🎨 90+ Built-in Style Skills
@@ -168,11 +175,9 @@ Image generation has two entry points for deck-wide visuals and targeted additio
 | Create a full deck | Add and **verify** an image model under **Settings → Image Models**, enable **Image Generation** on the creation page, and choose a style marked **Image generation** | AI produces illustrations, backgrounds, or visual elements only in suitable layout slots, preserving text-safe space and the selected visual style |
 | Edit an existing slide | Open the editor's image-generation panel, generate a prompt from the current slide or write one yourself, then choose a model and size | Preview the generated image, add it to the canvas for layout work, or set it as the current slide background |
 
-You can configure multiple image services and choose a model while creating or editing. Built-in provider presets currently include Jimeng 3.0 / 4.0, Agnes AI, Seedream, SiliconFlow, Gemini, and OpenAI-compatible image APIs. Available dimensions, speed, cost, and content policies depend on the chosen provider.
+Built-in provider presets include Jimeng 3.0 / 4.0, Agnes AI, Seedream, SiliconFlow, Gemini, and OpenAI-compatible image APIs; text and image models are configured separately. Image configurations are saved only after passing a real test under **Settings → Image Models**.
 
-Start by running a real test in **Settings → Image Models**. The app generates a test image at the default resolution, and the configuration can only be saved after it returns a visible image. Text models and image models are configured separately: for example, local Ollama can handle text generation, while automatic visuals still need an image-capable provider.
-
-Automatic visuals retain the canvas format you selected and do not replace images you uploaded yourself. Successful outputs are archived in the current session's local asset directory, ready to edit, replace, export, or move with the session. When you submit an image request, its prompt and the necessary page semantics are sent to the image provider you selected; use it in accordance with that provider's privacy and content policies.
+Successful outputs are archived in the session's local asset directory, ready to edit, replace, export, or move with the session. Automatic visuals keep the canvas format and never replace images you uploaded. Image requests are sent to the provider you choose — follow its privacy and content policies.
 
 <a id="fonts"></a>
 ## 🔤 Font Management
@@ -236,15 +241,6 @@ Set up the model for creation, document parsing, and editing under **Settings �
 
 For AI image generation or automatic visuals, add the provider's full JSON configuration under **Settings → Image Models** and select **Verify**. Verification generates a real test image; it must succeed before the configuration can be saved, then it can be selected on the creation page and in the editor.
 
-<a id="assets"></a>
-### How to add images, videos, and AI visuals to a PPT
-
-Local images and videos are copied into the current session's local asset directory. In the editor, insert them from the asset library or local files. You can also open the image-generation panel, let AI develop a prompt from the current page or write your own, and then add the result to the canvas or set it as the background.
-
-Oh My PPT does not upload local assets to its own cloud service. However, an image-generation request is sent to the image provider you configured.
-
-<img src="./docs/images/edit.webp" alt="Oh My PPT Editor" width="600" />
-
 <a id="preview"></a>
 ### About preview mode
 
@@ -258,7 +254,7 @@ Oh My PPT currently supports five export modes, plus standalone HTML packaging:
 - **PDF**: best for sharing, archiving, and printing.
 - **PNG**: batch-export every slide as an image for docs, Notion, articles, or social posts.
 - **PNG long image**: stitch the full set of pages vertically into one long image for social posts, chat sharing, long-document previews, and mobile reading.
-- **Editable PPTX**: export with a fully in-house foundation to a file that remains editable in PowerPoint / Keynote. Typical cases reach close to 100% fidelity while preserving text, images, colors, formulas, and basic layout; text overlap, mixed text, complex charts, tables, shapes, and animations are still being improved.
+- **Editable PPTX**: fully in-house export foundation, close to 100% fidelity in typical cases, remains editable in PowerPoint / Keynote.
 - **MP4**: export the presentation as a video for social posts, client sharing, or playback when a PPT file is not the best fit.
 - **Packaged HTML**: bundle the deck and its runtime resources so it can be opened and presented in a browser with a double click.
 
@@ -314,15 +310,6 @@ If your browser or antivirus blocks the file, first confirm the installer came f
 
 > Download builds only from the official Releases page when possible.
 
-<a id="sponsors-list"></a>
-## 🏢 Sponsors
-
-Thanks to the following sponsors for their support!
-
-| Sponsor |
-| --- |
-| <a href="https://www.toumingren.xyz/" target="_blank"><img src="./docs/images/toumingren.png" width="300" alt="toumingren" /></a> |
-
 <a id="references"></a>
 ## Reference
 
@@ -331,13 +318,6 @@ Thanks to the following sponsors for their support!
 - [arcsin1/style-generate-skill](https://github.com/arcsin1/style-generate-skill) — the official Oh My PPT style-generation Skill for turning reference designs, palettes, layouts, and scenario requirements into importable style packages.
 - [ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill)
 - [html-ppt-skill](https://github.com/lewislulu/html-ppt-skill)
-
-<a id="sponsors"></a>
-## 💖 Backers
-
-Special thanks to everyone who has supported this project! Your generosity keeps Oh My PPT alive and growing.
-
-See [SponsorsList.md](./SponsorsList.md) for the full list of backers.
 
 <a id="contributors"></a>
 ## Contributors
