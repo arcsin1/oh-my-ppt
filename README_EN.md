@@ -25,7 +25,7 @@
 
   [Website](https://www.ohmyppt.cc) | [Download](https://github.com/arcsin1/oh-my-ppt/releases)
 
-  <img src="https://arcsin1.github.io/ppt2.gif" alt="Oh My PPT" width="600" />
+  <img src="./docs/images/OhMyPPT.png"/>
 
 </div>
 
@@ -49,10 +49,9 @@
   - [About preview mode](#preview)
   - [About export](#export)
 - [Opening Unsigned Apps](#unsigned-app)
-- [Feedback & Requests](#feedback)
-- [Sponsor Support](#sponsor)
+- [Sponsors](#sponsors-list)
 - [Reference](#references)
-- [Sponsors](#sponsors)
+- [Backers](#sponsors)
 - [Contributors](#contributors)
 - [License](#license)
 
@@ -93,16 +92,16 @@ HTML-to-editable-PPTX generation and layout handling are **fully developed in-ho
 - 💬 **Topic-based creation** — Set the topic, detailed brief, and page options; AI plans the outline, palette, and layout, then generates a complete deck
 - 🔀 **Multi-task generation** — Submit multiple generation tasks in parallel without waiting for one to finish before starting another, with automatic notifications on completion
 - 📐 **Multi-size, multi-format canvases** — Beyond traditional PPT sizes, create widescreen decks, 4:3 projection slides, vertical 9:16 pages, portrait 3:4 pages, square 1:1 cards, Xiaohongshu/social-note formats, and more, with generation, preview, editing, and export preserving the real aspect ratio
-- 📄 **Document-based creation** — Upload txt, md, csv, or docx files to prepare topic, page count, and description automatically, then keep using the source document during generation
+- 📄 **Document-based creation** — Upload txt, md, csv, or docx files and the app prepares the topic, page count, and brief automatically; generation keeps referencing the source document to produce creative decks grounded in your content
 - 🧱 **Template library and template creation** — Save generated or edited decks as templates, import PPTX files as templates, and reuse templates to create new PPT sessions
-- 🖼️ **Image-based style and outline generation** — Upload a screenshot or design mockup, then automatically extract a distinctive visual style and generate an outline
+- 🖼️ **Image-based style and outline generation** — Upload a screenshot or design mockup to automatically extract a distinctive visual style and generate an outline (requires a multimodal AI model)
 - 🖼️ **AI image generation and smart visuals** — Enable automatic visuals while creating a deck. AI generates illustrations, backgrounds, and visual assets only where the current content, layout, and chosen style call for them, instead of forcing an image onto every slide
 - ✨ **In-editor image studio** — Generate a prompt from the current slide title and outline, add your own direction and image size, then preview the result, add it to the canvas, or make it the slide background
 - 🏷️ **Image-generation style filtering** — The style library marks styles that support image generation, so automatic visuals can follow the deck's visual direction
 - 🔒 **Local-first** — Sessions, source documents, assets, and generated results stay on your computer. No Oh My PPT account or platform cloud is required. Requests made to your configured AI or image service are sent to that provider
 - 🔤 **Font management** — 14 curated Google Fonts built-in (including CJK), upload local fonts, pick title and body fonts separately or let AI auto-match
 - 🎨 **90+ built-in style skills** — Minimal White, Cyber Neon, Bauhaus, Japanese Minimal, Xiaohongshu White, and more, plus custom styles
-- ✏️ **Chat-based editing** — Tell it “change title color” or “add a data chart” on a specific page, without rebuilding everything  
+- ✏️ **Chat-based editing** — Tell it "change title color" or "add a data chart" on a specific page, without rebuilding everything
 - 🖱️ **Visual editing** — Every visible element can be dragged and resized, and every element can be picked and modified with AI
 - 📸 **Image and video insertion** — Upload images and videos directly in edit mode from the asset library or local files, and use them alongside AI-generated images
 - 📋 **Element duplication** — One-click copy of any element (text, images, videos, etc.), auto-offset and independently editable
@@ -118,21 +117,20 @@ HTML-to-editable-PPTX generation and layout handling are **fully developed in-ho
 - 🧩 **More reliable page layout** — Generation follows the selected canvas size and content-height budget to reduce overflow
 - 🔄 **Version history rollback** — Every edit is automatically saved, roll back to any previous version with one click, never worry about mistakes
 - 📦 **One-click packaging** — Bundle your HTML deck into a single executable file, double-click to open and present anywhere, no installation needed (just a browser)
-- 💾 **AI-generated creative deck import & export** — Export your AI-generated creative deck from the editing page and import it on another computer to continue editing, making cross-device collaboration seamless
-
+- 💾 **Creative deck import & export** — Export the session's AI-generated creative deck from the editor in one click, import it on another computer to continue editing, and collaborate seamlessly across devices
 
 <p>
-<img width="30%" alt="Oh My PPT - 9" src="https://arcsin1.github.io/imgs/home.webp" />
-<img width="30%" alt="Oh My PPT - 10" src="https://arcsin1.github.io/imgs/exp.webp" />
-<img width="30%" alt="Oh My PPT - 11" src="https://arcsin1.github.io/imgs/anime.webp" />
+  <img width="32%" alt="Oh My PPT Home" src="./docs/images/home.webp" />
+  <img width="32%" alt="Oh My PPT Style Library" src="./docs/images/style.webp" />
+  <img width="32%" alt="Oh My PPT Editor" src="./docs/images/edit.webp" />
 </p>
-
-<img width="600"  src="https://arcsin1.github.io/imgs/chat.webp" />
 
 <a id="workflow"></a>
 ## 🔄 Workflow
 
 > 💡 Import a legacy PPTX template to keep editing, or choose a creation mode → confirm topic / materials / page count / canvas format / style / fonts / visuals → AI generates the HTML deck → preview, present, and edit → export an editable PPTX from the desktop app with close to 100% fidelity, PDF / PNG / PNG long image / MP4 / packaged HTML
+
+<img src="./docs/images/home.webp" alt="Oh My PPT Home Entry Points" width="600" />
 
 The home page supports several common entry points:
 
@@ -143,7 +141,7 @@ The home page supports several common entry points:
 
 Document parsing also checks whether the outline and page count match. For example, if the outline clearly contains five pages, the creation form will try to use five pages too. Your documents stay in the local workspace; the app only prepares them as AI-readable text.
 
-If you already have a legacy PPTX template, click “Import PPTX” on the home page. Typical files are restored to editable in-app pages with close to 100% fidelity, ready for previewing, position adjustments, and chat editing.
+If you already have a legacy PPTX template, click "Import PPTX" on the home page. Typical files are restored to editable in-app pages with close to 100% fidelity, ready for previewing, position adjustments, and chat editing.
 
 Whether you edited an imported template or created a deck in the desktop app, export it from the client as a PPTX that remains editable in PowerPoint / Keynote, with close to 100% fidelity in typical cases.
 
@@ -158,7 +156,7 @@ After generation, you can enter preview or presentation mode, keep editing by dr
 
 To create your own Style Skill, use the official style generation package: [arcsin1/style-generate-skill](https://github.com/arcsin1/style-generate-skill). It helps turn reference designs, palettes, and layout requirements into importable Oh My PPT style packages.
 
-<img src="./docs/images/4.webp" alt="Oh My PPT" width="500" />
+<img src="./docs/images/style.webp" alt="Oh My PPT Style Library" width="600" />
 
 <a id="image-generation"></a>
 ## 🖼️ AI Image Generation & Smart Visuals
@@ -183,9 +181,6 @@ Automatic visuals retain the canvas format you selected and do not replace image
 
 When creating a deck, you can choose **title fonts** and **body fonts** separately, or let AI automatically match the best font pair based on the topic and style. When exporting to PPTX, used fonts are automatically embedded so the deck displays consistently on other computers.
 
-<img src="./docs/images/font.webp" alt="Oh My PPT" width="500" />
-
-
 <a id="animations"></a>
 ## 🎬 Animation Support
 
@@ -205,9 +200,9 @@ Common animation expressions include:
 
 Whole-element animation is preferred over splitting text into many tiny moving fragments. It keeps slides readable, stable, and easier to export or edit later. Animations are meant to guide attention and show hierarchy, so complex timelines, high-frequency flashing, infinite loops, and large shaking motion are not recommended.
 
-<p></>
-<img src="https://arcsin1.github.io/anime.gif" alt="Oh My PPT animation demo" width="40%" />
-<img src="./docs/images/anime.gif" alt="Oh My PPT animation demo" width="40%" />
+<p>
+  <img src="./docs/images/anime.webp" alt="Oh My PPT Animation Settings" width="40%" />
+  <img src="./docs/video/anime.gif" alt="Oh My PPT Animation Demo" width="40%" />
 </p>
 
 <a id="ollama"></a>
@@ -219,7 +214,7 @@ Fill the Settings page like this:
 
 - `provider`: `openai`
 - `base_url`: `http://127.0.0.1:11434/v1`
-- `model`: your local model tag (for example `qwen2.5-coder:14b`), recommended 14B+ (or a strong cloud model)
+- `model`: your local model tag (for example `qwen2.5-coder:14b`); a 14B+ model (or a strong cloud model) is recommended
 - `api_key`: any non-empty string (for example `ollama`)
 
 Notes:
@@ -235,14 +230,11 @@ Notes:
 <a id="config"></a>
 ### Configure your models first
 
-> Recommended: DeepSeek v4, Kimi, Doubao, Qwen, GLM, Xiaomi MiMo, MiniMax, and more Chinese models, plus GPT, Claude, and other international models.
+> Recommended: DeepSeek V4, Kimi, Doubao, Qwen, GLM, MiMo, MiniMax and other Chinese models, plus GPT, Claude and other international models.
 
 Set up the model for creation, document parsing, and editing under **Settings → Text Models**. Deck generation cannot start without it.
 
 For AI image generation or automatic visuals, add the provider's full JSON configuration under **Settings → Image Models** and select **Verify**. Verification generates a real test image; it must succeed before the configuration can be saved, then it can be selected on the creation page and in the editor.
-
-<img src="./docs/images/3.png" alt="Oh My PPT" width="500" />
-
 
 <a id="assets"></a>
 ### How to add images, videos, and AI visuals to a PPT
@@ -251,15 +243,12 @@ Local images and videos are copied into the current session's local asset direct
 
 Oh My PPT does not upload local assets to its own cloud service. However, an image-generation request is sent to the image provider you configured.
 
-<img src="./docs/images/edit.webp" alt="Oh My PPT" width="500" />
-
+<img src="./docs/images/edit.webp" alt="Oh My PPT Editor" width="600" />
 
 <a id="preview"></a>
 ### About preview mode
 
-Supports keyboard navigation (Left/Right), presentation mode, fullscreen presentation mode, and `ESC` to exit presentation mode.
-
-<img src="./docs/images/2.png" alt="Oh My PPT" width="500" />
+Navigate slides with the left/right arrow keys; presentation mode and fullscreen presentation mode are both supported, and `ESC` exits the presentation.
 
 <a id="export"></a>
 ### About export
@@ -272,6 +261,10 @@ Oh My PPT currently supports five export modes, plus standalone HTML packaging:
 - **Editable PPTX**: export with a fully in-house foundation to a file that remains editable in PowerPoint / Keynote. Typical cases reach close to 100% fidelity while preserving text, images, colors, formulas, and basic layout; text overlap, mixed text, complex charts, tables, shapes, and animations are still being improved.
 - **MP4**: export the presentation as a video for social posts, client sharing, or playback when a PPT file is not the best fit.
 - **Packaged HTML**: bundle the deck and its runtime resources so it can be opened and presented in a browser with a double click.
+
+<img src="./docs/images/edit2.webp" alt="Oh My PPT Export Menu" width="600" />
+
+<img src="./docs/images/exp.webp" alt="Oh My PPT Export Content Preview" width="600" />
 
 <a id="unsigned-app"></a>
 ## 📦 Opening Unsigned Apps
@@ -309,7 +302,7 @@ xattr -cr ~/Downloads/OhMyPPT.app
 
 ### Windows
 
-Unsigned installers may trigger Windows SmartScreen, such as “Windows protected your PC”. This is expected for unsigned apps.
+Unsigned installers may trigger Windows SmartScreen, such as "Windows protected your PC". This is expected for unsigned apps.
 
 Steps:
 
@@ -317,33 +310,18 @@ Steps:
 2. Confirm the app name is `OhMyPPT`.
 3. Click **Run anyway**.
 
-If your browser or antivirus blocks the file, first confirm the installer came from this project’s GitHub Releases page, then choose to keep or allow the file.
+If your browser or antivirus blocks the file, first confirm the installer came from this project's GitHub Releases page, then choose to keep or allow the file.
 
 > Download builds only from the official Releases page when possible.
 
-<a id="feedback"></a>
-## 🙌 Feedback & Requests
+<a id="sponsors-list"></a>
+## 🏢 Sponsors
 
-If you have new requirements, feature ideas, or bug reports, feel free to open an Issue in this repository or join the feedback groups.
-<p>
-  <a href="https://discord.gg/FSkzBgsQ"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
-  &nbsp;&nbsp;|&nbsp;&nbsp;
-  <a href="https://arcsin1.github.io/v.png">📱 WeChat group</a>
-  &nbsp;&nbsp;|&nbsp;&nbsp;
-  <a href="https://arcsin1.github.io/qq.png">💬 QQ group</a>
-</p>
-I will keep following up and improving the experience.
+Thanks to the following sponsors for their support!
 
-<a id="sponsor"></a>
-## Sponsor Support
-
-Oh My PPT is currently mainly developed and maintained by one person. If it helps you, you can sponsor the project a little (please do not exceed ¥5, and include your GitHub ID in the note). Thank you.
-
-<p>
-<img src="https://arcsin1.github.io/vv.jpg" alt="WeChat Pay" width="200" />
-&nbsp;
-<img src="https://arcsin1.github.io/zz.jpg" alt="Alipay" width="200" />
-</p>
+| Sponsor |
+| --- |
+| <a href="https://www.toumingren.xyz/" target="_blank"><img src="./docs/images/toumingren.png" width="300" alt="toumingren" /></a> |
 
 <a id="references"></a>
 ## Reference
@@ -355,11 +333,11 @@ Oh My PPT is currently mainly developed and maintained by one person. If it help
 - [html-ppt-skill](https://github.com/lewislulu/html-ppt-skill)
 
 <a id="sponsors"></a>
-## 💖 Sponsors
+## 💖 Backers
 
 Special thanks to everyone who has supported this project! Your generosity keeps Oh My PPT alive and growing.
 
-See [SponsorsList.md](./SponsorsList.md) for the full list of sponsors.
+See [SponsorsList.md](./SponsorsList.md) for the full list of backers.
 
 <a id="contributors"></a>
 ## Contributors

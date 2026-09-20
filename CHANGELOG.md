@@ -1,5 +1,47 @@
 # 更新日志 / Changelog
 
+## 2026-09-19 · v2.6.0
+
+### 中文
+
+- 新增边生成边编辑：80% 的页面生成完成后即可先进入编辑页开始修改，剩余页面后台继续生成，完成后可一键补齐，不用一直等待。
+- 新增生成实时预览：每一页刚生成出来就会显示在进度卡片里，随时查看效果；预览刷新更流畅，不再闪烁。
+- 新增智能修复：个别页面生成效果不达标时，AI 会针对具体问题就地修正，而不是整页推倒重来，修得更快、成功率更高。
+- 优化模型配置：接口地址、推荐模型和关闭思考的参数一键填好。
+- 优化排版效果：内容多时完整保留原文、排得满而不乱，内容少时大方留白；图表大小根据数据多少自动调整，版式更自然。
+- 优化标题换行：大标题不再乱换行，词语、括号不会被拆断，也不再出现最后一行只剩一两个孤字的情况。
+- 优化文档生成大纲：更快更稳，长文档解析有实时页数进度，解析更精准。
+- 优化大纲目录页：目录条目现在可以直接编辑，且修改会正常保存。
+- 优化启动速度：应用启动和进入首页更快。
+- 优化保存与导出稳定性：长演示保存更可靠，会话文件导入更稳，视频导出不再残留临时文件。
+- 修复 AI 偶发卡住打转的问题：AI 反复执行同一操作停不下来时，会自动纠正并继续，不再需要手动取消。
+- 修复页标题偶尔重复显示两次的问题。
+- 修复删除模型失败：修复删除失败报错，激活中的模型不允许删除，删除确认改用与整体风格一致的应用内弹窗。
+- 修复部分场景下弹窗或进度提示失去响应、退出时卡住，以及风格回滚不生效的问题。
+- 修复编辑器多处问题：某些属性修改不生效、卡片无法整体调整（现在单击选中整张卡片、双击编辑里面的文字）、修改标题导致整页内容丢失。
+- 修复同一元素连续调整后保存丢改动效果等问题
+
+
+### English
+
+- Added edit-while-generating: once 80% of slides are done, start editing right away while the rest finish in the background, then complete any remaining slides with one click — no more waiting around.
+- Added live previews during generation: every slide appears in its progress card as soon as it is written, so you can check the result at any time; preview refreshes are smoother and flicker-free.
+- Added smart repair: when a slide does not turn out right, AI fixes it in place based on the specific problem instead of redoing the whole page — faster fixes and higher success rates.
+- Improved model setup: choose a common provider (DeepSeek, GLM, Kimi, Volcano Engine, Qwen, MiniMax, and more) and the endpoint, recommended models, and thinking-off parameters are filled in for you.
+- Major layout improvements: dense slides keep your original text in full without feeling crowded, sparse slides get clean breathing room, and charts resize to fit their data — layouts look more natural overall.
+- Improved title wrapping: large titles no longer break at odd points, words and brackets stay together, and no more tail lines with just one or two orphan characters.
+- Major improvements to document-to-outline: faster and steadier parsing with a live page count for long documents; numbered sources are automatically cross-checked against the outline; fixed very long unstructured texts (such as novels) producing duplicated slides; Word documents now restore multi-level heading hierarchies from font-size ladders, and small-print notes are no longer mistaken for code blocks.
+- Improved the outline directory page: entries can now be edited directly and save correctly.
+- Improved startup speed: the app launches and reaches the Home page faster.
+- Fixed AI occasionally getting stuck in a loop: it now corrects itself and moves on instead of repeating the same action until you cancel.
+- Fixed slide titles occasionally appearing twice.
+- Fixed model deletion failing: models previously used by past sessions can now be deleted normally, and related sessions fall back to the active model for further edits; the active model can no longer be deleted, and deletion confirmations now use an in-app dialog matching the app's style.
+- Fixed dialogs or progress hints sometimes becoming unresponsive, getting stuck on quit, and style rollback not taking effect.
+- Fixed several editor issues: some property changes not taking effect, cards being impossible to adjust as a whole (single-click now selects the whole card, double-click edits the text inside), and title edits wiping an entire slide; the layout popover is wider so numbers are no longer clipped.
+- Fixed one of two consecutive adjustments to the same element being dropped on save: resizing and then dragging an element (or the other way around) kept only the last gesture — for example, enlarging an imported image and then moving it left the position unchanged after saving; fixed in both the presentation and HTML editors, so both adjustments now save together.
+- Improved save and export stability: long decks save more reliably, session file imports are steadier, and video exports no longer leave temporary files behind.
+
+
 ## 2026-09-04 · v2.5.0
 
 ### 中文

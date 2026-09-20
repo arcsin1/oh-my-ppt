@@ -23,9 +23,9 @@
     Local-first · Your models, your workflow.
   </p>
 
-   [官网](https://www.ohmyppt.cc) | [下载安装包](https://github.com/arcsin1/oh-my-ppt/releases)
+   [官网](https://www.ohmyppt.cc) | [下载安装包](https://github.com/arcsin1/oh-my-ppt/releases) ｜ [帮助中心](https://www.ohmyppt.cc/#/help)
 
-  <img src="https://arcsin1.github.io/ppt2.gif" alt="Oh My PPT" width="600" />
+   <img src="./docs/images/OhMyPPT.png"/>
 
 </div>
 
@@ -45,12 +45,10 @@
 - [支持本地 Ollama 模型](#ollama)
 - [使用问题汇总](#usage-notes)
   - [别忘了填写模型配置](#config)
-  - [如何添加图片、视频和 AI 配图到 PPT 中](#assets)
   - [关于预览模式](#preview)
   - [关于导出](#export)
 - [未签名应用打不开的问题(mac已损坏等问题)](#unsigned-app)
-- [需求反馈](#feedback)
-- [赞助支持](#sponsor)
+- [赞助商](#sponsors-list)
 - [参考](#references)
 - [赞助者](#sponsors)
 - [贡献者](#contributors)
@@ -63,13 +61,13 @@
 
 **让 AI HTML PPT 成为可能。**
 
-每次要做分享/汇报/路演/答辩就头疼，纠结PPT排版占了大半时间
+每次要做分享/汇报/路演/答辩就头疼，光纠结 PPT 排版就占了大半时间。
 
-市面上AI PPT工具虽然多，但大多生成的是固定格式文件，想微调样式或加入自己想要的动画演示都很麻烦
+市面上 AI PPT 工具虽然多，但大多生成的是固定格式文件，想微调样式、加入自己想要的动画演示都很麻烦。
 
-所以自己写了一个Html版的PPT生成器——初衷是给自己做个工具使用
+于是自己写了一个 HTML 版 PPT 生成器——初衷只是给自己做个顺手的工具。
 
-生成的是HTML版PPT：打开即预览、无需软件、一个浏览器搞定，还能随心改样式/加动效/插代码/导出分享
+生成的是 HTML 版 PPT：打开即预览、无需安装软件、一个浏览器搞定，还能随心改样式/加动效/插代码/导出分享。
 
 <a id="pptx-import"></a>
 ## 📥 旧 PPTX 模板导入编辑，接近 100% 还原
@@ -93,17 +91,17 @@ HTML 到可编辑 PPTX 的生成与排版处理由 Oh My PPT **纯自研**。文
 - 💬 **主题创作** — 填写主题、详细描述和页面设置，AI 自动规划大纲、配色与排版，生成完整演示稿
 - 🔀 **多任务生成** — 可同时提交多个生成任务并行执行，不用等一个完成再创建下一个，后台生成完成时自动弹出通知
 - 📐 **多尺寸 / 多内容格式画布** — 不只支持传统 PPT 尺寸，也支持宽屏演示、4:3 投屏、竖屏 9:16、竖版 3:4、方图 1:1、小红书图文等格式，生成、预览、编辑和导出都会保留真实比例
-- 📄 **从文档创建** — 也支持上传 txt、md、csv、docx 文档，自动整理主题、页数和详细描述，生成时**继续参考原文件内容生成创意PPT**
+- 📄 **从文档创建** — 也支持上传 txt、md、csv、docx 文档，自动整理主题、页数和详细描述，生成时**继续参考原文件内容**，产出贴合原文的创意 PPT
 - 🌐 **HTML 编辑** — 导入单个 HTML 文件后可在应用内直接编辑和保存，支持 AI 修改、素材添加、历史管理、预览和导出
 - 🧱 **模板库与模板创建** — 可将已生成或已编辑的演示保存为模板，也支持 PPTX 导入为模板，并可复用模板创建新的 PPT 会话
-- 🎨️ **图片识别生成风格与大纲** — 支持上传截图/设计稿，自动识别视觉特征并生成独特风格与演示大纲(需要支持多模态模型的AI)
+- 🎨️ **图片识别生成风格与大纲** — 支持上传截图/设计稿，自动识别视觉特征并生成独特风格与演示大纲（需使用支持多模态的 AI 模型）
 - 🖼️ **AI 生图与智能配图** — 创建时可开启自动配图，AI 会根据当前页内容、版式留白和所选风格按需生成插画、背景与视觉素材；不会为了配图而机械地给每页塞图
 - ✨ **编辑页生图工作台** — 可根据当前页标题和大纲生成提示词，指定补充描述与图片尺寸后生图；结果可预览、插入画布或一键设为页面背景
 - 🏷️ **支持生图的风格筛选** — 风格库会标识可生图的风格，可筛选后使用与页面视觉方向一致的配图
 - 🔒 **本地优先** — 会话、源文档、素材和生成结果保存在自己的电脑；不需要 Oh My PPT 账号或平台云端。调用你配置的 AI / 生图服务时，相关请求会发送给该服务商
 - 🔤 **字体管理** — 内置 14 款精选 Google 字体（含中文），支持上传本地字体，创建时可分别指定标题和正文字体，也可交给 AI 自动匹配
-- 🎨 **内置 90+ 风格SKILL** — 极简白、赛博霓虹、包豪斯、日式简约、小红书白… 也支持自定义风格
-- ✏️ **对话式修改** — 对着某一页说"标题换个颜色""加个数据图表"，精准修改不用重做
+- 🎨 **内置 90+ 风格 SKILL** — 极简白、赛博霓虹、包豪斯、日式简约、小红书白… 也支持自定义风格
+- ✏️ **对话式修改** — 对着某一页说「标题换个颜色」「加个数据图表」，精准修改不用重做
 - 🖱️ **可视化编辑** — 一切可见元素皆可拖拽和调整大小，一切元素皆可检选并让 AI 修改
 - 📸 **插入图片和视频** — 编辑模式下直接上传图片和视频到页面，支持从素材库或本地文件添加，也能与 AI 生成图片混用
 - 📋 **复制元素** — 一键复制任意元素（文字、图片、视频等），自动偏移并独立可编辑
@@ -119,20 +117,20 @@ HTML 到可编辑 PPTX 的生成与排版处理由 Oh My PPT **纯自研**。文
 - 🧩 **更稳的页面生成** — 生成时会按所选画布尺寸与内容高度预算组织页面，减少内容溢出
 - 🔄 **历史版本回退** — 自动保存每次修改记录，支持任意版本一键回退，改错了也不怕，随时回到满意的状态
 - 📦 **一键打包** — 将 HTML 演示稿打包为单个可执行文件，双击即可打开预览，无需安装任何软件（有浏览器就行）
-- 💾 **会话生成的创意PPT导入导出** — 编辑页面一键导出会话生成的创意 PPT，另一台电脑导入后可继续二次编辑，跨设备协作无缝衔接
+- 💾 **创意 PPT 导入导出** — 编辑页可一键导出会话生成的创意 PPT，在另一台电脑导入后继续二次编辑，跨设备协作无缝衔接
 
 <p>
-<img width="30%" alt="Oh My PPT - 9" src="https://arcsin1.github.io/imgs/home.webp" />
-<img width="30%" alt="Oh My PPT - 10" src="https://arcsin1.github.io/imgs/exp.webp" />
-<img width="30%" alt="Oh My PPT - 11" src="https://arcsin1.github.io/imgs/anime.webp" />
+  <img width="32%" alt="Oh My PPT 首页" src="./docs/images/home.webp" />
+  <img width="32%" alt="Oh My PPT 风格库" src="./docs/images/style.webp" />
+  <img width="32%" alt="Oh My PPT 编辑页" src="./docs/images/edit.webp" />
 </p>
-
-<img width="600"  src="https://arcsin1.github.io/imgs/chat.webp" />
 
 <a id="workflow"></a>
 ## 🔄 使用流程
 
 > 💡 导入旧 PPTX 模板继续编辑，或选择创作方式 → 确认主题 / 资料 / 页数 / 尺寸格式 / 风格 / 字体 / 配图 → AI 生成 HTML 演示稿 → 预览、演示、编辑 → 从客户端导出接近 100% 还原的可编辑 PPTX、PDF / PNG / PNG 长图 / MP4 / HTML 打包文件
+
+<img src="./docs/images/home.webp" alt="Oh My PPT 首页入口" width="600" />
 
 首页支持几种常用入口：
 
@@ -158,7 +156,7 @@ HTML 到可编辑 PPTX 的生成与排版处理由 Oh My PPT **纯自研**。文
 
 想制作自己的风格 Skill，可以使用官方风格生成包：[arcsin1/style-generate-skill](https://github.com/arcsin1/style-generate-skill)。它适合把参考设计、配色和排版要求整理成可导入 Oh My PPT 的风格包。
 
-<img src="./docs/images/4.webp" alt="Oh My PPT" width="500" />
+<img src="./docs/images/style.webp" alt="Oh My PPT 风格库" width="600" />
 
 <a id="image-generation"></a>
 ## 🖼️ AI 生图与智能配图
@@ -183,10 +181,6 @@ HTML 到可编辑 PPTX 的生成与排版处理由 Oh My PPT **纯自研**。文
 
 创建演示稿时，可以分别指定**标题字体**和**正文字体**，也可以交给 AI 根据演示主题和风格自动匹配最合适的字体组合。导出 PPTX 时，已使用的字体会自动嵌入到文件中，确保在其他电脑上打开时字体显示一致。
 
-<img src="./docs/images/font.webp" alt="Oh My PPT" width="500" />
-
-
-
 <a id="animations"></a>
 ## 🎬 动画支持
 
@@ -204,11 +198,11 @@ Oh My PPT 的页面是 HTML 幻灯片，支持 16+ 种页面切换动画，并�
 - **错峰展示**：多张卡片或多条要点按顺序依次出现。
 - **点击逐条出现**：演示时通过点击逐步展开内容，方便按讲述节奏推进。
 
-更推荐使用“整个元素”的动画，而不是把文字拆成很多碎片逐字乱动。这样画面更稳、可读性更好，也更适合导出和二次编辑。动画主要用于引导视线和表达层级，不建议做复杂时间线、高频闪烁、无限循环或大幅抖动。
+更推荐使用「整个元素」的动画，而不是把文字拆成很多碎片逐字乱动。这样画面更稳、可读性更好，也更适合导出和二次编辑。动画主要用于引导视线和表达层级，不建议做复杂时间线、高频闪烁、无限循环或大幅抖动。
 
-<p></>
-<img src="https://arcsin1.github.io/anime.gif" alt="Oh My PPT animation demo" width="40%" />
-<img src="./docs/images/anime.gif" alt="Oh My PPT animation demo" width="40%" />
+<p>
+  <img src="./docs/images/anime.webp" alt="Oh My PPT 动画设置" width="40%" />
+  <img src="./docs/video/anime.gif" alt="Oh My PPT 动画演示" width="40%" />
 </p>
 
 <a id="ollama"></a>
@@ -220,47 +214,32 @@ Oh My PPT 的页面是 HTML 幻灯片，支持 16+ 种页面切换动画，并�
 
 - `provider`: `openai`
 - `base_url`: `http://127.0.0.1:11434/v1`
-- `model`: 你本地拉取的模型名（例如 `qwen2.5-coder:14b`），建议支持 14B+（或云端强模型）
+- `model`: 你本地拉取的模型名（例如 `qwen2.5-coder:14b`），建议使用 14B+ 的模型（或云端强模型）
 - `api_key`: 任意非空字符串（例如 `ollama`）
 
 说明：
 
-- Ollama 默认不校验 API Key，但应用侧会做“非空”校验，所以不能留空。
-- 推荐使用 14B+（或云端强模型）做接入生成。
+- Ollama 默认不校验 API Key，但应用侧会做「非空」校验，所以不能留空。
+- 推荐使用 14B+ 的模型（或云端强模型）接入生成。
 - OpenAI 官方端点不会携带非标准的 `thinking` 参数，避免返回 `400 Unknown parameter`；配置其他 OpenAI 兼容 `base_url` 时仍会请求关闭 thinking，避免工具调用等多轮链路丢失 `reasoning_content`。
 - Ollama 配置用于文本生成、文档解析和编辑对话；需要生图或自动配图时，请在「设置 → 生图模型」另行配置支持图片生成的 Provider。
 
 
 <a id="usage-notes"></a>
-## 关于使用问题汇总
+## 使用问题汇总
 
 <a id="config"></a>
 ### 别忘了填写模型配置
- > 推荐：deepseek v4、kimi、doubao、qwen、glm、xiaomi-mimo、minimax等等更多国产模型、以及gpt、claude、等等国外模型
+> 推荐：DeepSeek V4、Kimi、Doubao、Qwen、GLM、MiMo、MiniMax 等国产模型，以及 GPT、Claude 等国外模型。
 
   在「设置 → 文本模型」页面填写用于创作、解析和编辑的模型配置，否则无法生成演示稿。
 
   若要使用 AI 生图或自动配图，再到「设置 → 生图模型」添加对应 Provider 的完整 JSON 配置并点击「验证」。验证会实际生成一张测试图片；验证成功后才能保存该生图模型，随后即可在创建页和编辑页中选择使用。
 
-  <img src="./docs/images/3.png" alt="Oh My PPT" width="500" />
-
-
-
-<a id="assets"></a>
-### 如何添加图片、视频和 AI 配图到 PPT 中
-
-   本地图片和视频会复制到当前会话的本地素材目录。编辑页既可以从素材库或本地文件插入，也可以打开生图面板：让 AI 根据当前页内容补全提示词，或输入自己的描述，生成后插入画布或设为背景。
-
-   注：Oh My PPT 不会把本地素材上传到自己的云端；但主动调用 AI 生图时，请求会发送到你配置的生图服务商。
- 
-  <img src="./docs/images/edit.webp" alt="Oh My PPT" width="500" />
-
 <a id="preview"></a>
 ### 关于预览模式
-   
-   支持键盘（左右键）切换，支持演示模式，全屏演示模式，ESC退出演示模式
-  
-  <img src="./docs/images/2.png" alt="Oh My PPT" width="500" />
+
+支持键盘左右键切换页面；支持演示模式和全屏演示模式，按 ESC 退出演示。
 
 <a id="export"></a>
 ### 关于导出
@@ -274,15 +253,17 @@ Oh My PPT 的页面是 HTML 幻灯片，支持 16+ 种页面切换动画，并�
 - **MP4**：导出为视频文件，适合发布到社媒、发送给客户或在不方便播放 PPT 的场景中使用。
 - **HTML 打包文件**：将演示稿和运行资源打包，双击即可在浏览器中打开预览和演示。
 
+<img src="./docs/images/edit2.webp" alt="Oh My PPT 导出菜单" width="600" />
+
 
 <a id="unsigned-app"></a>
 ## 📦 未签名应用打不开的问题
 
-目前发布包可能还没有进行系统级代码签名，所以 macOS 或 Windows 第一次打开时可能会出现安全提示。这个提示通常不是应用损坏，而是系统对“未签名/未公证应用”的默认拦截。
+目前发布包可能还没有进行系统级代码签名，所以 macOS 或 Windows 第一次打开时可能会出现安全提示。这个提示通常不是应用损坏，而是系统对「未签名/未公证应用」的默认拦截。
 
 ### macOS
 
-如果 macOS 提示“无法打开”“已损坏”“无法验证开发者”，可以按下面任意一种方式处理。
+如果 macOS 提示「无法打开」「已损坏」「无法验证开发者」，可以按下面任意一种方式处理。
 
 **方式一：右键打开**
 
@@ -311,7 +292,7 @@ xattr -cr ~/Downloads/OhMyPPT.app
 
 ### Windows
 
-Windows 可能会因为安装包未签名而触发 SmartScreen 提示，例如“Windows 已保护你的电脑”。这是未签名应用常见的系统提示。
+Windows 可能会因为安装包未签名而触发 SmartScreen 提示，例如「Windows 已保护你的电脑」。这是未签名应用常见的系统提示。
 
 处理方式：
 
@@ -323,31 +304,14 @@ Windows 可能会因为安装包未签名而触发 SmartScreen 提示，例如�
 
 > 建议只从官方 Release 地址下载安装包，避免使用第三方转存文件。
 
-<a id="feedback"></a>
-## 🙌 需求反馈
+<a id="sponsors-list"></a>
+## 🏢 赞助商
 
-如果你有新需求、功能建议或发现问题，欢迎在仓库提交 Issue或者国内加入反馈群。
+感谢以下赞助商的支持！
 
-<p>
-  <a href="https://discord.gg/FSkzBgsQ"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
-  &nbsp;&nbsp;|&nbsp;&nbsp;
-  <a href="https://arcsin1.github.io/v.png">📱 微信群</a>
-  &nbsp;&nbsp;|&nbsp;&nbsp;
-  <a href="https://arcsin1.github.io/qq.png">💬 QQ群</a>
-</p>
-我会持续跟进并优化体验。
-
-
-<a id="sponsor"></a>
-## 赞助支持
-
-目前主要由我一人开发和维护，如果您觉得 Oh My PPT 对您有所帮助，可以赞助支持一下（不要超过 ¥5，以及备注好你的 GitHub ID），谢谢。
-
-<p>
-<img src="https://arcsin1.github.io/v-s.jpg" alt="WeChat Pay" width="200" />
-&nbsp;
-<img src="https://arcsin1.github.io/z-s.jpg" alt="Alipay" width="200" />
-</p>
+| 赞助商 |
+| --- |
+| <a href="https://www.toumingren.xyz/" target="_blank"><img src="./docs/images/toumingren.png" width="300" alt="透明人" /></a> |
 
 <a id="references"></a>
 ## 参考
