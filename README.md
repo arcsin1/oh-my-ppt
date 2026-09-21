@@ -3,14 +3,39 @@
   <br/>
   <br/>
 
-![AI PPT Generator](https://img.shields.io/badge/AI%20PPT-Generator-2f6d49)
-![PPTX](https://img.shields.io/badge/PPTX-Import%20%26%20Export-1769aa)
-![AI Image Generation](https://img.shields.io/badge/AI%20Images-Generation-9a5b36)
-![Local-first](https://img.shields.io/badge/Local--first-Private-3b7a57)
-![License](https://img.shields.io/badge/license-Apache--2.0-green)
-![Electron](https://img.shields.io/badge/Electron-Desktop-47848f)
-![React](https://img.shields.io/badge/React-App-61dafb)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6)
+<p align="center">
+  <a href="https://github.com/arcsin1/oh-my-ppt" target="_blank">
+    <img alt="AI PPT Generator" src="https://img.shields.io/badge/AI%20PPT-Generator-2f6d49"/>
+  </a>
+  <a href="#pptx-import">
+    <img alt="PPTX Import &amp; Export" src="https://img.shields.io/badge/PPTX-Import%20%26%20Export-1769aa"/>
+  </a>
+  <a href="#features">
+    <img alt="Local-first" src="https://img.shields.io/badge/Local--first-Private-3b7a57"/>
+  </a>
+  <a href="./LICENSE" target="_blank">
+    <img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-green"/>
+  </a>
+  <a href="https://www.electronjs.org/" target="_blank">
+    <img alt="Electron" src="https://img.shields.io/badge/Electron-Desktop-47848f"/>
+  </a>
+  <a href="https://react.dev/" target="_blank">
+    <img alt="React" src="https://img.shields.io/badge/React-App-61dafb"/>
+  </a>
+  <a href="https://www.typescriptlang.org/" target="_blank">
+    <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.x-3178c6"/>
+  </a>
+</p>
+
+<br/>
+
+
+<p align="center">
+  <a href="https://atomgit.com/arcsin1/oh-my-ppt" target="_blank">
+    <img alt="AtomGit G-Star" src="https://atomgit.com/arcsin1/oh-my-ppt/star/new_badge.svg" width="250" height="55"/>
+  </a>
+</p>
+
 
 **Oh My PPT - 本地优先的 AI PPT、配图生成与编辑工具**
 
@@ -30,6 +55,7 @@
 </div>
 
 ---
+
 
 <a id="sponsors-list"></a>
 ## 🏢 赞助商
