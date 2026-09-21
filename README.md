@@ -32,7 +32,7 @@
 
 <p align="center">
   <a href="https://atomgit.com/arcsin1/oh-my-ppt" target="_blank">
-    <img alt="AtomGit G-Star" src="https://atomgit.com/arcsin1/oh-my-ppt/star/new_badge.svg" width="250" height="55"/>
+    <img alt="AtomGit G-Star" src="https://atomgit.com/arcsin1/oh-my-ppt/star/new_badge.svg" />
   </a>
 </p>
 
