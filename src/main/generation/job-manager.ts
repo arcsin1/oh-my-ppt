@@ -2,10 +2,7 @@ import log from 'electron-log/main.js'
 import type { SessionJobKind } from '../db/database'
 import type { FinalizeContext } from './types'
 import type { GenerationContext } from './context'
-import {
-  finalizeGenerationFailure,
-  resolveGenerationFailureSessionStatus
-} from './finalization'
+import { finalizeGenerationFailure, resolveGenerationFailureSessionStatus } from './finalization'
 import { isCancellationMessage, normalizeRestoredSessionStatus } from './status-utils'
 import { JobCoordinator, sessionLockKey, type JobLease } from '../agent-runtime'
 
@@ -39,6 +36,10 @@ export class GenerateJobManager {
   constructor(ctx: GenerationContext, coordinator = new JobCoordinator()) {
     this.ctx = ctx
     this.coordinator = coordinator
+  }
+
+  get generationContext(): GenerationContext {
+    return this.ctx
   }
 
   async reserve(
@@ -339,7 +340,10 @@ export class GenerateJobManager {
     await this.runJob(job)
   }
 
-  private async runJob(job: BackgroundJob<FinalizeContext>, activationError?: unknown): Promise<void> {
+  private async runJob(
+    job: BackgroundJob<FinalizeContext>,
+    activationError?: unknown
+  ): Promise<void> {
     try {
       try {
         if (activationError) throw activationError
@@ -380,98 +384,97 @@ export class GenerateJobManager {
     }
   }
 
-  private async settleFailedJob(job: BackgroundJob<FinalizeContext>, error: unknown): Promise<void> {
-      const message = error instanceof Error ? error.message : String(error || '')
-      const cancelled = job.reservation.signal.aborted || isCancellationMessage(message)
-      let terminalStatePersisted = false
-      let finalizationFailed = false
-      try {
-        await finalizeGenerationFailure(
-          this.ctx,
-          job.context,
-          cancelled ? new Error('生成已取消') : error
+  private async settleFailedJob(
+    job: BackgroundJob<FinalizeContext>,
+    error: unknown
+  ): Promise<void> {
+    const message = error instanceof Error ? error.message : String(error || '')
+    const cancelled = job.reservation.signal.aborted || isCancellationMessage(message)
+    let terminalStatePersisted = false
+    let finalizationFailed = false
+    try {
+      await finalizeGenerationFailure(
+        this.ctx,
+        job.context,
+        cancelled ? new Error('生成已取消') : error
+      )
+      terminalStatePersisted = true
+    } catch (finalizeError) {
+      finalizationFailed = true
+      log.error('[generate:job] failed to finalize generation', {
+        sessionId: job.sessionId,
+        runId: job.runId,
+        message:
+          finalizeError instanceof Error ? finalizeError.message : String(finalizeError || '')
+      })
+      const fallbackResults = await Promise.allSettled([
+        this.ctx.db.updateGenerationRunStatus(job.runId, 'failed', message || 'Generation failed'),
+        this.ctx.db.updateSessionStatus(
+          job.sessionId,
+          resolveGenerationFailureSessionStatus(job.context, cancelled)
         )
-        terminalStatePersisted = true
-      } catch (finalizeError) {
-        finalizationFailed = true
-        log.error('[generate:job] failed to finalize generation', {
+      ])
+      terminalStatePersisted = fallbackResults.every((result) => result.status === 'fulfilled')
+      if (!terminalStatePersisted) {
+        const failure = fallbackResults.find((result) => result.status === 'rejected')
+        log.error('[generate:job] failed to persist fallback generation terminal state', {
           sessionId: job.sessionId,
           runId: job.runId,
           message:
-            finalizeError instanceof Error ? finalizeError.message : String(finalizeError || '')
-        })
-        const fallbackResults = await Promise.allSettled([
-          this.ctx.db.updateGenerationRunStatus(
-            job.runId,
-            'failed',
-            message || 'Generation failed'
-          ),
-          this.ctx.db.updateSessionStatus(
-            job.sessionId,
-            resolveGenerationFailureSessionStatus(job.context, cancelled)
-          )
-        ])
-        terminalStatePersisted = fallbackResults.every((result) => result.status === 'fulfilled')
-        if (!terminalStatePersisted) {
-          const failure = fallbackResults.find((result) => result.status === 'rejected')
-          log.error('[generate:job] failed to persist fallback generation terminal state', {
-            sessionId: job.sessionId,
-            runId: job.runId,
-            message:
-              failure?.status === 'rejected' && failure.reason instanceof Error
-                ? failure.reason.message
-                : String(failure?.status === 'rejected' ? failure.reason : '')
-          })
-        }
-      }
-
-      // Do not mark the session job terminal until the generation run and session state are
-      // both durable. Otherwise startup recovery will no longer find an orphaned active job.
-      if (!terminalStatePersisted) return
-
-      // finalizeGenerationFailure publishes this itself on its normal path. Its
-      // fallback only persists the database state, so close the in-memory run
-      // before releasing the lease; otherwise reserve() will keep treating the
-      // session as running for the rest of the process lifetime.
-      if (finalizationFailed) {
-        this.ctx.runtimeEmitters.emitGenerateChunk(job.sessionId, {
-          type: 'run_error',
-          payload: {
-            runId: job.runId,
-            message: cancelled ? '生成已取消' : message || 'Generation failed',
-            cancelled
-          }
+            failure?.status === 'rejected' && failure.reason instanceof Error
+              ? failure.reason.message
+              : String(failure?.status === 'rejected' ? failure.reason : '')
         })
       }
+    }
 
-      let jobStatusPersisted = false
-      try {
-        if (cancelled) {
-          await this.ctx.db.updateSessionJobStatus(job.runId, 'aborted', {
-            abortReason: 'cancelled'
-          })
-        } else {
-          await this.ctx.db.updateSessionJobStatus(job.runId, 'finished')
-        }
-        jobStatusPersisted = true
-      } catch (statusError) {
-        log.error('[generate:job] failed to settle session job', {
-          sessionId: job.sessionId,
+    // Do not mark the session job terminal until the generation run and session state are
+    // both durable. Otherwise startup recovery will no longer find an orphaned active job.
+    if (!terminalStatePersisted) return
+
+    // finalizeGenerationFailure publishes this itself on its normal path. Its
+    // fallback only persists the database state, so close the in-memory run
+    // before releasing the lease; otherwise reserve() will keep treating the
+    // session as running for the rest of the process lifetime.
+    if (finalizationFailed) {
+      this.ctx.runtimeEmitters.emitGenerateChunk(job.sessionId, {
+        type: 'run_error',
+        payload: {
           runId: job.runId,
-          message: statusError instanceof Error ? statusError.message : String(statusError || '')
-        })
-      }
+          message: cancelled ? '生成已取消' : message || 'Generation failed',
+          cancelled
+        }
+      })
+    }
 
-      if (jobStatusPersisted) {
-        this.ctx.runtimeEmitters.emitRuntimeJobTerminal({
-          sessionId: job.sessionId,
-          jobId: job.runId,
-          domain: 'generation',
-          status: cancelled ? 'cancelled' : 'failed',
-          errorCode: cancelled ? undefined : 'generation_failed',
-          errorMessage: cancelled ? undefined : message
+    let jobStatusPersisted = false
+    try {
+      if (cancelled) {
+        await this.ctx.db.updateSessionJobStatus(job.runId, 'aborted', {
+          abortReason: 'cancelled'
         })
+      } else {
+        await this.ctx.db.updateSessionJobStatus(job.runId, 'finished')
       }
+      jobStatusPersisted = true
+    } catch (statusError) {
+      log.error('[generate:job] failed to settle session job', {
+        sessionId: job.sessionId,
+        runId: job.runId,
+        message: statusError instanceof Error ? statusError.message : String(statusError || '')
+      })
+    }
+
+    if (jobStatusPersisted) {
+      this.ctx.runtimeEmitters.emitRuntimeJobTerminal({
+        sessionId: job.sessionId,
+        jobId: job.runId,
+        domain: 'generation',
+        status: cancelled ? 'cancelled' : 'failed',
+        errorCode: cancelled ? undefined : 'generation_failed',
+        errorMessage: cancelled ? undefined : message
+      })
+    }
   }
 
   private processQueue(): void {
@@ -493,7 +496,8 @@ export class GenerateJobManager {
     const onAbort = (): void => {
       if (job.status === 'pending') void this.cancelPendingJob(job)
     }
-    job.removeAbortListener = (): void => job.reservation.signal.removeEventListener('abort', onAbort)
+    job.removeAbortListener = (): void =>
+      job.reservation.signal.removeEventListener('abort', onAbort)
     job.reservation.signal.addEventListener('abort', onAbort, { once: true })
     if (job.reservation.signal.aborted) onAbort()
   }

@@ -24,6 +24,8 @@ import {
 import { warmSessionFirstPageThumbnails } from './session-thumbnail'
 import { createSessionMasterIfMissing } from './master-service'
 import { resolveConfiguredImageModel } from '../image-generation/model-config'
+import { createProductSession } from './create-session'
+import { deleteProductSession } from './delete-session'
 
 const THINKING_ID_RE = /^[a-zA-Z0-9_-]{6,32}$/
 const THINKING_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp'])
@@ -46,7 +48,10 @@ const isPathInside = (candidate: string, root: string): boolean => {
 }
 
 const toSafeAssetName = (value: string): string =>
-  value.replace(/[\\/:"*?<>|]+/g, '-').replace(/\s+/g, '-').replace(/^-+|-+$/g, '') || 'image'
+  value
+    .replace(/[\\/:"*?<>|]+/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'image'
 
 const detectThinkingWorkspaceDir = (storageRoot: string, referencePath: string): string | null => {
   if (path.basename(referencePath) !== 'thinking.md') return null
@@ -60,7 +65,9 @@ const detectThinkingWorkspaceDir = (storageRoot: string, referencePath: string):
 const copyThinkingAssetsToSession = async (
   thinkingDir: string,
   projectDir: string
-): Promise<Array<{ fileName: string; sourcePath: string; targetPath: string; publicPath: string }>> => {
+): Promise<
+  Array<{ fileName: string; sourcePath: string; targetPath: string; publicPath: string }>
+> => {
   const assetsDir = path.join(thinkingDir, 'assets')
   if (!fs.existsSync(assetsDir)) return []
   const imagesDir = path.join(projectDir, 'images')
@@ -68,7 +75,12 @@ const copyThinkingAssetsToSession = async (
   allowLocalAssetRoot(imagesDir)
 
   const entries = await fs.promises.readdir(assetsDir, { withFileTypes: true })
-  const copied: Array<{ fileName: string; sourcePath: string; targetPath: string; publicPath: string }> = []
+  const copied: Array<{
+    fileName: string
+    sourcePath: string
+    targetPath: string
+    publicPath: string
+  }> = []
   for (const entry of entries) {
     if (!entry.isFile()) continue
     const ext = path.extname(entry.name).toLowerCase()
@@ -89,7 +101,12 @@ const copyThinkingAssetsToSession = async (
 
 const rewriteThinkingSourceForSession = (
   content: string,
-  copiedAssets: Array<{ fileName: string; sourcePath: string; targetPath: string; publicPath: string }>
+  copiedAssets: Array<{
+    fileName: string
+    sourcePath: string
+    targetPath: string
+    publicPath: string
+  }>
 ): string => {
   let rewritten = content
   for (const asset of copiedAssets) {
@@ -155,7 +172,11 @@ const rewriteThinkingWorkspaceArchivePaths = async (
       }
       if (!entry.isFile() || !isRewriteableThinkingArchiveFile(filePath)) return
       const content = await fs.promises.readFile(filePath, 'utf-8')
-      const rewritten = rewriteThinkingWorkspaceArchiveContent(content, thinkingDir, archivedThinkingDir)
+      const rewritten = rewriteThinkingWorkspaceArchiveContent(
+        content,
+        thinkingDir,
+        archivedThinkingDir
+      )
       if (rewritten !== content) {
         await fs.promises.writeFile(filePath, rewritten, 'utf-8')
       }
@@ -163,7 +184,10 @@ const rewriteThinkingWorkspaceArchivePaths = async (
   )
 }
 
-const copyThinkingWorkspaceToSession = async (thinkingDir: string, projectDir: string): Promise<void> => {
+const copyThinkingWorkspaceToSession = async (
+  thinkingDir: string,
+  projectDir: string
+): Promise<void> => {
   const targetDir = path.join(projectDir, 'thinking')
   if (fs.existsSync(targetDir)) {
     await fs.promises.rm(targetDir, { recursive: true, force: true })
@@ -208,7 +232,11 @@ const createThinkingReferenceDocument = async (args: {
       const sourcePath = path.join(sourcesDir, entry.name)
       const content = await fs.promises.readFile(sourcePath, 'utf-8')
       sourceSections.push(
-        [`## Source: ${entry.name}`, '', rewriteThinkingSourceForSession(content, copiedAssets)].join('\n')
+        [
+          `## Source: ${entry.name}`,
+          '',
+          rewriteThinkingSourceForSession(content, copiedAssets)
+        ].join('\n')
       )
     }
   }
@@ -279,7 +307,8 @@ export function registerSessionHandlers(ctx: IpcContext): void {
   }
 
   ipcMain.handle('session:getIndexTransition', async (_event, payload: unknown) => {
-    const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+    const record =
+      payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
     const sessionId =
       typeof record.sessionId === 'string' && record.sessionId.trim().length > 0
         ? record.sessionId.trim()
@@ -293,7 +322,8 @@ export function registerSessionHandlers(ctx: IpcContext): void {
   })
 
   ipcMain.handle('session:setIndexTransition', async (_event, payload: unknown) => {
-    const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+    const record =
+      payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
     const sessionId =
       typeof record.sessionId === 'string' && record.sessionId.trim().length > 0
         ? record.sessionId.trim()
@@ -344,7 +374,8 @@ export function registerSessionHandlers(ctx: IpcContext): void {
 
   ipcMain.handle('session:create', async (_event, payload) => {
     log.info('session:create------',JSON.stringify(payload))
-    const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+    const record =
+      payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
     const { topic, styleId } = record
     const pageCount = normalizeRequestedPageCount(record.pageCount)
     const slideSize = requireSlideSizePreset(record.slideSizeId)
@@ -431,6 +462,19 @@ export function registerSessionHandlers(ctx: IpcContext): void {
         )
       }
       validatedReferenceSourcePath = sourceRealPath
+    }
+    if (
+      !pageCount &&
+      !fontSelection &&
+      !sourcePlan &&
+      !validatedReferenceSourcePath &&
+      !modelConfigId
+    ) {
+      return createProductSession(ctx, {
+        topic: normalizedTopic,
+        styleId: normalizedStyleId,
+        slideSizeId: slideSize.id
+      })
     }
     const sessionId = crypto.randomUUID()
     const projectDir = path.join(storagePath, sessionId)
@@ -697,7 +741,7 @@ export function registerSessionHandlers(ctx: IpcContext): void {
   )
 
   ipcMain.handle('session:delete', async (_event, sessionId) => {
-    await db.deleteSession(sessionId)
+    await deleteProductSession(ctx, sessionId)
     return { success: true }
   })
 }
