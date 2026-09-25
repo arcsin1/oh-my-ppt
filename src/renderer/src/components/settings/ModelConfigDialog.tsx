@@ -1,4 +1,7 @@
-import { CircleHelp, ShieldCheck, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ChevronDown, CircleHelp, ListRestart, ShieldCheck, X } from 'lucide-react'
+import { useSettingsStore } from '../../store'
+import { useToastStore } from '../../store'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/Popover'
@@ -43,6 +46,55 @@ export function ModelConfigDialog({
   onSave,
   onVerify
 }: ModelConfigDialogProps): React.JSX.Element | null {
+  const fetchModelList = useSettingsStore((state) => state.fetchModelList)
+  const { error, warning, info } = useToastStore()
+  const [fetchingModels, setFetchingModels] = useState(false)
+  const [modelOptions, setModelOptions] = useState<string[]>([])
+  const [modelPickerOpen, setModelPickerOpen] = useState(false)
+  const [modelPickerFilter, setModelPickerFilter] = useState('')
+
+  // 连接信息（provider / base_url / api_key）变化后，已拉取的列表随之失效
+  useEffect(() => {
+    setModelOptions([])
+    setModelPickerOpen(false)
+  }, [form.provider, form.baseUrl, form.apiKey])
+
+  const filteredModelOptions = useMemo(() => {
+    const keyword = modelPickerFilter.trim().toLowerCase()
+    if (!keyword) return modelOptions
+    return modelOptions.filter((id) => id.toLowerCase().includes(keyword))
+  }, [modelOptions, modelPickerFilter])
+
+  const handleFetchModels = async (): Promise<void> => {
+    if (!form.apiKey.trim()) {
+      warning(t('settings.fillApiKey'))
+      return
+    }
+    setFetchingModels(true)
+    setModelPickerOpen(false)
+    try {
+      const { models, message } = await fetchModelList(form.provider, form.apiKey, form.baseUrl)
+      if (models.length === 0) {
+        setModelOptions([])
+        error(t('settings.fetchModelsFailed'), { description: message || undefined })
+        return
+      }
+      setModelOptions(models)
+      setModelPickerFilter('')
+      setModelPickerOpen(true)
+      info(t('settings.fetchModelsSuccess', { count: models.length }), {
+        description: t('settings.fetchModelsSuccessDescription')
+      })
+    } finally {
+      setFetchingModels(false)
+    }
+  }
+
+  const handlePickModel = (model: string): void => {
+    onFormChange({ model })
+    setModelPickerOpen(false)
+  }
+
   if (!open) return null
   return (
     <div
@@ -136,12 +188,68 @@ export function ModelConfigDialog({
           <div className="grid gap-2 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium">model</label>
-              <Input
-                placeholder={t('settings.modelPlaceholder')}
-                value={form.model}
-                onChange={(e) => onFormChange({ model: e.target.value })}
-                className="h-8"
-              />
+              <div className="flex gap-1.5">
+                <Input
+                  placeholder={t('settings.modelPlaceholder')}
+                  value={form.model}
+                  onChange={(e) => onFormChange({ model: e.target.value })}
+                  className="h-8"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => void handleFetchModels()}
+                  disabled={saving || verifying || fetchingModels}
+                  className="h-8 shrink-0 whitespace-nowrap border border-[#7ea06f]/45 px-2.5 text-xs"
+                >
+                  <ListRestart className="mr-1 h-3.5 w-3.5" />
+                  {fetchingModels ? t('settings.fetchingModels') : t('settings.fetchModels')}
+                </Button>
+                {modelOptions.length > 0 && (
+                  <Popover open={modelPickerOpen} onOpenChange={setModelPickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="h-8 shrink-0 border border-[#7ea06f]/45 px-2"
+                        aria-label={t('settings.modelPickerLabel')}
+                      >
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="end"
+                      className="w-72 border-[#d8cfbc]/80 bg-[#fffdf8] p-2"
+                    >
+                      <Input
+                        autoFocus
+                        value={modelPickerFilter}
+                        onChange={(e) => setModelPickerFilter(e.target.value)}
+                        placeholder={t('settings.modelListSearchPlaceholder')}
+                        className="h-8"
+                      />
+                      <div className="mt-1.5 max-h-56 overflow-y-auto">
+                        {filteredModelOptions.length === 0 ? (
+                          <p className="px-2 py-3 text-center text-xs text-muted-foreground">
+                            {t('settings.modelListEmpty')}
+                          </p>
+                        ) : (
+                          filteredModelOptions.map((model) => (
+                            <button
+                              key={model}
+                              type="button"
+                              onClick={() => handlePickModel(model)}
+                              className="block w-full truncate rounded px-2 py-1.5 text-left text-xs text-[#3e4a32] transition-colors hover:bg-[#e8f0de]"
+                            >
+                              {model}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
               <p className="mt-1 text-[12px] text-muted-foreground/50">
                 {t('settings.modelHint')}
               </p>

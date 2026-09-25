@@ -6,22 +6,34 @@ import type { SettingsTranslate, TimeoutField } from './types'
 
 interface AdvancedSettingsTabProps {
   proxyUrl: string
+  proxyUsername: string
+  proxyPassword: string
+  proxyNoProxy: string
   savingTimeouts: boolean
   timeoutFields: TimeoutField[]
   timeoutSeconds: Record<ConfigurableModelTimeoutProfile, string>
   t: SettingsTranslate
   onProxyUrlChange: (value: string) => void
+  onProxyUsernameChange: (value: string) => void
+  onProxyPasswordChange: (value: string) => void
+  onProxyNoProxyChange: (value: string) => void
   onSaveAdvanced: () => void
   onTimeoutChange: (profile: ConfigurableModelTimeoutProfile, value: string) => void
 }
 
 export function AdvancedSettingsTab({
   proxyUrl,
+  proxyUsername,
+  proxyPassword,
+  proxyNoProxy,
   savingTimeouts,
   timeoutFields,
   timeoutSeconds,
   t,
   onProxyUrlChange,
+  onProxyUsernameChange,
+  onProxyPasswordChange,
+  onProxyNoProxyChange,
   onSaveAdvanced,
   onTimeoutChange
 }: AdvancedSettingsTabProps): React.JSX.Element {
@@ -70,6 +82,45 @@ export function AdvancedSettingsTab({
               className="h-10"
             />
             <p className="mt-2 text-xs text-muted-foreground">{t('settings.proxyHint')}</p>
+          </div>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                {t('settings.proxyUsernameLabel')}
+              </label>
+              <Input
+                autoComplete="off"
+                value={proxyUsername}
+                onChange={(e) => onProxyUsernameChange(e.target.value)}
+                placeholder={t('settings.proxyUsernamePlaceholder')}
+                className="h-10"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                {t('settings.proxyPasswordLabel')}
+              </label>
+              <Input
+                type="password"
+                autoComplete="new-password"
+                value={proxyPassword}
+                onChange={(e) => onProxyPasswordChange(e.target.value)}
+                placeholder={t('settings.proxyPasswordPlaceholder')}
+                className="h-10"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">
+              {t('settings.proxyNoProxyLabel')}
+            </label>
+            <Input
+              value={proxyNoProxy}
+              onChange={(e) => onProxyNoProxyChange(e.target.value)}
+              placeholder={t('settings.proxyNoProxyPlaceholder')}
+              className="h-10"
+            />
+            <p className="mt-2 text-xs text-muted-foreground">{t('settings.proxyNoProxyHint')}</p>
           </div>
         </CardContent>
       </Card>

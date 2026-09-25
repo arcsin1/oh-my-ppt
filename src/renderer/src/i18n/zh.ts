@@ -509,7 +509,23 @@ export const zh = {
     proxyLabel: '代理地址',
     proxyPlaceholder: '例如：http://127.0.0.1:7890',
     proxyHint: '支持 HTTP 和 SOCKS5 代理，用于访问 Gemini 等需要代理的服务。留空则不使用代理。',
-    proxySavedDescription: '代理设置已写入本地，立即生效。'
+    proxyUsernameLabel: '代理用户名',
+    proxyUsernamePlaceholder: '可选，代理认证用户名',
+    proxyPasswordLabel: '代理密码',
+    proxyPasswordPlaceholder: '可选，代理认证密码',
+    proxyNoProxyLabel: '不走代理的地址',
+    proxyNoProxyPlaceholder: '例如：localhost,127.0.0.1,*.corp.internal,10.0.0.0/8',
+    proxyNoProxyHint:
+      '逗号分隔，匹配的地址（如公司内网模型服务）直连，不经代理。支持域名（自动含子域名）、IP 与 CIDR 网段；* 表示全部直连。',
+    proxySavedDescription: '代理设置已写入本地，立即生效。',
+    fetchModels: '拉取模型',
+    fetchingModels: '拉取中...',
+    fetchModelsSuccess: '已拉取 {count} 个模型',
+    fetchModelsSuccessDescription: '请从列表中选择模型，避免手写出错',
+    fetchModelsFailed: '模型列表拉取失败',
+    modelListSearchPlaceholder: '搜索模型...',
+    modelListEmpty: '没有匹配的模型',
+    modelPickerLabel: '选择模型'
   },
   styles: {
     eyebrow: 'Style Lab',

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const settingsHandlersState = vi.hoisted(() => {
   const handlers = new Map<string, (...args: unknown[]) => Promise<unknown>>()
@@ -23,7 +23,8 @@ const settingsHandlersState = vi.hoisted(() => {
     },
     logMock: {
       error: vi.fn(),
-      info: vi.fn()
+      info: vi.fn(),
+      warn: vi.fn()
     },
     resolveModelMock: vi.fn()
   }
@@ -160,7 +161,12 @@ describe('registerSettingsHandlers proxy settings', () => {
     })
 
     expect(result).toEqual({ success: true })
-    expect(settingsHandlersState.applyProxyMock).toHaveBeenCalledWith('http://127.0.0.1:7890')
+    expect(settingsHandlersState.applyProxyMock).toHaveBeenCalledWith({
+      url: 'http://127.0.0.1:7890',
+      username: '',
+      password: '',
+      noProxy: ''
+    })
     expect(db.setSetting).toHaveBeenCalledWith('proxy_url', 'http://127.0.0.1:7890')
     expect(callOrder).toEqual(['apply', 'persist'])
   })
@@ -195,8 +201,152 @@ describe('registerSettingsHandlers proxy settings', () => {
     const saveSettings = getHandler('settings:save')
     await saveSettings?.(undefined, { proxyUrl: '   ' })
 
-    expect(settingsHandlersState.applyProxyMock).toHaveBeenCalledWith(undefined)
+    expect(settingsHandlersState.applyProxyMock).toHaveBeenCalledWith({
+      url: '',
+      username: '',
+      password: '',
+      noProxy: ''
+    })
     expect(db.setSetting).toHaveBeenCalledWith('proxy_url', '')
+  })
+
+  it('saves proxy credentials and no_proxy list with the proxy address', async () => {
+    const db = {
+      setSetting: vi.fn(async () => undefined)
+    }
+    const { getHandler } = await registerWithDb(db)
+
+    const saveSettings = getHandler('settings:save')
+    await saveSettings?.(undefined, {
+      proxyUrl: 'http://127.0.0.1:7890',
+      proxyUsername: ' corp\\user ',
+      proxyPassword: 'secret',
+      proxyNoProxy: ' localhost,10.0.0.0/8 '
+    })
+
+    expect(settingsHandlersState.applyProxyMock).toHaveBeenCalledWith({
+      url: 'http://127.0.0.1:7890',
+      username: 'corp\\user',
+      password: 'secret',
+      noProxy: 'localhost,10.0.0.0/8'
+    })
+    expect(db.setSetting).toHaveBeenCalledWith('proxy_username', 'corp\\user')
+    expect(db.setSetting).toHaveBeenCalledWith('proxy_password', 'secret')
+    expect(db.setSetting).toHaveBeenCalledWith('proxy_no_proxy', 'localhost,10.0.0.0/8')
+  })
+
+  it('keeps stored proxy credentials when saving only the proxy address', async () => {
+    const db = {
+      getAllSettings: vi.fn(async () => ({
+        proxy_username: 'corp\\user',
+        proxy_password: 'enc:v1:cipher',
+        proxy_no_proxy: '10.0.0.0/8'
+      })),
+      setSetting: vi.fn(async () => undefined)
+    }
+    const { getHandler, db: registeredDb } = await registerWithDb(db)
+
+    const saveSettings = getHandler('settings:save')
+    await saveSettings?.(undefined, { proxyUrl: 'http://127.0.0.1:7890' })
+
+    expect(settingsHandlersState.applyProxyMock).toHaveBeenCalledWith({
+      url: 'http://127.0.0.1:7890',
+      username: 'corp\\user',
+      password: 'enc:v1:cipher',
+      noProxy: '10.0.0.0/8'
+    })
+    expect(registeredDb.setSetting).not.toHaveBeenCalledWith('proxy_password', expect.anything())
+  })
+})
+
+describe('registerSettingsHandlers model list fetching', () => {
+  beforeEach(() => {
+    settingsHandlersState.handlers.clear()
+    settingsHandlersState.ipcMainMock.handle.mockClear()
+    settingsHandlersState.localeMock.readAppLocale.mockResolvedValue('zh')
+    settingsHandlersState.logMock.error.mockClear()
+    settingsHandlersState.logMock.info.mockClear()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('fetches the model list from the provider endpoint', async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({ data: [{ id: 'glm-5.3' }, { id: 'deepseek-v4-flash' }] }),
+          { status: 200 }
+        )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const { getHandler } = await registerWithDb()
+
+    const fetchModelList = getHandler('settings:fetchModelList')
+    const result = await fetchModelList?.(undefined, {
+      provider: 'openai',
+      apiKey: 'secret',
+      baseUrl: 'https://llm.corp.internal/v1'
+    })
+
+    expect(result).toEqual({ models: ['deepseek-v4-flash', 'glm-5.3'], message: null })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://llm.corp.internal/v1/models',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer secret' }
+      })
+    )
+  })
+
+  it('requires the api key before fetching', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const { getHandler } = await registerWithDb()
+
+    const fetchModelList = getHandler('settings:fetchModelList')
+    const result = await fetchModelList?.(undefined, {
+      provider: 'openai',
+      apiKey: '   ',
+      baseUrl: ''
+    })
+
+    expect(result).toEqual({ models: [], message: '请先填写 api_key。' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('reports http failures without throwing', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('not found', { status: 404 })))
+    const { getHandler } = await registerWithDb()
+
+    const fetchModelList = getHandler('settings:fetchModelList')
+    const result = await fetchModelList?.(undefined, {
+      provider: 'anthropic',
+      apiKey: 'secret',
+      baseUrl: 'https://gw.corp.cn'
+    })
+
+    expect(result).toEqual({
+      models: [],
+      message: expect.stringContaining('HTTP 404')
+    })
+  })
+
+  it('reports empty model lists with a hint', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ data: [] }), { status: 200 }))
+    )
+    const { getHandler } = await registerWithDb()
+
+    const fetchModelList = getHandler('settings:fetchModelList')
+    const result = await fetchModelList?.(undefined, {
+      provider: 'openai',
+      apiKey: 'secret',
+      baseUrl: ''
+    })
+
+    expect(result).toEqual({ models: [], message: expect.stringContaining('未返回任何模型') })
   })
 })
 

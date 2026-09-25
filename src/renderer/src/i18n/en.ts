@@ -534,7 +534,23 @@ export const en = {
     proxyPlaceholder: 'e.g. http://127.0.0.1:7890',
     proxyHint:
       'Supports HTTP and SOCKS5 proxies for accessing services like Gemini. Leave empty to disable.',
-    proxySavedDescription: 'Proxy settings saved. Takes effect immediately.'
+    proxyUsernameLabel: 'Proxy username',
+    proxyUsernamePlaceholder: 'Optional, proxy auth username',
+    proxyPasswordLabel: 'Proxy password',
+    proxyPasswordPlaceholder: 'Optional, proxy auth password',
+    proxyNoProxyLabel: 'Addresses bypassing the proxy',
+    proxyNoProxyPlaceholder: 'e.g. localhost,127.0.0.1,*.corp.internal,10.0.0.0/8',
+    proxyNoProxyHint:
+      'Comma separated. Matching hosts (e.g. intranet model services) connect directly without the proxy. Supports hostnames (subdomains included), IPs, and CIDR ranges; * bypasses everything.',
+    proxySavedDescription: 'Proxy settings saved. Takes effect immediately.',
+    fetchModels: 'Fetch models',
+    fetchingModels: 'Fetching...',
+    fetchModelsSuccess: 'Fetched {count} models',
+    fetchModelsSuccessDescription: 'Pick a model from the list to avoid typos',
+    fetchModelsFailed: 'Failed to fetch the model list',
+    modelListSearchPlaceholder: 'Search models...',
+    modelListEmpty: 'No matching models',
+    modelPickerLabel: 'Pick a model'
   },
   styles: {
     eyebrow: 'Style Lab',

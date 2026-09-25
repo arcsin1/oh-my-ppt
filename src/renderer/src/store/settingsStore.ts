@@ -15,6 +15,9 @@ interface Settings {
   storagePath: string
   timeouts: Record<ConfigurableModelTimeoutProfile, number>
   proxyUrl: string
+  proxyUsername: string
+  proxyPassword: string
+  proxyNoProxy: string
 }
 
 interface SettingsStore {
@@ -61,6 +64,11 @@ interface SettingsStore {
     thinkingParameterMode: ThinkingParameterMode,
     timeoutMs: number
   ) => Promise<boolean>
+  fetchModelList: (
+    provider: string,
+    apiKey: string,
+    baseUrl: string
+  ) => Promise<{ models: string[]; message: string | null }>
   verifyImageModel: (
     provider: ImageModelProvider,
     modelConfig: string
@@ -247,6 +255,18 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
           : fallbackMessage('发送验证请求失败。', 'Failed to send verification request.')
       set({ verificationMessage: message })
       return false
+    }
+  },
+
+  fetchModelList: async (provider, apiKey, baseUrl) => {
+    try {
+      return await ipc.fetchModelList({ provider, apiKey, baseUrl })
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : fallbackMessage('发送模型列表请求失败。', 'Failed to request the model list.')
+      return { models: [], message }
     }
   },
 
