@@ -7,8 +7,8 @@
   <a href="https://github.com/arcsin1/oh-my-ppt" target="_blank">
     <img alt="AI PPT Generator" src="https://img.shields.io/badge/AI%20PPT-Generator-2f6d49"/>
   </a>
-  <a href="#pptx-import">
-    <img alt="PPTX Import &amp; Export" src="https://img.shields.io/badge/PPTX-Import%20%26%20Export-1769aa"/>
+  <a href="https://github.com/arcsin1/oh-my-ppt/releases" target="_blank">
+    <img alt="Downloads" src="https://img.shields.io/github/downloads/arcsin1/oh-my-ppt/total?style=flat&label=downloads&logo=github&logoColor=white"/>
   </a>
   <a href="#features">
     <img alt="Local-first" src="https://img.shields.io/badge/Local--first-Private-3b7a57"/>
@@ -21,9 +21,6 @@
   </a>
   <a href="https://react.dev/" target="_blank">
     <img alt="React" src="https://img.shields.io/badge/React-App-61dafb"/>
-  </a>
-  <a href="https://www.typescriptlang.org/" target="_blank">
-    <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.x-3178c6"/>
   </a>
 </p>
 
