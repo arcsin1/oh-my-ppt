@@ -1,5 +1,40 @@
 # 更新日志 / Changelog
 
+## 2026-09-29 · v2.7.0
+
+### 中文
+
+- 新增页面批注设置：可以对页面进行批注，导出的 PPTX 里也能看到。
+- 新增演讲者视图：放映时自动在另一块屏幕显示当前页和你的备注，浏览器演示按 P 也能打开。
+- 新增生成质量检测：每页生成后自动检查版面（充分利用多模态能力），有问题自动轻修一次，修不好就回滚，首次效果更有保障。
+- 新增逐页版式选择：模板创作升级为全屏页面，可逐页挑选模板版式和样式。
+- 新增模型配置能力：可配置上下文窗口、一键拉取模型列表，小窗口的本地模型不再报超限错误。
+- 新增代理认证与内网直连：代理支持账号密码，内网地址可设置不走代理。
+- 优化模板创作：生成时实时预览，实时反馈模版创作进度，改标题真正生效。
+- 优化文档解析：疑难文档自动改由 AI 整理大纲，不再报「内部错误」。
+- 优化对话创作和新建演示：改为全屏页面，更清爽，中途离开草稿也不丢。
+- 优化风格页：支持大图预览，挑选更直观。
+- 优化 PPTX 模版导入：更稳定，图表还原更好。
+- 修复模板生成偶发残留旧模板文字的问题。
+- 修复偶发生成带入其他无关内容以及多余标题。
+
+### English
+
+- Added slide notes: comment on any slide, and your notes carry into exported PPTX files.
+- Added Presenter View: presenting opens a companion window on your other screen with the current slide and your notes; press P during browser playback too.
+- Added generation quality checks: every slide is auto-checked right after it is written (using multimodal vision), gets a quick in-place fix if the layout looks off, and rolls back if the fix fails — first-pass results are more reliable.
+- Added per-slide layout picking: template creation is now a fullscreen page where you can pick a template layout and style for each slide.
+- Added richer model settings: configure context windows and fetch a provider's model list in one click; small-window local models no longer fail with over-limit errors.
+- Added proxy authentication and intranet bypass: proxies support usernames and passwords, and intranet addresses can skip the proxy.
+- Improved template creation: slides preview live with real-time progress as they generate, and title edits actually stick.
+- Improved document parsing: tricky documents fall back to an AI-drafted outline instead of failing.
+- Improved Chat to Create and the New Presentation page: both went fullscreen — cleaner, and drafts survive leaving mid-way.
+- Improved the Styles page: large previews make picking a style easier.
+- Improved PPTX import: more stable, with better chart restoration.
+- Fixed occasional leftover template text in generated slides.
+- Fixed occasional unrelated content and duplicate titles slipping into generated slides.
+
+
 ## 2026-09-19 · v2.6.0
 
 ### 中文
