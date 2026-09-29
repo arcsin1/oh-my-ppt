@@ -95,6 +95,15 @@ export function SettingsPage(): React.JSX.Element {
   const [proxyUrl, setProxyUrl] = useState(
     () => useSettingsStore.getState().settings?.proxyUrl || ''
   )
+  const [proxyUsername, setProxyUsername] = useState(
+    () => useSettingsStore.getState().settings?.proxyUsername || ''
+  )
+  const [proxyPassword, setProxyPassword] = useState(
+    () => useSettingsStore.getState().settings?.proxyPassword || ''
+  )
+  const [proxyNoProxy, setProxyNoProxy] = useState(
+    () => useSettingsStore.getState().settings?.proxyNoProxy || ''
+  )
   const [verifying, setVerifying] = useState(false)
   const [verifyingImageModel, setVerifyingImageModel] = useState(false)
   const [imageVerificationPreviewUrl, setImageVerificationPreviewUrl] = useState<string | null>(null)
@@ -112,6 +121,9 @@ export function SettingsPage(): React.JSX.Element {
       setStoragePath(nextSettings?.storagePath || '')
       setTimeoutSeconds(createTimeoutSeconds(nextSettings?.timeouts))
       setProxyUrl(nextSettings?.proxyUrl || '')
+      setProxyUsername(nextSettings?.proxyUsername || '')
+      setProxyPassword(nextSettings?.proxyPassword || '')
+      setProxyNoProxy(nextSettings?.proxyNoProxy || '')
     }
     void loadSettings()
     return () => {
@@ -356,7 +368,10 @@ export function SettingsPage(): React.JSX.Element {
         timeouts: Object.fromEntries(
           timeoutEntries.map(({ field, num }) => [field.profile, Math.round(num) * 1000])
         ) as Record<ConfigurableModelTimeoutProfile, number>,
-        proxyUrl: proxyUrl.trim()
+        proxyUrl: proxyUrl.trim(),
+        proxyUsername: proxyUsername.trim(),
+        proxyPassword,
+        proxyNoProxy: proxyNoProxy.trim()
       })
       const saveError = useSettingsStore.getState().verificationMessage
       if (saveError) {
@@ -594,12 +609,27 @@ export function SettingsPage(): React.JSX.Element {
         <TabsContent value="advanced">
           <AdvancedSettingsTab
             proxyUrl={proxyUrl}
+            proxyUsername={proxyUsername}
+            proxyPassword={proxyPassword}
+            proxyNoProxy={proxyNoProxy}
             savingTimeouts={savingTimeouts}
             timeoutFields={timeoutFields}
             timeoutSeconds={timeoutSeconds}
             t={t}
             onProxyUrlChange={(value) => {
               setProxyUrl(value)
+              setVerificationMessage(null)
+            }}
+            onProxyUsernameChange={(value) => {
+              setProxyUsername(value)
+              setVerificationMessage(null)
+            }}
+            onProxyPasswordChange={(value) => {
+              setProxyPassword(value)
+              setVerificationMessage(null)
+            }}
+            onProxyNoProxyChange={(value) => {
+              setProxyNoProxy(value)
               setVerificationMessage(null)
             }}
             onSaveAdvanced={() => void handleSaveAdvanced()}

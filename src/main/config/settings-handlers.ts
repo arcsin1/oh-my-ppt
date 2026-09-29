@@ -1,7 +1,8 @@
 import { BrowserWindow, app, dialog, ipcMain } from 'electron'
 import log from 'electron-log/main.js'
 import { resolveModel } from '../agent-runtime/model'
-import { applyProxy } from '../utils/proxy'
+import { applyProxy, type ProxySettings } from '../utils/proxy'
+import { buildModelListRequest, parseModelListResponse } from './model-list'
 import type { IpcContext } from '../ipc/context'
 import {
   CONFIGURABLE_MODEL_TIMEOUT_PROFILES,
@@ -69,6 +70,21 @@ const normalizeVerifyErrorMessage = (
   return message || null
 }
 
+const readTrimmedSetting = (value: unknown): string =>
+  typeof value === 'string' ? value.trim() : ''
+
+const PROXY_SETTING_KEYS = ['proxyUrl', 'proxyUsername', 'proxyPassword', 'proxyNoProxy'] as const
+
+const normalizeProxySettings = (raw: unknown): ProxySettings => {
+  const record = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  return {
+    url: readTrimmedSetting(record.proxyUrl),
+    username: readTrimmedSetting(record.proxyUsername),
+    password: typeof record.proxyPassword === 'string' ? record.proxyPassword : '',
+    noProxy: readTrimmedSetting(record.proxyNoProxy)
+  }
+}
+
 export function registerSettingsHandlers(ctx: IpcContext): void {
   const { mainWindow, db, encryptApiKey, decryptApiKey } = ctx
 
@@ -83,16 +99,16 @@ export function registerSettingsHandlers(ctx: IpcContext): void {
       typeof settings.storage_path === 'string' && settings.storage_path.trim().length > 0
         ? settings.storage_path.trim()
         : ''
-    const proxyUrl =
-      typeof settings.proxy_url === 'string' && settings.proxy_url.trim().length > 0
-        ? settings.proxy_url.trim()
-        : ''
+    const proxyUrl = readTrimmedSetting(settings.proxy_url)
     return {
       theme: settings.theme || 'light',
       locale: settings.locale === 'en' ? 'en' : 'zh',
       storagePath,
       timeouts: readGlobalTimeouts(settings),
-      proxyUrl
+      proxyUrl,
+      proxyUsername: readTrimmedSetting(settings.proxy_username),
+      proxyPassword: decryptApiKey(settings.proxy_password),
+      proxyNoProxy: readTrimmedSetting(settings.proxy_no_proxy)
     }
   })
 
@@ -178,14 +194,23 @@ export function registerSettingsHandlers(ctx: IpcContext): void {
         }
       }
     }
-    if ('proxyUrl' in settings) {
-      const nextProxy =
-        typeof settings.proxyUrl === 'string' ? settings.proxyUrl.trim() : ''
+    if (PROXY_SETTING_KEYS.some((key) => key in settings)) {
+      const stored = await db.getAllSettings()
+      const hasFreshPassword = 'proxyPassword' in settings
+      const nextProxy = normalizeProxySettings({
+        // 未提交的字段沿用已存储值，保证部分保存不会清掉其余代理配置
+        proxyUrl: 'proxyUrl' in settings ? settings.proxyUrl : stored.proxy_url,
+        proxyUsername: 'proxyUsername' in settings ? settings.proxyUsername : stored.proxy_username,
+        proxyPassword: hasFreshPassword
+          ? settings.proxyPassword
+          : decryptApiKey(stored.proxy_password),
+        proxyNoProxy: 'proxyNoProxy' in settings ? settings.proxyNoProxy : stored.proxy_no_proxy
+      })
       try {
-        applyProxy(nextProxy || undefined)
+        applyProxy(nextProxy)
       } catch (proxyError) {
         log.error('[settings:save] failed to apply proxy', {
-          proxyUrl: nextProxy,
+          proxyUrl: nextProxy.url,
           message: proxyError instanceof Error ? proxyError.message : String(proxyError)
         })
         throw new Error(
@@ -196,7 +221,12 @@ export function registerSettingsHandlers(ctx: IpcContext): void {
           )
         )
       }
-      await db.setSetting('proxy_url', nextProxy)
+      await db.setSetting('proxy_url', nextProxy.url)
+      await db.setSetting('proxy_username', nextProxy.username)
+      if (hasFreshPassword) {
+        await db.setSetting('proxy_password', encryptApiKey(nextProxy.password ?? ''))
+      }
+      await db.setSetting('proxy_no_proxy', nextProxy.noProxy)
     }
     return { success: true }
   })
@@ -344,6 +374,62 @@ export function registerSettingsHandlers(ctx: IpcContext): void {
       }
     }
   )
+
+  ipcMain.handle('settings:fetchModelList', async (_event, payload) => {
+    const locale = await readAppLocale(ctx)
+    const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+    const provider = normalizeProvider(record.provider)
+    const apiKey = typeof record.apiKey === 'string' ? record.apiKey.trim() : ''
+    const baseUrl = typeof record.baseUrl === 'string' ? record.baseUrl.trim() : ''
+    if (!apiKey) {
+      return { models: [], message: uiText(locale, '请先填写 api_key。', 'Enter api_key first.') }
+    }
+
+    try {
+      const spec = buildModelListRequest(provider, baseUrl, apiKey)
+      log.info('[settings:fetchModelList] fetching', { provider, url: spec.url })
+      const response = await fetch(spec.url, {
+        headers: spec.headers,
+        signal: AbortSignal.timeout(15000)
+      })
+      if (!response.ok) {
+        log.warn('[settings:fetchModelList] http error', { provider, status: response.status })
+        return {
+          models: [],
+          message: uiText(
+            locale,
+            `模型列表拉取失败（HTTP ${response.status}）。请检查 api_key、base_url 或网络代理设置。`,
+            `Failed to fetch the model list (HTTP ${response.status}). Check api_key, base_url, or proxy settings.`
+          )
+        }
+      }
+      const json = await response.json()
+      const models = parseModelListResponse(provider, json)
+      if (models.length === 0) {
+        return {
+          models: [],
+          message: uiText(
+            locale,
+            '接口未返回任何模型，请确认服务支持模型列表接口。',
+            'The endpoint returned no models. Confirm the service supports the model list API.'
+          )
+        }
+      }
+      log.info('[settings:fetchModelList] success', { provider, count: models.length })
+      return { models, message: null }
+    } catch (error) {
+      const detail = error instanceof Error && error.message ? error.message : ''
+      log.error('[settings:fetchModelList] failed', { provider, message: detail })
+      return {
+        models: [],
+        message: uiText(
+          locale,
+          `模型列表拉取失败：${detail || '网络错误，请检查网络或代理设置。'}`,
+          `Failed to fetch the model list: ${detail || 'network error, check network or proxy settings.'}`
+        )
+      }
+    }
+  })
 
   ipcMain.handle('settings:chooseStoragePath', async (event) => {
     log.info('[settings:chooseStoragePath] received')

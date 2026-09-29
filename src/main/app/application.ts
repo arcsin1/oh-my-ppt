@@ -20,6 +20,7 @@ import {
   warmStyleThumbnails
 } from '../styles'
 import { backfillUserStylePackagesFromDatabase, setStyleDb } from '../styles/catalog'
+import { createRuntimeCredentials } from '../ipc/runtime/credentials'
 import { applyProxy } from '../utils/proxy'
 import { configureLogging, scheduleUpdateNotification } from './lifecycle'
 import { createTray, destroyTray, showTrayHideBalloon } from './tray'
@@ -131,8 +132,22 @@ export class MainApplication {
 
     try {
       const savedSettings = await this.db.getAllSettings()
-      if (typeof savedSettings.proxy_url === 'string' && savedSettings.proxy_url.trim()) {
-        applyProxy(savedSettings.proxy_url.trim())
+      const proxyUrl =
+        typeof savedSettings.proxy_url === 'string' ? savedSettings.proxy_url.trim() : ''
+      if (proxyUrl) {
+        const { decryptApiKey } = createRuntimeCredentials()
+        applyProxy({
+          url: proxyUrl,
+          username:
+            typeof savedSettings.proxy_username === 'string'
+              ? savedSettings.proxy_username.trim()
+              : '',
+          password: decryptApiKey(savedSettings.proxy_password),
+          noProxy:
+            typeof savedSettings.proxy_no_proxy === 'string'
+              ? savedSettings.proxy_no_proxy.trim()
+              : ''
+        })
       }
     } catch (proxyError) {
       log.warn('[app] failed to apply saved proxy', {

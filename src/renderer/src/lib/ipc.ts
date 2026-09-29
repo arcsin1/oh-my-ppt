@@ -1189,6 +1189,11 @@ export const ipc = {
       valid: boolean
       message?: string
     }>,
+  fetchModelList: (payload: { provider: string; apiKey: string; baseUrl: string }) =>
+    getIpc().invoke('settings:fetchModelList', payload) as Promise<{
+      models: string[]
+      message: string | null
+    }>,
   chooseStoragePath: () =>
     getIpc().invoke('settings:chooseStoragePath') as Promise<{
       path: string | null
