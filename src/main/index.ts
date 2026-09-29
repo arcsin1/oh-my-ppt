@@ -1,15 +1,26 @@
-import { app } from 'electron'
-import { MainApplication } from './app/application'
+import './external-agent/mcp-stdout-guard'
+import { app, BrowserWindow } from 'electron'
+import { isMcpStdioLaunch, runMcpStdioBridge } from './external-agent/mcp-stdio'
 
-const mainApplication = new MainApplication()
-const gotSingleInstanceLock = app.requestSingleInstanceLock()
-
-if (!gotSingleInstanceLock) {
-  app.quit()
+if (isMcpStdioLaunch()) {
+  app.on('window-all-closed', () => undefined)
+  void app.whenReady().then(() => {
+    new BrowserWindow({ show: false, skipTaskbar: true, width: 1, height: 1 })
+    return runMcpStdioBridge()
+  })
 } else {
-  app.on('second-instance', () => mainApplication.focusMainWindow())
-  app.whenReady().then(() => mainApplication.start())
-}
+  void import('./app/application').then(({ MainApplication }) => {
+    const mainApplication = new MainApplication()
+    const gotSingleInstanceLock = app.requestSingleInstanceLock()
 
-app.on('window-all-closed', () => mainApplication.handleWindowAllClosed())
-app.on('before-quit', () => mainApplication.handleBeforeQuit())
+    if (!gotSingleInstanceLock) {
+      app.quit()
+    } else {
+      app.on('second-instance', () => mainApplication.focusMainWindow())
+      app.whenReady().then(() => mainApplication.start())
+    }
+
+    app.on('window-all-closed', () => mainApplication.handleWindowAllClosed())
+    app.on('before-quit', () => mainApplication.handleBeforeQuit())
+  })
+}

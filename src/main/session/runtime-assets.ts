@@ -10,7 +10,11 @@ const RUNTIME_ASSET_MARKERS = [
   { fileName: 'ppt-runtime.js', marker: PPT_RUNTIME_MARKER }
 ] as const
 
-async function hasExpectedRuntimeMarker(projectDir: string, fileName: string, marker: string): Promise<boolean> {
+async function hasExpectedRuntimeMarker(
+  projectDir: string,
+  fileName: string,
+  marker: string
+): Promise<boolean> {
   try {
     const content = await fs.promises.readFile(path.join(projectDir, 'assets', fileName), 'utf-8')
     return content.includes(marker)
@@ -20,7 +24,7 @@ async function hasExpectedRuntimeMarker(projectDir: string, fileName: string, ma
 }
 
 export async function ensureSessionRuntimeCompatible(
-  ctx: IpcContext,
+  ctx: Pick<IpcContext, 'ensureSessionAssets'>,
   projectDir: string
 ): Promise<void> {
   for (const { fileName, marker } of RUNTIME_ASSET_MARKERS) {

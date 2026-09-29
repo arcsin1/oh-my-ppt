@@ -257,6 +257,7 @@ export type NormalizedGenerateInput = {
   autoApply: boolean
   approvedPlan?: SessionPageEditPlan
   failedRunId?: string
+  pageCount?: number
 }
 
 const MAX_SELECTED_ELEMENT_CONTEXT_ENTRIES = 40
@@ -463,6 +464,11 @@ export function normalizeGeneratePayload(payload: unknown): NormalizedGenerateIn
     typeof failedRunIdRaw === 'string' && failedRunIdRaw.trim().length > 0
       ? failedRunIdRaw.trim()
       : undefined
+  const rawPageCount = input?.pageCount
+  const pageCount =
+    typeof rawPageCount === 'number' && Number.isFinite(rawPageCount)
+      ? Math.max(1, Math.min(30, Math.floor(rawPageCount)))
+      : undefined
 
   return {
     sessionId,
@@ -487,7 +493,8 @@ export function normalizeGeneratePayload(payload: unknown): NormalizedGenerateIn
     animationPreferences,
     autoApply,
     approvedPlan,
-    failedRunId
+    failedRunId,
+    pageCount
   }
 }
 
@@ -507,7 +514,15 @@ export function buildRetryUserMessage(retrySupplementRaw: string): string {
       ].join('\n')
 }
 
-export function buildTotalPages(sessionRecord: Record<string, unknown>): number {
+export function buildTotalPages(
+  sessionRecord: Record<string, unknown>,
+  requestedPageCount?: number
+): number {
+  const requested =
+    typeof requestedPageCount === 'number' && Number.isFinite(requestedPageCount)
+      ? Math.floor(requestedPageCount)
+      : 0
+  if (requested >= 1) return requested
   const total = Number(sessionRecord.page_count ?? sessionRecord.pageCount)
   return Math.max(1, Number.isFinite(total) ? Math.floor(total) : 1)
 }

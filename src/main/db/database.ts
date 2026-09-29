@@ -28,6 +28,15 @@ import { normalizeThinkingParameterMode } from '@shared/model-config'
 import { requirePersistedSlideSize, type SlideSizePresetId } from '@shared/slide-size'
 import type { HtmlEditDocument, HtmlEditMessage, HtmlEditVersion } from './schema'
 
+const parseJsonOr = <T>(raw: string | null | undefined, fallback: T): T => {
+  if (!raw) return fallback
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    return fallback
+  }
+}
+
 type SessionStatus = 'active' | 'completed' | 'failed' | 'archived'
 type MessageRole = 'user' | 'assistant' | 'system' | 'tool'
 type MessageType = 'text' | 'tool_call' | 'tool_result' | 'stream_chunk'
@@ -590,6 +599,10 @@ export class PPTDatabase {
     }
   }
 
+  get orm(): ReturnType<typeof drizzle> {
+    return this.db
+  }
+
   async close(): Promise<void> {
     await this.client.close()
     this._initialized = false
@@ -858,6 +871,7 @@ export class PPTDatabase {
       .from(schema.sessions)
       .where(eq(schema.sessions.id, sessionId))
       .get()
+    // SAFETY: drizzle row shape matches the Session DTO used by handlers.
     return result as unknown as Session | undefined
   }
 
@@ -1002,6 +1016,7 @@ export class PPTDatabase {
       .offset(offset)
       .all()
 
+    // SAFETY: drizzle session rows match the Session DTO used by list APIs.
     return results as unknown as Session[]
   }
 
@@ -1027,6 +1042,7 @@ export class PPTDatabase {
       .all()
 
     return rows.map((row) => ({
+      // SAFETY: grouped session row is the same Session DTO as getSession().
       session: row.session as unknown as Session,
       pageCount: Number(row.pageCount || 0)
     }))
@@ -2850,6 +2866,7 @@ export class PPTDatabase {
       .from(schema.modelConfigs)
       .orderBy(desc(schema.modelConfigs.active), desc(schema.modelConfigs.updatedAt))
       .all()
+    // SAFETY: model_configs rows match ModelConfigRow.
     return results as unknown as ModelConfigRow[]
   }
 
@@ -2860,6 +2877,7 @@ export class PPTDatabase {
       .where(eq(schema.modelConfigs.active, 1))
       .limit(1)
       .get()
+    // SAFETY: model_configs row matches ModelConfigRow.
     return result as unknown as ModelConfigRow | undefined
   }
 
@@ -2870,6 +2888,7 @@ export class PPTDatabase {
       .where(eq(schema.modelConfigs.id, id))
       .limit(1)
       .get()
+    // SAFETY: model_configs row matches ModelConfigRow.
     return result as unknown as ModelConfigRow | undefined
   }
 
@@ -2970,6 +2989,7 @@ export class PPTDatabase {
       .from(schema.imageModelConfigs)
       .orderBy(desc(schema.imageModelConfigs.active), desc(schema.imageModelConfigs.updatedAt))
       .all()
+    // SAFETY: image_model_configs rows match ImageModelConfigRow.
     return results as unknown as ImageModelConfigRow[]
   }
 
@@ -2980,6 +3000,7 @@ export class PPTDatabase {
       .where(eq(schema.imageModelConfigs.active, 1))
       .limit(1)
       .get()
+    // SAFETY: image_model_configs row matches ImageModelConfigRow.
     return result as unknown as ImageModelConfigRow | undefined
   }
 
@@ -2990,6 +3011,7 @@ export class PPTDatabase {
       .where(eq(schema.imageModelConfigs.id, id))
       .limit(1)
       .get()
+    // SAFETY: image_model_configs row matches ImageModelConfigRow.
     return result as unknown as ImageModelConfigRow | undefined
   }
 
@@ -3636,6 +3658,7 @@ export class PPTDatabase {
       .orderBy(desc(schema.imageGenerationHistories.createdAt))
       .limit(50)
       .all()
+    // SAFETY: image_generation_histories rows match ImageGenerationHistoryRow.
     return results as unknown as ImageGenerationHistoryRow[]
   }
 
@@ -3679,11 +3702,12 @@ export class PPTDatabase {
       .limit(10)
       .all()
 
+    // SAFETY: preference rows are mapped into UserPreference after JSON parse.
     return results.map((r) => ({
       key: r.key,
-      value: JSON.parse(r.value),
+      value: parseJsonOr(r.value, null),
       confidence: r.confidence,
-      source_sessions: r.sourceSessions ? JSON.parse(r.sourceSessions) : [],
+      source_sessions: parseJsonOr<string[]>(r.sourceSessions, []),
       created_at: r.createdAt,
       updated_at: r.updatedAt,
       last_used_at: r.lastUsedAt
@@ -3702,7 +3726,7 @@ export class PPTDatabase {
       .get()
 
     if (existing) {
-      const existingSources = existing.sourceSessions ? JSON.parse(existing.sourceSessions) : []
+      const existingSources = parseJsonOr<string[]>(existing.sourceSessions, [])
       const newSources = data.sourceSessions
         ? [...new Set([...existingSources, ...data.sourceSessions])]
         : existingSources
@@ -3927,6 +3951,7 @@ export class PPTDatabase {
       .from(schema.styles)
       .orderBy(asc(schema.styles.style))
       .all()
+    // SAFETY: styles rows match StyleRow after version normalize.
     this._stylesCache = (results as unknown as StyleRow[]).map((row) => ({
       ...row,
       version: normalizeStyleVersion(row.version)
@@ -3954,6 +3979,7 @@ export class PPTDatabase {
       .from(schema.styles)
       .orderBy(asc(schema.styles.style))
       .all()
+    // SAFETY: styles rows match StyleRow after version normalize.
     return (results as unknown as StyleRow[]).map((row) => ({
       ...row,
       version: normalizeStyleVersion(row.version)
@@ -3966,12 +3992,10 @@ export class PPTDatabase {
       .from(schema.styles)
       .where(eq(schema.styles.id, styleId))
       .get()
-    return result
-      ? ({
-          ...(result as unknown as StyleRow),
-          version: normalizeStyleVersion((result as unknown as StyleRow).version)
-        } as StyleRow)
-      : undefined
+    if (!result) return undefined
+    // SAFETY: styles row matches StyleRow after version normalize.
+    const row = result as unknown as StyleRow
+    return { ...row, version: normalizeStyleVersion(row.version) }
   }
 
   async getStyleRowByStyle(style: string): Promise<StyleRow | undefined> {
@@ -3980,12 +4004,10 @@ export class PPTDatabase {
       .from(schema.styles)
       .where(eq(schema.styles.style, style))
       .get()
-    return result
-      ? ({
-          ...(result as unknown as StyleRow),
-          version: normalizeStyleVersion((result as unknown as StyleRow).version)
-        } as StyleRow)
-      : undefined
+    if (!result) return undefined
+    // SAFETY: styles row matches StyleRow after version normalize.
+    const row = result as unknown as StyleRow
+    return { ...row, version: normalizeStyleVersion(row.version) }
   }
 
   async createStyleRow(data: {
@@ -4206,6 +4228,7 @@ export class PPTDatabase {
       .from(schema.sessionStyleSnapshots)
       .where(eq(schema.sessionStyleSnapshots.sessionId, sessionId))
       .get()
+    // SAFETY: session_style_snapshots row matches SessionStyleSnapshotRow.
     return row as unknown as SessionStyleSnapshotRow | undefined
   }
 
@@ -4312,6 +4335,7 @@ export class PPTDatabase {
     let fallback = 0
     let failed = 0
     for (const row of rows) {
+      // SAFETY: joined sessions row matches the Session DTO.
       const session = row.session as unknown as Session
       try {
         const snapshot = await this.createSessionStyleSnapshot(session.id, session.styleId)
