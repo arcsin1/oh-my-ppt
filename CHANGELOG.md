@@ -1,5 +1,39 @@
 # 更新日志 / Changelog
 
+## 2026-10-10 · v2.8.0
+
+### 中文
+
+- 新增 支持PDF 生成演示：把 PDF 拖进来就能变成幻灯片，可选云端厂商解析，或者本地解析。
+- 新增PDF厂商配置：目前支持用MinierU专业的云端PDF解析，个人每天有一定免费额度。
+- 新增生成中随时调整：生成演示时不用干等，随时点悬浮按钮提要求（比如「配色亮一点」「补一页竞品对比」）。
+- 新增图片滤镜：编辑页可以给图片加滤镜，多种预设、强度可调，鼠标悬停就能看到效果，保存和导出后依然保留。
+- 新增文字拖角缩放：像调整图片一样，拖动文字框四角就能放大缩小文字，调标题大小更直观。
+- 新增 35 款内置风格：复古刊物、杂志编辑、大胆宣言、手绘贴纸、像素街机等多种气质，挑风格的选择更多了。
+- 新增图表与示意图绘制：流程图、架构图、数据关系图等图形表达更专业清晰（oh-my-ppt-diagram）SKILL。
+- 优化页面视觉：生成的演示画面更精致、更现代，旧演示打开不受影响。
+- 优化风格AI推荐：AI推荐风格更准确。
+- 优化生成体验：边生成边预览，刷新更快更顺滑，生成页打开也更快。
+- 优化因为生成数量过多发热与耗电：长时间生成演示时，体验更佳，优化发热和省电。
+- 优化安装包体积：减少安装包体积，安装更快。
+- 修复生成进度显示问题，同时去掉了生成页顶部多余的状态栏，界面更清爽。
+
+### English
+
+- Added PDF to presentation: drop in a PDF and it becomes slides, with your choice of cloud-vendor parsing or local parsing.
+- Added PDF vendor configuration: MinerU's professional cloud PDF parsing is supported, with a free daily quota for personal use.
+- Added adjust while generating: no more waiting around while a deck generates. Tap the floating button anytime to add requests ("brighter colors", "add a competitor comparison slide"), and the following slides will follow them, with one final pass applying everything at the end; your submitted requests stay visible for review.
+- Added image filters: apply filters to images in the editor, with multiple presets and adjustable intensity, previewed on hover, and kept after saving and export.
+- Added corner-drag text scaling: resize text by dragging the corners of its box, just like resizing an image — sizing titles is now intuitive.
+- Added 35 new built-in styles: retro zines, magazine editorials, bold manifestos, hand-drawn stickers, pixel arcades, and more. Far more styles to pick from.
+- Added diagram and schematic drawing (oh-my-ppt-diagram skill): flowcharts, architecture diagrams, and data-relationship graphs come out more professional and clear.
+- Visual upgrade: newly generated presentations look more refined and modern, while existing decks open exactly as before.
+- Improved AI style recommendations: style suggestions are now more accurate.
+- Improved the generation experience: live previews refresh faster and more smoothly, and the generation page opens quicker.
+- Improved heat and power usage: long generation runs feel better, with less heat and lower power draw.
+- Smaller installer: reduced package size for faster installation.
+- Fixed generation progress display issues; also removed the redundant status bar at the top of the generation page for a cleaner look.
+
 ## 2026-09-29 · v2.7.0
 
 ### 中文
