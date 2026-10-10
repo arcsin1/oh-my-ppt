@@ -161,6 +161,9 @@
     "overrides": {
       "@langchain/core": "^1.1.47",
       "@langchain/langgraph": "^1.3.0"
+    },
+    "patchedDependencies": {
+      "@arcsin1/html2pptx": "patches/@arcsin1__html2pptx.patch"
     }
   }
 }
