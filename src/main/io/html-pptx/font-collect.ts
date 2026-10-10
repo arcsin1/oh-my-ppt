@@ -490,7 +490,10 @@ export const collectEmbeddedFonts = async (
   } = {}
 ): Promise<HtmlToPptxEmbeddedFont[]> => {
   const mode = options.mode || 'auto'
-  const payloadFormat = options.payloadFormat || 'eot'
+  // 默认裸 TTF（sfnt）载荷：实测 PowerPoint for Mac 16.78 在 fntdata 为 EOT 容器时
+  // 会忽略 b="1"（加粗不渲染，暗像素仅 100%），去嵌入或换裸 TTF 后加粗恢复
+  // （约 131%）。EOT 仅按需显式传入以兼容旧链路。
+  const payloadFormat = options.payloadFormat || 'ttf'
   if (mode === 'never') {
     log.info('[font-embed] disabled by export option')
     return []

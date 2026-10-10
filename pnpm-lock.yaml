@@ -10,7 +10,7 @@ overrides:
 
 patchedDependencies:
   '@arcsin1/html2pptx':
-    hash: 563c4f613f386e945e6dcb354cb603a7c0a98065638222c869af13907d11aff9
+    hash: 2cb13cd8a0a7186137e815b9147da23fcfe4fd25ebe63f3777198b9abd4a9618
     path: patches/@arcsin1__html2pptx.patch
 
 importers:
@@ -19,7 +19,7 @@ importers:
     dependencies:
       '@arcsin1/html2pptx':
         specifier: 0.0.10
-        version: 0.0.10(patch_hash=563c4f613f386e945e6dcb354cb603a7c0a98065638222c869af13907d11aff9)
+        version: 0.0.10(patch_hash=2cb13cd8a0a7186137e815b9147da23fcfe4fd25ebe63f3777198b9abd4a9618)
       '@arcsin1/pptx-ooxml-geometry':
         specifier: 0.0.2
         version: 0.0.2
@@ -5836,7 +5836,7 @@ snapshots:
     optionalDependencies:
       zod: 3.25.76
 
-  '@arcsin1/html2pptx@0.0.10(patch_hash=563c4f613f386e945e6dcb354cb603a7c0a98065638222c869af13907d11aff9)':
+  '@arcsin1/html2pptx@0.0.10(patch_hash=2cb13cd8a0a7186137e815b9147da23fcfe4fd25ebe63f3777198b9abd4a9618)':
     dependencies:
       '@chenglou/pretext': 0.0.6
       fflate: 0.8.3
