@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { copyFile, mkdtemp, mkdir, rm, writeFile } from 'fs/promises'
 import os from 'os'
 import path from 'path'
+import { createFont } from 'fonteditor-core'
 import type { HtmlToPptxSlide } from '@arcsin1/html2pptx'
 import { collectEmbeddedFonts } from '../../../src/main/io/html-pptx/font-collect'
 
@@ -73,5 +74,48 @@ describe('PPTX font embedding', () => {
       { family: 'User Body', style: 'Regular' },
       { family: 'User Title', style: 'Bold' }
     ])
+  })
+
+  it('produces a plain sfnt payload when payloadFormat is ttf', async () => {
+    const projectDir = await mkdtemp(path.join(os.tmpdir(), 'oh-my-ppt-font-'))
+    tempDirectories.push(projectDir)
+    const fontDir = path.join(projectDir, 'assets', 'fonts', 'user-fonts', 'exp')
+    await mkdir(fontDir, { recursive: true })
+    await copyFile(
+      path.resolve('resources/google-fonts/Poppins/400-normal-0.woff2'),
+      path.join(fontDir, 'font.woff2')
+    )
+
+    const htmlPath = path.join(projectDir, 'page-1.html')
+    await writeFile(
+      htmlPath,
+      `<style>@font-face { font-family: "TTF Face"; src: url("./assets/fonts/user-fonts/exp/font.woff2") format("woff2"); font-weight: 400; font-style: normal; }</style>`,
+      'utf-8'
+    )
+
+    const slides: HtmlToPptxSlide[] = [
+      {
+        texts: [{ text: 'Body', x: 0, y: 1, w: 2, h: 0.3, fontSize: 12, fontFace: 'TTF Face' }]
+      }
+    ]
+
+    const embeddedFonts = await collectEmbeddedFonts(projectDir, slides, {
+      mode: 'always',
+      payloadFormat: 'ttf',
+      pageHtmlPaths: [htmlPath]
+    })
+
+    expect(embeddedFonts).toHaveLength(1)
+    const payload = embeddedFonts[0].ttfBuffer
+    const isPlainTtf = payload[0] === 0x00 && payload[1] === 0x01 && payload[2] === 0x00 && payload[3] === 0x00
+    const isCff = payload[0] === 0x4f && payload[1] === 0x54 && payload[2] === 0x54 && payload[3] === 0x4f
+    expect(isPlainTtf || isCff).toBe(true)
+
+    const arrayBuffer = new ArrayBuffer(payload.byteLength)
+    new Uint8Array(arrayBuffer).set(payload)
+    const font = createFont(arrayBuffer, { type: isCff ? 'otf' : 'ttf', hinting: false })
+    const ttf = font.get()
+    expect(ttf.name.fontFamily).toBe('TTF Face')
+    expect(ttf.name.fontSubFamily).toBe('Regular')
   })
 })
