@@ -21,6 +21,19 @@ const readEotHeaderNames = (data: Uint8Array): { family: string; style: string }
   return { family: readName(), style: readName() }
 }
 
+const isPlainSfnt = (data: Uint8Array): boolean =>
+  (data[0] === 0x00 && data[1] === 0x01 && data[2] === 0x00 && data[3] === 0x00) ||
+  (data[0] === 0x4f && data[1] === 0x54 && data[2] === 0x54 && data[3] === 0x4f)
+
+const readSfntNames = (data: Uint8Array): { family: string; style: string } => {
+  const arrayBuffer = new ArrayBuffer(data.byteLength)
+  new Uint8Array(arrayBuffer).set(data)
+  const isCff = data[0] === 0x4f && data[1] === 0x54 && data[2] === 0x54 && data[3] === 0x4f
+  const font = createFont(arrayBuffer, { type: isCff ? 'otf' : 'ttf', hinting: false })
+  const ttf = font.get()
+  return { family: ttf.name.fontFamily, style: ttf.name.fontSubFamily }
+}
+
 afterEach(async () => {
   await Promise.all(tempDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })))
 })
@@ -70,10 +83,49 @@ describe('PPTX font embedding', () => {
       ['User Body', 'regular'],
       ['User Title', 'bold']
     ])
-    expect(embeddedFonts.map((font) => readEotHeaderNames(font.ttfBuffer)).sort((a, b) => a.family.localeCompare(b.family))).toEqual([
+    // 默认载荷必须是裸 TTF（sfnt）：PowerPoint for Mac 对 EOT 容器载荷不应用 b="1"
+    expect(embeddedFonts.every((font) => isPlainSfnt(font.ttfBuffer))).toBe(true)
+    expect(
+      embeddedFonts.map((font) => readSfntNames(font.ttfBuffer)).sort((a, b) => a.family.localeCompare(b.family))
+    ).toEqual([
       { family: 'User Body', style: 'Regular' },
       { family: 'User Title', style: 'Bold' }
     ])
+  })
+
+  it('still emits an EOT container payload when explicitly requested', async () => {
+    const projectDir = await mkdtemp(path.join(os.tmpdir(), 'oh-my-ppt-font-'))
+    tempDirectories.push(projectDir)
+    const fontDir = path.join(projectDir, 'assets', 'fonts', 'user-fonts', 'legacy')
+    await mkdir(fontDir, { recursive: true })
+    await copyFile(
+      path.resolve('resources/google-fonts/Poppins/400-normal-0.woff2'),
+      path.join(fontDir, 'font.woff2')
+    )
+
+    const htmlPath = path.join(projectDir, 'page-1.html')
+    await writeFile(
+      htmlPath,
+      `<style>@font-face { font-family: "EOT Face"; src: url("./assets/fonts/user-fonts/legacy/font.woff2") format("woff2"); font-weight: 400; font-style: normal; }</style>`,
+      'utf-8'
+    )
+
+    const slides: HtmlToPptxSlide[] = [
+      {
+        texts: [{ text: 'Body', x: 0, y: 1, w: 2, h: 0.3, fontSize: 12, fontFace: 'EOT Face' }]
+      }
+    ]
+
+    const embeddedFonts = await collectEmbeddedFonts(projectDir, slides, {
+      mode: 'always',
+      payloadFormat: 'eot',
+      pageHtmlPaths: [htmlPath]
+    })
+
+    expect(embeddedFonts).toHaveLength(1)
+    const names = readEotHeaderNames(embeddedFonts[0].ttfBuffer)
+    expect(names.family).toBe('EOT Face')
+    expect(names.style).toBe('Regular')
   })
 
   it('produces a plain sfnt payload when payloadFormat is ttf', async () => {
@@ -107,15 +159,10 @@ describe('PPTX font embedding', () => {
 
     expect(embeddedFonts).toHaveLength(1)
     const payload = embeddedFonts[0].ttfBuffer
-    const isPlainTtf = payload[0] === 0x00 && payload[1] === 0x01 && payload[2] === 0x00 && payload[3] === 0x00
-    const isCff = payload[0] === 0x4f && payload[1] === 0x54 && payload[2] === 0x54 && payload[3] === 0x4f
-    expect(isPlainTtf || isCff).toBe(true)
+    expect(isPlainSfnt(payload)).toBe(true)
 
-    const arrayBuffer = new ArrayBuffer(payload.byteLength)
-    new Uint8Array(arrayBuffer).set(payload)
-    const font = createFont(arrayBuffer, { type: isCff ? 'otf' : 'ttf', hinting: false })
-    const ttf = font.get()
-    expect(ttf.name.fontFamily).toBe('TTF Face')
-    expect(ttf.name.fontSubFamily).toBe('Regular')
+    const names = readSfntNames(payload)
+    expect(names.family).toBe('TTF Face')
+    expect(names.style).toBe('Regular')
   })
 })
