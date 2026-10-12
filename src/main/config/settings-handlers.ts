@@ -18,6 +18,7 @@ import {
 } from '../agent-runtime/model'
 import type { ModelUsagePeriod } from '@shared/model-usage'
 import { normalizeThinkingParameterMode } from '@shared/model-config'
+import { isFontPayloadFormat, parseFontPayloadFormat } from '@shared/font-payload'
 
 const readGlobalTimeouts = (
   settings: Record<string, unknown>
@@ -105,6 +106,7 @@ export function registerSettingsHandlers(ctx: IpcContext): void {
       locale: settings.locale === 'en' ? 'en' : 'zh',
       storagePath,
       timeouts: readGlobalTimeouts(settings),
+      fontPayloadFormat: parseFontPayloadFormat(settings.font_payload_format),
       proxyUrl,
       proxyUsername: readTrimmedSetting(settings.proxy_username),
       proxyPassword: decryptApiKey(settings.proxy_password),
@@ -180,6 +182,9 @@ export function registerSettingsHandlers(ctx: IpcContext): void {
     if (settings.theme !== undefined) await db.setSetting('theme', settings.theme)
     if (settings.locale === 'zh' || settings.locale === 'en')
       await db.setSetting('locale', settings.locale)
+    if (isFontPayloadFormat(settings.fontPayloadFormat)) {
+      await db.setSetting('font_payload_format', settings.fontPayloadFormat)
+    }
     if (typeof settings.storagePath === 'string' && settings.storagePath.trim().length > 0) {
       await db.setStoragePath(settings.storagePath)
     }

@@ -59,6 +59,7 @@ const createModelVerificationSignature = (form: ModelForm): string =>
 
 export function SettingsPage(): React.JSX.Element {
   const {
+    settings: currentSettings,
     modelConfigs,
     imageModelConfigs,
     fetchSettings,
@@ -549,6 +550,17 @@ export function SettingsPage(): React.JSX.Element {
     }
   }
 
+  const handleFontPayloadFormatChange = async (format: 'ttf' | 'eot'): Promise<void> => {
+    setVerificationMessage(null)
+    await saveSettings({ fontPayloadFormat: format })
+    const saveError = useSettingsStore.getState().verificationMessage
+    if (saveError) {
+      error(t('settings.saveFailed'), { description: saveError })
+      return
+    }
+    info(t('settings.saved'), { description: t('settings.savedDescription') })
+  }
+
   return (
     <div className="mx-auto max-w-4xl p-6">
       <div className="mb-5">
@@ -572,9 +584,11 @@ export function SettingsPage(): React.JSX.Element {
           <GeneralSettingsTab
             lang={lang}
             storagePath={storagePath}
+            fontPayloadFormat={currentSettings?.fontPayloadFormat === 'eot' ? 'eot' : 'ttf'}
             t={t}
             onChoosePath={() => void handleChoosePath()}
             onLangChange={setLang}
+            onFontPayloadFormatChange={(format) => void handleFontPayloadFormatChange(format)}
           />
         </TabsContent>
 

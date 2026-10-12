@@ -1097,6 +1097,7 @@ export const ipc = {
     options?: {
       imageOnly?: boolean
       embedFonts?: boolean | 'auto' | 'always' | 'never'
+      fontPayloadFormat?: 'ttf' | 'eot'
       pageId?: string
     }
   ) => getIpc().invoke('export:pptx', { sessionId, ...options }) as Promise<ExportDeckResult>,

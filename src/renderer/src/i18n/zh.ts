@@ -478,6 +478,12 @@ export const zh = {
     imageExtraJsonHint: '可选。用于覆盖 endpoint、headers、requestBody 等供应商扩展参数。',
     fillImageModelConfig: '请填写合法的 model_config JSON。',
     storage: '存储',
+    export: '导出',
+    fontPayloadFormat: '字体嵌入格式',
+    fontPayloadPowerPoint: 'PowerPoint（Mac/Windows，裸 TTF）',
+    fontPayloadWps: 'WPS 兼容（EOT）',
+    fontPayloadHint:
+      'WPS 12.x 只认 EOT 容器，PowerPoint for Mac 只认裸 TTF。分享给 WPS 用户前请切换到 WPS 兼容。',
     storagePath: '存储路径',
     storagePlaceholder: '请先选择存储目录',
     choose: '选择',

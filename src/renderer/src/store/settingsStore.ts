@@ -8,12 +8,14 @@ import {
 import type { ConfigurableModelTimeoutProfile } from '@shared/model-timeout.js'
 import type { ThinkingParameterMode } from '@shared/model-config.js'
 import type { ImageModelVerificationResult } from '@shared/image-generation.js'
+import type { FontPayloadFormat } from '@shared/font-payload'
 
 interface Settings {
   theme: string
   locale: 'zh' | 'en'
   storagePath: string
   timeouts: Record<ConfigurableModelTimeoutProfile, number>
+  fontPayloadFormat: FontPayloadFormat
   proxyUrl: string
   proxyUsername: string
   proxyPassword: string

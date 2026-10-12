@@ -57,7 +57,8 @@ type FamilyFixture = {
 // 并生成带真实 unicode-range 的 @font-face 页面 HTML（与生产导出一致）。
 const buildFamilyFixture = async (
   family: string,
-  familyDirName: string
+  familyDirName: string,
+  opts: { fullMerge?: boolean } = {}
 ): Promise<FamilyFixture> => {
   const projectDir = await mkdtemp(path.join(os.tmpdir(), 'oh-my-ppt-font-exp-'))
   const fontDir = path.join(projectDir, 'assets', 'fonts', 'user-fonts', 'exp')
@@ -69,11 +70,14 @@ const buildFamilyFixture = async (
     await copyFile(path.join(sourceDir, face.file), path.join(fontDir, face.file))
   }
   const blocks = faces
-    .map(
-      (face) =>
+    .map((face) => {
+      // fullMerge: 去掉 unicode-range → faceContainsUsage 恒 true → 全部分片合并（全量嵌入）
+      const range = opts.fullMerge ? '' : face.unicodeRange ? `unicode-range:${face.unicodeRange};` : ''
+      return (
         `@font-face{font-family:"${family}";src:url("./assets/fonts/user-fonts/exp/${face.file}") format("woff2");` +
-        `font-weight:400;font-style:normal;font-display:swap;${face.unicodeRange ? `unicode-range:${face.unicodeRange};` : ''}}`
-    )
+        `font-weight:400;font-style:normal;font-display:swap;${range}}`
+      )
+    })
     .join('\n')
   const htmlPath = path.join(projectDir, 'page.html')
   await writeFile(
@@ -151,6 +155,7 @@ describe.skipIf(!OUTPUT_DIR)('PPTX font payload experiment', () => {
       eotPatch?: { version?: number; flags?: number }
       omitFonts?: boolean
       fixAppVersion?: boolean
+      overridePayload?: Uint8Array
     }
   ): Promise<void> => {
     const outPath = path.join(OUTPUT_DIR as string, fileName)
@@ -164,6 +169,9 @@ describe.skipIf(!OUTPUT_DIR)('PPTX font payload experiment', () => {
         })
     if (opts.eotPatch && embedded.length > 0) {
       embedded = embedded.map((item) => ({ ...item, ttfBuffer: patchEotHeader(item.ttfBuffer, opts.eotPatch!) }))
+    }
+    if (opts.overridePayload && embedded.length > 0) {
+      embedded = embedded.map((item) => ({ ...item, ttfBuffer: opts.overridePayload! }))
     }
     writeHtmlToPptx(outPath, {
       title: '字体嵌入实验',
@@ -244,24 +252,73 @@ describe.skipIf(!OUTPUT_DIR)('PPTX font payload experiment', () => {
     120_000
   )
 
+  it(
+    'generates variant 10: TTF subset (current v2.8.1 default, WPS baseline)',
+    async () => {
+      const fixture = await buildFamilyFixture('Ma Shan Zheng', 'Ma_Shan_Zheng')
+      tempDirectories.push(fixture.projectDir)
+      await generate('实验10-TTF子集.pptx', fixture, [maShanZhengRun()], { payloadFormat: 'ttf' })
+    },
+    120_000
+  )
+
+  it(
+    'generates variant 11: TTF full merge (no unicode-range)',
+    async () => {
+      const fixture = await buildFamilyFixture('Ma Shan Zheng', 'Ma_Shan_Zheng', { fullMerge: true })
+      tempDirectories.push(fixture.projectDir)
+      await generate('实验11-TTF全量.pptx', fixture, [maShanZhengRun()], { payloadFormat: 'ttf' })
+    },
+    180_000
+  )
+
+  it(
+    'generates variant 12: canonical Google TTF payload (skip fonteditor serialization)',
+    async () => {
+      const canonicalPath = path.join(OUTPUT_DIR as string, 'MaShanZheng-Regular.ttf')
+      const canonical = new Uint8Array(readFileSync(canonicalPath))
+      expect(canonical.byteLength).toBeGreaterThan(1_000_000)
+      const fixture = await buildFamilyFixture('Ma Shan Zheng', 'Ma_Shan_Zheng')
+      tempDirectories.push(fixture.projectDir)
+      await generate('实验12-原版TTF.pptx', fixture, [maShanZhengRun()], {
+        payloadFormat: 'ttf',
+        overridePayload: canonical
+      })
+    },
+    120_000
+  )
+
+  it(
+    'generates variant 13: EOT subset (old default, WPS positive control)',
+    async () => {
+      const fixture = await buildFamilyFixture('Ma Shan Zheng', 'Ma_Shan_Zheng')
+      tempDirectories.push(fixture.projectDir)
+      await generate('实验13-EOT子集.pptx', fixture, [maShanZhengRun()], { payloadFormat: 'eot' })
+    },
+    120_000
+  )
+
   it('writes viewing instructions', async () => {
     const instructions = [
-      '第三轮实验：定位 PowerPoint「修复」对话框的触发点',
+      '第四轮实验：定位 Windows WPS 不应用嵌入字体的原因',
       '',
-      '已知背景：实验1（EOT 子集）在 Mac PowerPoint 上弹修复框，但修复后书法体仍在；',
-      '真实导出文件同样弹框、字体也正常；WPS 里字体正常、只是排版不同。',
+      '已知矩阵（实测）：',
+      '- EOT 载荷（旧默认）：WPS 显示正常；Mac PowerPoint 加粗丢失（b="1" 被忽略）',
+      '- 裸 TTF 载荷（v2.8.1 现默认）：Mac PowerPoint 正常；Windows WPS 字体不对（本次要解）',
       '',
-      '请用 Mac PowerPoint 依次打开以下文件，记录：是否弹修复框 + 是否显示毛笔书法体：',
+      '请用 Windows 的 WPS 依次打开以下文件，记录大号文字「嵌字实验 ABC 123，永」',
+      '是否显示为毛笔书法体（Ma Shan Zheng）。也请顺手记下 WPS 版本号（首页菜单 → 关于）：',
       '',
-      '6. 实验6-EOT子集标志.pptx   — EOT Flags 补上 TTEMBED_SUBSET(0x1)（真机子集字体应有的标志）',
-      '7. 实验7-EOTv22子集标志.pptx — EOT Version 改为 0x00020002 + SUBSET 标志（贴近真机产物）',
-      '8. 实验8-AppVersion标准.pptx — 修正 app.xml 的 AppVersion 为标准格式（字体不动）',
-      '9. 实验9-无嵌入字体.pptx     — 完全不嵌字体（判断弹框是否与字体无关）',
+      '10. 实验10-TTF子集.pptx — 裸 TTF 子集（= v2.8.1 默认，预期复现「字体不对」）',
+      '11. 实验11-TTF全量.pptx — 裸 TTF 全量合并（排除子集缺字形/分片因素）',
+      '12. 实验12-原版TTF.pptx — Google 原版 TTF 直接嵌入（排除 fonteditor 序列化差异）',
+      '13. 实验13-EOT子集.pptx — EOT 容器（= 旧默认，历史上 WPS 正常，作对照）',
       '',
       '判读：',
-      '- 若 9 弹框 → 弹框与嵌入字体无关，重点看 8（AppVersion 修复是否解决）',
-      '- 若 9 不弹、6/7 有一个不弹 → EOT 头字段是触发点，按胜出格式修 font-collect',
-      '- 若 6/7/8/9 都弹 → 触发点在包的其他部分，需继续二分（theme/notes/rels 等）'
+      '- 10 错、11 对   → 子集策略问题（缺字形/分片），调子集逻辑',
+      '- 10 错、12 对   → fonteditor 序列化问题（name 表/表顺序/校验和），修 buildPayload 的 TTF 分支',
+      '- 10/11/12 全错、13 对 → WPS 只认 EOT 容器，与 Mac 只认 TTF 成僵局，需另想策略',
+      '- 全错（含 13）  → 与载荷格式无关：WPS 版本不支持第三方嵌字或设置问题，报版本号即可'
     ].join('\n')
     await writeFile(path.join(OUTPUT_DIR as string, '说明.txt'), instructions, 'utf-8')
   })
