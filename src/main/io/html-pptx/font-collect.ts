@@ -515,6 +515,25 @@ export const collectEmbeddedFonts = async (
   })
   if (usages.length === 0) return []
 
+  // 刷新项目内的内置字体分片：v2.8.3 及更早版本捆绑的 Google 字体是可变字体
+  // 默认实例（各字重文件轮廓相同，实际全是 Thin，仅 faces.css 声明了不同
+  // weight），从旧资产拷贝出的存量项目导出时加粗一直是假的。导出前用资源
+  // 目录同名分片覆盖项目资产，让存量项目无需重建即可拿到正确的静态实例。
+  try {
+    // 动态引入，避免把 electron 依赖带进本模块的测试环境
+    const { ensureGoogleFontsForProject } = await import(
+      '../../presentation/fonts/font-registry'
+    )
+    await ensureGoogleFontsForProject(
+      usages.map((usage) => usage.fontFace),
+      projectDir
+    )
+  } catch (error) {
+    log.warn('[font-embed] failed to refresh bundled google font assets', {
+      error: String(error)
+    })
+  }
+
   const faces = collectProjectFontFaces(projectDir, options.pageHtmlPaths || [])
   log.info('[font-embed] local @font-face declarations', {
     count: faces.length,
