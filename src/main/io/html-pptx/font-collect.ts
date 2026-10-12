@@ -7,6 +7,11 @@ import type { HtmlToPptxEmbeddedFont, HtmlToPptxSlide } from '@arcsin1/html2pptx
 
 type EmbeddedFontStyle = HtmlToPptxEmbeddedFont['style']
 
+// Container format written into ppt/fonts/fontN.fntdata. 'eot' is what Windows
+// PowerPoint itself produces; some viewers (PowerPoint for Mac, WPS) are more
+// reliable with a plain sfnt ('ttf') payload.
+type EmbeddedPayloadFormat = 'eot' | 'ttf'
+
 type FontUsage = {
   fontFace: string
   style: EmbeddedFontStyle
@@ -423,7 +428,8 @@ const mergeTtfObjects = (
   familyName: string,
   styleName: string,
   weight: number,
-  italic: boolean
+  italic: boolean,
+  payloadFormat: EmbeddedPayloadFormat
 ): Uint8Array | null => {
   const base = ttfObjects[0]
   const notdef = base.glyf?.[0] || { name: '.notdef', unicode: [] }
@@ -458,6 +464,9 @@ const mergeTtfObjects = (
   const writer = new fonteditorCore.TTFWriter()
   try {
     const ttfBuffer = new Uint8Array(writer.write(base))
+    if (payloadFormat === 'ttf') {
+      return ttfBuffer
+    }
     const eotBuffer = new Uint8Array(fonteditorCore.ttf2eot(uint8ToArrayBuffer(ttfBuffer)))
     const normalizedEot = normalizeEotPayload(eotBuffer, familyName, styleName, italic)
     const eotNames = normalizedEot ? readEotNames(normalizedEot) : null
@@ -475,11 +484,16 @@ export const collectEmbeddedFonts = async (
   slides: HtmlToPptxSlide[],
   options: {
     mode?: 'auto' | 'always' | 'never'
+    payloadFormat?: EmbeddedPayloadFormat
     maxTotalBytes?: number
     pageHtmlPaths?: string[]
   } = {}
 ): Promise<HtmlToPptxEmbeddedFont[]> => {
   const mode = options.mode || 'auto'
+  // 默认裸 TTF（sfnt）载荷：实测 PowerPoint for Mac 16.78 在 fntdata 为 EOT 容器时
+  // 会忽略 b="1"（加粗不渲染，暗像素仅 100%），去嵌入或换裸 TTF 后加粗恢复
+  // （约 131%）。EOT 仅按需显式传入以兼容旧链路。
+  const payloadFormat = options.payloadFormat || 'ttf'
   if (mode === 'never') {
     log.info('[font-embed] disabled by export option')
     return []
@@ -539,26 +553,28 @@ export const collectEmbeddedFonts = async (
     try {
       const isBold = usage.style === 'bold' || usage.style === 'boldItalic'
       const isItalic = usage.style === 'italic' || usage.style === 'boldItalic'
-      const eotPayload = mergeTtfObjects(
+      const payload = mergeTtfObjects(
         ttfObjects,
         usage.fontFace,
         isBold ? (isItalic ? 'Bold Italic' : 'Bold') : isItalic ? 'Italic' : 'Regular',
         source.weight,
-        isItalic
+        isItalic,
+        payloadFormat
       )
-      if (!eotPayload) {
-        log.warn('[font-embed] generated EOT failed structural validation', {
+      if (!payload) {
+        log.warn('[font-embed] generated font payload failed structural validation', {
           fontFace: usage.fontFace,
-          style: usage.style
+          style: usage.style,
+          payloadFormat
         })
         continue
       }
-      embeddedFonts.push({ fontFace: usage.fontFace, style: usage.style, ttfBuffer: eotPayload })
+      embeddedFonts.push({ fontFace: usage.fontFace, style: usage.style, ttfBuffer: payload })
       log.info('[font-embed] embedded actual font usage', {
         fontFace: usage.fontFace,
         style: usage.style,
         files: source.paths.length,
-        sizeKb: Math.round(eotPayload.byteLength / 1024)
+        sizeKb: Math.round(payload.byteLength / 1024)
       })
     } catch (error) {
       log.warn('[font-embed] failed to merge font', {

@@ -153,7 +153,7 @@ describe('buildHtmlToPptxExtractScript', () => {
     }
   })
 
-  it('keeps rotated shapes in the raster fallback instead of exporting a distorted rectangle', async () => {
+  it('exports simple rotation natively with a rotate field instead of a distorted rectangle', async () => {
     document.body.innerHTML = `
       <div class="ppt-page-root" style="display:block">
         <div id="rotated" style="display:block;background-color:rgb(22, 96, 171);border:1px solid rgb(22, 96, 171);transform:rotate(25deg)"></div>
@@ -164,9 +164,29 @@ describe('buildHtmlToPptxExtractScript', () => {
 
     const extracted = await extractInDom({ unsupportedTransformStrategy: 'raster-fallback' })
 
+    // html2pptx >= 0.2.0 通过矩阵分解重建简单旋转：导出带 rotate 的可编辑形状，
+    // 不再视为 unsupported transform 坠回栅格（修复前导出的是无旋转的畸变矩形）
+    const shapes = extracted.shapes as Array<Record<string, unknown>>
+    expect(shapes).toHaveLength(1)
+    expect(shapes[0]).toMatchObject({ shapeType: 'rect', rotate: 25, fill: '1660AB' })
+    expect(extracted.extractionReport).toMatchObject({ unsupportedTransformCount: 0 })
+    expect(document.querySelector('#rotated')?.getAttribute('data-pptx-extracted-shape')).toBe('1')
+  })
+
+  it('keeps skewed shapes in the raster fallback instead of exporting a distorted approximation', async () => {
+    document.body.innerHTML = `
+      <div class="ppt-page-root" style="display:block">
+        <div id="skewed" style="display:block;background-color:rgb(22, 96, 171);transform:skew(20deg)"></div>
+      </div>
+    `
+    assignRect('.ppt-page-root', 0, 0, 1600, 900)
+    assignRect('#skewed', 120, 90, 360, 180)
+
+    const extracted = await extractInDom({ unsupportedTransformStrategy: 'raster-fallback' })
+
     expect(extracted.shapes).toHaveLength(0)
     expect(extracted.extractionReport).toMatchObject({ unsupportedTransformCount: 1 })
-    expect(document.querySelector('#rotated')?.hasAttribute('data-pptx-extracted-shape')).toBe(false)
+    expect(document.querySelector('#skewed')?.hasAttribute('data-pptx-extracted-shape')).toBe(false)
   })
 
   it('keeps transformed elements in the public API output unless raster fallback is requested', async () => {
