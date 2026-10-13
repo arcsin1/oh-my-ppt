@@ -223,14 +223,19 @@ export function createPageWriteTools(args: {
                 : '当前会话未锁定单页。请改用 update_page_file(content) 或在上下文中指定 selectedPageId。'
             )
           }
-          if (targetPageId && pageId !== targetPageId) {
-            throw new Error(`单页编辑工具仅允许目标页面 ${targetPageId}；收到: ${pageId}`)
+          const requestedPageId = pageId?.trim()
+          if (requestedPageId && requestedPageId !== targetPageId) {
+            throw new Error(`单页编辑工具仅允许目标页面 ${targetPageId}；收到: ${requestedPageId}`)
           }
           return writePageFile({
-            pageId,
+            pageId: targetPageId,
             content,
             config,
-            statusLabel: uiText(context.appLocale, `更新单页 ${pageId}`, `Updating ${pageId}`)
+            statusLabel: uiText(
+              context.appLocale,
+              `更新单页 ${targetPageId}`,
+              `Updating ${targetPageId}`
+            )
           })
         },
         {
@@ -239,13 +244,14 @@ export function createPageWriteTools(args: {
             : 'update_single_page_file',
           description:
             context.templatePageReadRequired
-              ? 'Template-preserving page generation tool. Pass pageId and a complete creative page fragment based on the copied template page. It validates pageId and rejects writes that drop template background/decorative CSS url(...) resources, SVG image hrefs, or decorative local media references.'
-              : 'Single-page edit tool. Pass pageId and content explicitly; the tool validates pageId against the current single-page context to avoid modifying other pages.',
+              ? 'Template-preserving page generation tool. Pass a complete creative page fragment based on the copied template page; pageId is optional because the single-page target is already locked. It rejects writes that drop template background/decorative CSS url(...) resources, SVG image hrefs, or decorative local media references.'
+              : 'Single-page edit tool. Pass content (pageId is optional; the locked single-page target is used automatically) and the tool validates the target against the current single-page context to avoid modifying other pages.',
           schema: z.object({
             pageId: z
               .string()
+              .optional()
               .describe(
-                'Target pageId, for example "page-<slug>". It must match the current single-page context.'
+                'Target pageId, for example "page-<slug>". Optional: when omitted, the locked single-page target is used automatically. If provided, it must match the current single-page context.'
               ),
             content: z
               .string()
