@@ -3,7 +3,7 @@ import log from 'electron-log/main.js'
 import { tool, type StructuredToolInterface } from '@langchain/core/tools'
 import { FilesystemBackend, createDeepAgent } from 'deepagents'
 import { z } from 'zod'
-import { extractModelText, resolveModel } from '../agent-runtime/model'
+import { extractModelText, resolveAgentOutputBudget, resolveModel } from '../agent-runtime/model'
 import { resolveModelTimeoutMs } from '@shared/model-timeout'
 import type { IpcContext } from '../ipc/context'
 import { resolveGlobalModelTimeouts, resolveModelConfigForTask } from '../config/model-config-utils'
@@ -676,7 +676,7 @@ export function registerHtmlEditorAiHandlers(ctx: IpcContext): void {
       activeModel.model,
       activeModel.baseUrl,
       0.35,
-      activeModel.maxTokens,
+      resolveAgentOutputBudget(activeModel.maxTokens),
       ctx.modelRuntime
     )
     const messages = buildHtmlEditorAiMessages({

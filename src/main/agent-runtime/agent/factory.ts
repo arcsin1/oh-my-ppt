@@ -5,6 +5,7 @@ import { buildEditAgentSystemPrompt } from '../prompt/composers/edit-system'
 import { createSessionBoundDeckTools } from '../tools/deck-tools'
 import { getRequiredProductSkillNamesForSlideSize } from '../../product-skills'
 import { resolveModel } from '../model/resolve'
+import { resolveAgentOutputBudget } from '../model/output-budget'
 import type { ModelRuntimeConfig } from '../model/usage'
 import { attachProductSkillsBackend } from '../skills/backend'
 import { createProductGeneralPurposeSubagent, GuardedFilesystemBackend } from './backend'
@@ -51,7 +52,7 @@ export function createSessionEditAgent(args: CreateSessionEditAgentArgs): DeepAg
     args.model,
     args.baseUrl,
     args.temperature,
-    args.maxTokens,
+    resolveAgentOutputBudget(args.maxTokens),
     args.modelRuntime
   )
   const context: SessionDeckGenerationContext = {
@@ -93,6 +94,7 @@ export function createSessionEditAgent(args: CreateSessionEditAgentArgs): DeepAg
     sessionId: context.sessionId,
     provider: args.provider,
     model: args.model,
+    maxTokens: resolveAgentOutputBudget(args.maxTokens),
     styleId: args.styleId || '',
     projectDir: context.projectDir,
     indexPath: context.indexPath,
@@ -129,7 +131,7 @@ export function createSessionDeckAgent(args: CreateSessionDeckAgentArgs): DeepAg
     args.model,
     args.baseUrl,
     args.temperature,
-    args.maxTokens,
+    resolveAgentOutputBudget(args.maxTokens),
     args.modelRuntime
   )
   const context: SessionDeckGenerationContext = {
@@ -165,6 +167,7 @@ export function createSessionDeckAgent(args: CreateSessionDeckAgentArgs): DeepAg
     sessionId: context.sessionId,
     provider: args.provider,
     model: args.model,
+    maxTokens: resolveAgentOutputBudget(args.maxTokens),
     styleId: args.styleId || '',
     projectDir: context.projectDir,
     indexPath: context.indexPath,
