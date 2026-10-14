@@ -502,12 +502,6 @@ export const en = {
       'Optional. Override endpoint, headers, requestBody, or other provider-specific fields.',
     fillImageModelConfig: 'Enter valid model_config JSON.',
     storage: 'Storage',
-    export: 'Export',
-    fontPayloadFormat: 'Embedded font format',
-    fontPayloadPowerPoint: 'PowerPoint (Mac/Windows, raw TTF)',
-    fontPayloadWps: 'WPS compatible (EOT)',
-    fontPayloadHint:
-      'WPS 12.x only reads EOT containers while PowerPoint for Mac only reads raw TTF. Switch to WPS compatible before sharing with WPS users.',
     storagePath: 'Storage path',
     storagePlaceholder: 'Choose a storage folder first',
     choose: 'Choose',

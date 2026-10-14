@@ -32,7 +32,6 @@ import type {
   ExportProgressPayload,
   ExportProgressStage
 } from '@shared/export-progress'
-import { parseFontPayloadFormat } from '@shared/font-payload'
 import { assertPptxExportSupported, requireSessionSlideSize } from '@shared/slide-size'
 import { stitchPngBuffersVertical } from './thumbnails/png-stitch'
 
@@ -40,7 +39,6 @@ type PptxExportPayload = {
   sessionId?: unknown
   imageOnly?: unknown
   embedFonts?: unknown
-  fontPayloadFormat?: unknown
   pageId?: unknown
   fps?: unknown
   captureFps?: unknown
@@ -751,7 +749,6 @@ export function registerExportHandlers(ctx: IpcContext): void {
           })
           embeddedFonts = await collectEmbeddedFonts(projectDir, slides, {
             mode: fontEmbedMode,
-            payloadFormat: parseFontPayloadFormat((payload as PptxExportPayload).fontPayloadFormat),
             maxTotalBytes: 20 * 1024 * 1024,
             pageHtmlPaths: pages.map((page) => page.htmlPath)
           })
@@ -812,7 +809,6 @@ export function registerExportHandlers(ctx: IpcContext): void {
         imageOnly,
         sessionPageId: requestedPageId || undefined,
         fontEmbedMode,
-        fontPayloadFormat: parseFontPayloadFormat((payload as PptxExportPayload).fontPayloadFormat),
         embeddedFontCount: embeddedFonts.length
       })
       shell.showItemInFolder(saveResult.filePath)

@@ -36,7 +36,6 @@ describe.skipIf(!process.env.EOT_SAMPLE_DIR)('eot bold sample', () => {
     ]
     const embedded = await collectEmbeddedFonts(projectDir, slides, {
       mode: 'always',
-      payloadFormat: 'eot',
       pageHtmlPaths: [pageHtml]
     })
     console.log('[sample] embedded slots:', embedded.map((e) => `${e.style}:${Math.round(e.ttfBuffer.byteLength / 1024)}KB`).join(', '))

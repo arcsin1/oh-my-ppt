@@ -4,7 +4,6 @@ import {
   useGenerateStore,
   useSessionDetailUiStore,
   useSessionStore,
-  useSettingsStore,
   useToastStore
 } from '@renderer/store'
 import { useT } from '@renderer/i18n'
@@ -351,10 +350,7 @@ export function useSessionExportActions(sessionId: string): {
       )
     })
     try {
-      // 字体嵌入容器格式跟随全局设置：Mac/Windows PowerPoint 用裸 TTF，WPS 需 EOT
-      const fontPayloadFormat =
-        useSettingsStore.getState().settings?.fontPayloadFormat === 'eot' ? 'eot' : 'ttf'
-      const result = await ipc.exportPptx(sessionId, { ...options, fontPayloadFormat })
+      const result = await ipc.exportPptx(sessionId, options)
       if (result.cancelled) {
         progressToast.cancel(t('sessionDetail.exportCancelled'))
         return

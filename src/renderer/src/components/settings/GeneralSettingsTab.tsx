@@ -8,21 +8,17 @@ import type { SettingsTranslate } from './types'
 interface GeneralSettingsTabProps {
   lang: 'zh' | 'en'
   storagePath: string
-  fontPayloadFormat: 'ttf' | 'eot'
   t: SettingsTranslate
   onChoosePath: () => void
   onLangChange: (lang: 'zh' | 'en') => void
-  onFontPayloadFormatChange: (format: 'ttf' | 'eot') => void
 }
 
 export function GeneralSettingsTab({
   lang,
   storagePath,
-  fontPayloadFormat,
   t,
   onChoosePath,
-  onLangChange,
-  onFontPayloadFormatChange
+  onLangChange
 }: GeneralSettingsTabProps): React.JSX.Element {
   return (
     <div className="space-y-4">
@@ -42,30 +38,6 @@ export function GeneralSettingsTab({
                 <SelectItem value="en">{t('settings.english')}</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="p-5 pb-3">
-          <CardTitle className="text-base">{t('settings.export')}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 p-5 pt-0">
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">{t('settings.fontPayloadFormat')}</label>
-            <Select
-              value={fontPayloadFormat}
-              onValueChange={(v) => onFontPayloadFormatChange(v === 'eot' ? 'eot' : 'ttf')}
-            >
-              <SelectTrigger className="h-10">
-                <SelectValue placeholder={t('settings.fontPayloadPowerPoint')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ttf">{t('settings.fontPayloadPowerPoint')}</SelectItem>
-                <SelectItem value="eot">{t('settings.fontPayloadWps')}</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="mt-2 text-xs text-muted-foreground">{t('settings.fontPayloadHint')}</p>
           </div>
         </CardContent>
       </Card>

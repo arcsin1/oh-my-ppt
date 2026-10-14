@@ -4,17 +4,17 @@ import log from 'electron-log/main.js'
 import { decompress } from 'woff2-encoder'
 import fonteditorCore, { createFont } from 'fonteditor-core'
 import type { HtmlToPptxEmbeddedFont, HtmlToPptxSlide } from '@arcsin1/html2pptx'
-import type { FontPayloadFormat } from '@shared/font-payload'
 
 type EmbeddedFontStyle = HtmlToPptxEmbeddedFont['style']
 
-// Container format written into ppt/fonts/fontN.fntdata. Viewer support is
-// mutually exclusive (round-4 experiment, 2026-10): PowerPoint for Mac 16.78
-// only applies plain sfnt ('ttf') payloads (EOT loses bold); WPS 12.1.0.28505
-// only applies EOT containers (raw TTF falls back to the system font, even a
-// canonical Google TTF). Exported as a user-facing setting, defaulting to
-// 'ttf' for the broader PowerPoint coverage.
-type EmbeddedPayloadFormat = FontPayloadFormat
+// Container format written into ppt/fonts/fontN.fntdata is fixed to EOT.
+// Round-4 experiment (2026-10) had suggested viewer support was mutually
+// exclusive (PowerPoint for Mac applying only raw sfnt), but that "EOT loses
+// bold" symptom was later traced to variable-font default outlines and fixed
+// in 51c2703. Re-test on the current pipeline: EOT renders Ma Shan Zheng
+// correctly in PowerPoint for Mac 16.78 AND WPS 12.1.0.28505 on Windows,
+// while raw TTF payloads fail on BOTH. So EOT strictly dominates and the
+// former export setting was removed.
 
 type FontUsage = {
   fontFace: string
@@ -432,8 +432,7 @@ const mergeTtfObjects = (
   familyName: string,
   styleName: string,
   weight: number,
-  italic: boolean,
-  payloadFormat: EmbeddedPayloadFormat
+  italic: boolean
 ): Uint8Array | null => {
   const base = ttfObjects[0]
   const notdef = base.glyf?.[0] || { name: '.notdef', unicode: [] }
@@ -468,9 +467,6 @@ const mergeTtfObjects = (
   const writer = new fonteditorCore.TTFWriter()
   try {
     const ttfBuffer = new Uint8Array(writer.write(base))
-    if (payloadFormat === 'ttf') {
-      return ttfBuffer
-    }
     const eotBuffer = new Uint8Array(fonteditorCore.ttf2eot(uint8ToArrayBuffer(ttfBuffer)))
     const normalizedEot = normalizeEotPayload(eotBuffer, familyName, styleName, italic)
     const eotNames = normalizedEot ? readEotNames(normalizedEot) : null
@@ -488,17 +484,11 @@ export const collectEmbeddedFonts = async (
   slides: HtmlToPptxSlide[],
   options: {
     mode?: 'auto' | 'always' | 'never'
-    payloadFormat?: EmbeddedPayloadFormat
     maxTotalBytes?: number
     pageHtmlPaths?: string[]
   } = {}
 ): Promise<HtmlToPptxEmbeddedFont[]> => {
   const mode = options.mode || 'auto'
-  // 默认裸 TTF（sfnt）载荷：实测 PowerPoint for Mac 16.78 在 fntdata 为 EOT 容器时
-  // 会忽略 b="1"（加粗不渲染，暗像素仅 100%），去嵌入或换裸 TTF 后加粗恢复
-  // （约 131%）；WPS 12.1.0.28505 恰好相反，只应用 EOT 容器（裸 TTF 连 Google
-  // 原版都不解析，直接回退宋体）。两类查看器互斥，格式由导出设置选择。
-  const payloadFormat = options.payloadFormat || 'ttf'
   if (mode === 'never') {
     log.info('[font-embed] disabled by export option')
     return []
@@ -582,14 +572,12 @@ export const collectEmbeddedFonts = async (
         usage.fontFace,
         isBold ? (isItalic ? 'Bold Italic' : 'Bold') : isItalic ? 'Italic' : 'Regular',
         source.weight,
-        isItalic,
-        payloadFormat
+        isItalic
       )
       if (!payload) {
         log.warn('[font-embed] generated font payload failed structural validation', {
           fontFace: usage.fontFace,
-          style: usage.style,
-          payloadFormat
+          style: usage.style
         })
         continue
       }
