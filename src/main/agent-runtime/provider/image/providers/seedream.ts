@@ -62,12 +62,6 @@ const readBoolean = (config: ResolvedImageModelConfig, key: string): boolean | u
   return undefined
 }
 
-const readBooleanWithDefault = (
-  config: ResolvedImageModelConfig,
-  key: string,
-  fallback: boolean
-): boolean => readBoolean(config, key) ?? fallback
-
 const resolveResponseFormat = (config: ResolvedImageModelConfig): 'url' | 'b64_json' => {
   const value =
     readString(config.modelConfig, 'response_format') ||
@@ -79,13 +73,16 @@ const buildOptionalParameters = (
   config: ResolvedImageModelConfig,
   input: Parameters<ImageGenerationProviderAdapter['generate']>[1]
 ): Record<string, unknown> => {
-  const params: Record<string, unknown> = {
-    sequential_image_generation:
-      readString(config.modelConfig, 'sequential_image_generation') ||
-      readString(config.modelConfig, 'sequentialImageGeneration') ||
-      'disabled',
-    stream: readBooleanWithDefault(config, 'stream', false)
-  }
+  // sequential_image_generation / stream 在官方 Ark API 均为可选参数（默认
+  // disabled / false），但第三方中转网关常拒绝不认识的参数，因此只在显式
+  // 配置时才发送，避免用户删除配置后请求里仍被兜底补回。
+  const params: Record<string, unknown> = {}
+  const sequentialImageGeneration =
+    readString(config.modelConfig, 'sequential_image_generation') ||
+    readString(config.modelConfig, 'sequentialImageGeneration')
+  if (sequentialImageGeneration) params.sequential_image_generation = sequentialImageGeneration
+  const stream = readBoolean(config, 'stream')
+  if (stream !== undefined) params.stream = stream
   if (typeof input.seed === 'number') params.seed = input.seed
   if (input.negativePrompt) params.negative_prompt = input.negativePrompt
 

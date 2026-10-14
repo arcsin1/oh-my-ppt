@@ -428,7 +428,7 @@ export const zh = {
     imageModelConfigHintGemini:
       '连接 Gemini 图像生成能力，用于根据页面内容创建插画、背景和视觉概念图。默认使用 Google 服务，也可填写 baseUrl 接入团队服务地址。示例：{"model":"gemini-3.1-flash-image","apiKey":"..."}',
     imageModelConfigHintSeedream:
-      '连接火山方舟 Seedream 图片生成 API，用于生成页面配图、背景和视觉素材。size 选项直接写在 sizes 中，按当前模型支持情况填写。示例：{"baseUrl":"https://ark.cn-beijing.volces.com","model":"doubao-seedream-5-0-260128","apiKey":"...","response_format":"url","sizes":["2K"],"sequential_image_generation":"disabled","stream":false}',
+      '连接火山方舟 Seedream 图片生成 API，用于生成页面配图、背景和视觉素材。size 选项直接写在 sizes 中，按当前模型支持情况填写。示例：{"baseUrl":"https://ark.cn-beijing.volces.com","model":"doubao-seedream-5-0-260128","apiKey":"...","response_format":"url","sizes":["2K"]}',
     imageProviderOfficialDocs: '官方文档',
     baseUrlHint: '请填写兼容 provider 协议的服务地址。',
     baseUrlHintGoogle: '使用 Google 官方 API 无需填写，使用代理时填写代理地址。',

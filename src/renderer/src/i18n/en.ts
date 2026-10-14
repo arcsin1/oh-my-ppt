@@ -447,7 +447,7 @@ export const en = {
     imageModelConfigHintGemini:
       'Connect Gemini image generation for illustrations, backgrounds, and visual concepts based on slide content. Uses Google by default, with baseUrl available for a team service endpoint. Example: {"model":"gemini-3.1-flash-image","apiKey":"..."}',
     imageModelConfigHintSeedream:
-      'Connect Volcengine Ark Seedream image generation for slide illustrations, backgrounds, and visual assets. Put selectable size values in sizes for the current model. Example: {"baseUrl":"https://ark.cn-beijing.volces.com","model":"doubao-seedream-5-0-260128","apiKey":"...","response_format":"url","sizes":["2K"],"sequential_image_generation":"disabled","stream":false}',
+      'Connect Volcengine Ark Seedream image generation for slide illustrations, backgrounds, and visual assets. Put selectable size values in sizes for the current model. Example: {"baseUrl":"https://ark.cn-beijing.volces.com","model":"doubao-seedream-5-0-260128","apiKey":"...","response_format":"url","sizes":["2K"]}',
     imageProviderOfficialDocs: 'Official docs',
     baseUrlHint: 'Enter a service URL compatible with the selected provider protocol.',
     baseUrlHintGoogle: 'Leave empty for official Google API. Fill only if using a proxy.',

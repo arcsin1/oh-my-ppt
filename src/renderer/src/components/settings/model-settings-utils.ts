@@ -101,9 +101,7 @@ export const createDefaultImageModelConfig = (provider: ImageModelProvider): str
       model: 'doubao-seedream-5-0-260128',
       apiKey: '',
       response_format: 'url',
-      sizes: ['2K'],
-      sequential_image_generation: 'disabled',
-      stream: false
+      sizes: ['2K']
     })
   }
   return stringifyJsonObject({
