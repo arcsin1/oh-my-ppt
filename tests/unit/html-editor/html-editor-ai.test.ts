@@ -59,7 +59,9 @@ vi.mock('electron', () => ({ ipcMain: state.ipcMain }))
 vi.mock('electron-log/main.js', () => ({ default: state.log }))
 vi.mock('../../../src/main/agent-runtime/model', () => ({
   resolveModel: state.resolveModel,
-  extractModelText: state.extractModelText
+  extractModelText: state.extractModelText,
+  resolveAgentOutputBudget: (value: unknown) =>
+    Math.max(typeof value === 'number' && value > 0 ? value : 0, 16384)
 }))
 vi.mock('deepagents', () => ({
   createDeepAgent: state.createDeepAgent,
@@ -221,7 +223,8 @@ describe('html-editor AI IPC', () => {
       'test-model',
       '',
       0.35,
-      1024,
+      // agent 输出预算下限：模型配置的 1024 会被抬到 16384
+      16384,
       undefined
     )
     expect(state.createDeepAgent).toHaveBeenCalledWith(

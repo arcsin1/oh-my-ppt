@@ -3,12 +3,14 @@ import { drizzle } from 'drizzle-orm/libsql'
 import { eq, ne, gt, lte, count, max, asc, desc, sql, and, or, isNull, inArray } from 'drizzle-orm'
 import * as schema from './schema'
 import path from 'path'
+import { fileURLToPath } from 'node:url'
 import { app } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import fs from 'fs'
 import crypto from 'crypto'
 import { nanoid } from 'nanoid'
 import { runDatabasePatches } from './patch'
+import { migrateLegacyProdDatabase } from './legacy-migration'
 import {
   compareStyleVersion,
   listStylePackageDirectories,
@@ -544,6 +546,7 @@ export interface SessionOperationPageRecord {
 export class PPTDatabase {
   private db: ReturnType<typeof drizzle>
   private client: ReturnType<typeof createClient>
+  private dbFilePath: string
   private _storagePath: string | null = null
   private _initialized = false
   private _stylesCache: StyleRow[] = []
@@ -561,6 +564,9 @@ export class PPTDatabase {
 
     const url = resolvedPath.startsWith('file:') ? resolvedPath : `file:${resolvedPath}`
 
+    this.dbFilePath = resolvedPath.startsWith('file:')
+      ? fileURLToPath(resolvedPath)
+      : resolvedPath
     this.client = createClient({ url })
     this.db = drizzle(this.client, { schema })
     this._storagePath = null
@@ -568,6 +574,9 @@ export class PPTDatabase {
 
   async init(): Promise<void> {
     if (this._initialized) return
+    // 先迁移 legacy 数据再跑 patch：patch 会用 INSERT OR IGNORE 播种默认
+    // 超时等设置，若先播种，迁移会误判"新库已有值"而放弃恢复旧配置
+    await migrateLegacyProdDatabase(this.client, this.dbFilePath)
     await runDatabasePatches({
       client: this.client,
       db: this.db,

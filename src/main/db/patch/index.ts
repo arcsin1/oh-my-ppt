@@ -16,7 +16,7 @@ import { patchSourcePageSkeletonAgendaItems } from './add-source-page-skeleton-a
 type LibSqlClient = ReturnType<typeof createClient>
 type DrizzleDb = ReturnType<typeof drizzle>
 
-const SETTINGS_TABLE_SQL = `
+export const SETTINGS_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
@@ -538,21 +538,23 @@ const enforceSettingsSchema = async (client: LibSqlClient): Promise<void> => {
   await client.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_settings_key ON settings(key)')
 }
 
+export const MODEL_CONFIGS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS model_configs (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    api_key TEXT NOT NULL DEFAULT '',
+    base_url TEXT NOT NULL DEFAULT '',
+    max_tokens INTEGER NOT NULL DEFAULT 4096,
+    active INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )
+`
+
 const enforceModelConfigsSchema = async (client: LibSqlClient): Promise<void> => {
-  await client.execute(`
-    CREATE TABLE IF NOT EXISTS model_configs (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      provider TEXT NOT NULL,
-      model TEXT NOT NULL,
-      api_key TEXT NOT NULL DEFAULT '',
-      base_url TEXT NOT NULL DEFAULT '',
-      max_tokens INTEGER NOT NULL DEFAULT 4096,
-      active INTEGER NOT NULL DEFAULT 0,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )
-  `)
+  await client.execute(MODEL_CONFIGS_TABLE_SQL)
   await client.execute(
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_model_configs_single_active ON model_configs(active) WHERE active = 1'
   )

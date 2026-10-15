@@ -23,7 +23,9 @@ const PROFILE_DEFAULT_TIMEOUT_MS: Record<ModelTimeoutProfile, number> = {
   verify: 60_000,
   planning: DEFAULT_SHORT_MODEL_TIMEOUT_MS,
   design: DEFAULT_SHORT_MODEL_TIMEOUT_MS,
-  agent: DEFAULT_MODEL_TIMEOUT_MS,
+  // 推理型网关模型在工具调用前会流式输出 reasoning_content（且可能忽略
+  // thinking 禁用参数），单页写入轮次经常超过 10 分钟，故 agent 默认放宽到 20 分钟。
+  agent: 20 * 60_000,
   document: DEFAULT_MODEL_TIMEOUT_MS
 }
 

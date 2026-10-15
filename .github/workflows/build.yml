@@ -1,0 +1,128 @@
+name: Build Apps
+
+# 各平台打包：macOS (dmg x64+arm64) / Windows (nsis x64) / Linux (AppImage + deb x64)。
+# 资源里的 ffmpeg 二进制被 gitignore（resources/ffmpeg/），CI 从 ffmpeg-static
+# release 下载对应平台静态构建到 afterPack 期望的文件名。
+# 推 tag v* 时额外把全部安装包发布成 GitHub Release。
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: mac
+            build_script: build:mac
+          - os: windows-latest
+            platform: win
+            build_script: build:win
+          - os: ubuntu-latest
+            platform: linux
+            build_script: build:linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Cache electron & electron-builder binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: electron-${{ matrix.os }}-${{ hashFiles('package.json') }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download bundled ffmpeg
+        shell: bash
+        run: |
+          mkdir -p resources/ffmpeg
+          base="https://github.com/eugeneware/ffmpeg-static/releases/latest/download"
+          case "${{ matrix.platform }}" in
+            mac)
+              curl -fL "$base/ffmpeg-darwin-arm64" -o resources/ffmpeg/ffmpeg-arm
+              curl -fL "$base/ffmpeg-darwin-x64" -o resources/ffmpeg/ffmpeg-intel
+              ;;
+            win)
+              curl -fL "$base/ffmpeg-win32-x64" -o resources/ffmpeg/ffmpeg.exe
+              ;;
+            linux)
+              curl -fL "$base/ffmpeg-linux-x64" -o resources/ffmpeg/ffmpeg-linux-x64
+              ;;
+          esac
+          find resources/ffmpeg -type f ! -name '*.exe' -exec chmod +x {} +
+
+      - name: Build (${{ matrix.platform }})
+        run: pnpm ${{ matrix.build_script }}
+
+      # 本机 dmgbuild 曾因 Python 缺 mkfifoat 符号失败（macOS 12）；runner 上
+      # 一般可用，这里兜底直接用 hdiutil 出包，避免整个构建作废。
+      - name: Fallback DMG via hdiutil
+        if: failure() && matrix.platform == 'mac'
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          [ -f "dist/oh-my-ppt-$VERSION-arm64.dmg" ] || \
+            hdiutil create -ov -volname OhMyPPT -srcfolder dist/mac-arm64/OhMyPPT.app \
+              -format UDZO "dist/oh-my-ppt-$VERSION-arm64.dmg"
+          [ -f "dist/oh-my-ppt-$VERSION-x64.dmg" ] || \
+            hdiutil create -ov -volname OhMyPPT -srcfolder dist/mac/OhMyPPT.app \
+              -format UDZO "dist/oh-my-ppt-$VERSION-x64.dmg"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: apps-${{ matrix.platform }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            dist/*.dmg
+            dist/*.exe
+            dist/*.AppImage
+            dist/*.deb
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true

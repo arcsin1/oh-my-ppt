@@ -20,6 +20,10 @@ const readEotHeaderNames = (data: Uint8Array): { family: string; style: string }
   return { family: readName(), style: readName() }
 }
 
+// EOT 头偏移 34 处是 MagicNumber 0x4c50（LE 读取 0x504c）
+const isEotContainer = (data: Uint8Array): boolean =>
+  data.byteLength > 36 && new DataView(data.buffer, data.byteOffset, data.byteLength).getUint16(34, true) === 0x504c
+
 afterEach(async () => {
   await Promise.all(tempDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })))
 })
@@ -69,9 +73,50 @@ describe('PPTX font embedding', () => {
       ['User Body', 'regular'],
       ['User Title', 'bold']
     ])
-    expect(embeddedFonts.map((font) => readEotHeaderNames(font.ttfBuffer)).sort((a, b) => a.family.localeCompare(b.family))).toEqual([
+    // 载荷固定为 EOT 容器：实测 PowerPoint for Mac 与 Windows WPS 均正常渲染，
+    // 裸 TTF（sfnt）在两类查看器上都会回退系统字体
+    expect(embeddedFonts.every((font) => isEotContainer(font.ttfBuffer))).toBe(true)
+    expect(
+      embeddedFonts
+        .map((font) => readEotHeaderNames(font.ttfBuffer))
+        .sort((a, b) => a.family.localeCompare(b.family))
+    ).toEqual([
       { family: 'User Body', style: 'Regular' },
       { family: 'User Title', style: 'Bold' }
     ])
+  })
+
+  it('emits an EOT container payload (fixed format)', async () => {
+    const projectDir = await mkdtemp(path.join(os.tmpdir(), 'oh-my-ppt-font-'))
+    tempDirectories.push(projectDir)
+    const fontDir = path.join(projectDir, 'assets', 'fonts', 'user-fonts', 'legacy')
+    await mkdir(fontDir, { recursive: true })
+    await copyFile(
+      path.resolve('resources/google-fonts/Poppins/400-normal-0.woff2'),
+      path.join(fontDir, 'font.woff2')
+    )
+
+    const htmlPath = path.join(projectDir, 'page-1.html')
+    await writeFile(
+      htmlPath,
+      `<style>@font-face { font-family: "EOT Face"; src: url("./assets/fonts/user-fonts/legacy/font.woff2") format("woff2"); font-weight: 400; font-style: normal; }</style>`,
+      'utf-8'
+    )
+
+    const slides: HtmlToPptxSlide[] = [
+      {
+        texts: [{ text: 'Body', x: 0, y: 1, w: 2, h: 0.3, fontSize: 12, fontFace: 'EOT Face' }]
+      }
+    ]
+
+    const embeddedFonts = await collectEmbeddedFonts(projectDir, slides, {
+      mode: 'always',
+      pageHtmlPaths: [htmlPath]
+    })
+
+    expect(embeddedFonts).toHaveLength(1)
+    const names = readEotHeaderNames(embeddedFonts[0].ttfBuffer)
+    expect(names.family).toBe('EOT Face')
+    expect(names.style).toBe('Regular')
   })
 })

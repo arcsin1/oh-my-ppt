@@ -55,7 +55,11 @@ export const FREEZE_PAGE_FOR_EXPORT_SCRIPT = `
   style.textContent = [
     'html { scroll-behavior: auto !important; }',
     '*, *::before, *::after { animation: none !important; transition: none !important; animation-delay: 0s !important; animation-duration: 0s !important; animation-play-state: paused !important; transition-delay: 0s !important; transition-duration: 0s !important; }',
-    '.opacity-0, [data-anime], [data-animate], [data-anim] { opacity: 1 !important; transform: none !important; }'
+    // 只强制显示，不动 transform：data-anim/opacity-0 元素的 class transform 可能是
+    // 静态定位（如 Tailwind -translate-y-1/2 垂直居中），清掉会让元素在背景截图里
+    // 坠到错误位置。动画脚手架是行内样式驱动的，下方 JS 遍历会精确清除行内 transform。
+    '.opacity-0, [data-anim] { opacity: 1 !important; }',
+    '[data-anime], [data-animate] { opacity: 1 !important; transform: none !important; }'
   ].join('\\n');
   document.head.appendChild(style);
 
@@ -414,6 +418,9 @@ export const buildMarkPptxExtractedTextForBackgroundScript = (
   let marked = 0;
   root.querySelectorAll('*').forEach((element) => {
     if (element.closest('script, style, noscript, svg, canvas, video, iframe, .katex, .katex-mathml')) return;
+    // aria-hidden text is decorative and intentionally skipped by the extractor;
+    // it must remain painted in the raster background, never matched as extracted.
+    if (element.closest('[aria-hidden="true"]')) return;
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
       acceptNode: (node) =>
         String(node.textContent || '').trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
@@ -516,6 +523,28 @@ export const HIDE_FOR_PPTX_BACKGROUND_SCRIPT = `
   const existing = document.getElementById('ohmyppt-pptx-hide-elements');
   if (existing) existing.remove();
 
+  // 2b. Pin decorative aria-hidden text paint with inline !important. The hide rule
+  // below blanks color/text-fill on everything inside an extracted-text container,
+  // and inherited -webkit-text-fill-color cannot be undone by a selector alone.
+  // Snapshot the pre-hide computed paint and re-apply it inline (rerun-safe: the
+  // snapshot of an already-pinned value is the same value).
+  const paintProps = [
+    'color',
+    '-webkit-text-fill-color',
+    '-webkit-text-stroke-color',
+    'text-shadow',
+    'text-decoration-color'
+  ];
+  root.querySelectorAll('[aria-hidden="true"], [aria-hidden="true"] *').forEach((el) => {
+    if (el.closest('script, style, noscript, svg, canvas, video, iframe, .katex, .katex-mathml')) return;
+    const computed = getComputedStyle(el);
+    paintProps.forEach((prop) => {
+      const value = computed.getPropertyValue(prop);
+      if (!value) return;
+      el.style.setProperty(prop, value, 'important');
+    });
+  });
+
   // Pseudo-elements are not part of the DOM text extraction. Keep their own
   // text paint while only confirmed extracted DOM text is made transparent below.
   root.querySelectorAll('*').forEach((el) => {
@@ -544,7 +573,10 @@ export const HIDE_FOR_PPTX_BACKGROUND_SCRIPT = `
     // Their extraction can fail because of data limits, filters or cross-origin assets.
     // Only hide text whose source element was confirmed extracted. Hiding all DOM
     // text leaves no fallback when a text-box limit or complex layout skips it.
-    '[data-pptx-extracted-text], [data-pptx-extracted-text] *, [data-pptx-background-text-match] { color: transparent !important; -webkit-text-fill-color: transparent !important; -webkit-text-stroke-color: transparent !important; text-shadow: none !important; text-decoration-color: transparent !important; caret-color: transparent !important; }',
+    // aria-hidden subtrees are decorative (e.g. giant watermark glyphs): the extractor
+    // deliberately skips them, so they must keep their paint and stay in this raster
+    // instead of being blanked by an ancestor's extracted-text mark.
+    '[data-pptx-extracted-text], [data-pptx-extracted-text] *:not(:is([aria-hidden="true"], [aria-hidden="true"] *)), [data-pptx-background-text-match] { color: transparent !important; -webkit-text-fill-color: transparent !important; -webkit-text-stroke-color: transparent !important; text-shadow: none !important; text-decoration-color: transparent !important; caret-color: transparent !important; }',
     '[data-pptx-has-before]::before { color: var(--pptx-before-color) !important; -webkit-text-fill-color: var(--pptx-before-text-fill) !important; -webkit-text-stroke-color: var(--pptx-before-text-stroke) !important; text-shadow: var(--pptx-before-text-shadow) !important; text-decoration-color: var(--pptx-before-text-decoration) !important; }',
     '[data-pptx-has-after]::after { color: var(--pptx-after-color) !important; -webkit-text-fill-color: var(--pptx-after-text-fill) !important; -webkit-text-stroke-color: var(--pptx-after-text-stroke) !important; text-shadow: var(--pptx-after-text-shadow) !important; text-decoration-color: var(--pptx-after-text-decoration) !important; }',
     // Hide katex elements (captured as separate images before background capture)

@@ -70,11 +70,13 @@ describe('seedream image generation provider', () => {
       size: '2K',
       n: 1,
       response_format: 'b64_json',
-      sequential_image_generation: 'disabled',
-      stream: false,
       negative_prompt: 'low quality',
       seed: 42
     })
+    // 回归：sequential_image_generation / stream 未配置时不得被兜底补回，
+    // 否则第三方中转网关会以"不支持该参数"拒绝请求。
+    expect(body).not.toHaveProperty('sequential_image_generation')
+    expect(body).not.toHaveProperty('stream')
     expect(body).not.toHaveProperty('sizes')
     expect(results).toHaveLength(1)
     expect(results[0].mimeType).toBe('image/png')
@@ -157,6 +159,28 @@ describe('seedream image generation provider', () => {
       size: '2048x2048',
       n: 2,
       watermark: true
+    })
+  })
+
+  it('sends sequential_image_generation and stream only when explicitly configured', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: [{ b64_json: pngBase64 }] }), { status: 200 })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await seedreamAdapter.generate(
+      createConfig({ sequential_image_generation: 'auto', stream: true }),
+      {
+        prompt: 'hero image',
+        size: '2K',
+        count: 1
+      }
+    )
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      sequential_image_generation: 'auto',
+      stream: true
     })
   })
 

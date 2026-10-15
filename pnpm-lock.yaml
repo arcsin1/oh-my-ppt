@@ -8,13 +8,18 @@ overrides:
   '@langchain/core': ^1.1.47
   '@langchain/langgraph': ^1.3.0
 
+patchedDependencies:
+  '@arcsin1/html2pptx':
+    hash: 812ec6d0c1f2190ab13129e914437957cd231ac4a4dc0a727bdc7f1142b734ba
+    path: patches/@arcsin1__html2pptx.patch
+
 importers:
 
   .:
     dependencies:
       '@arcsin1/html2pptx':
         specifier: 0.0.10
-        version: 0.0.10
+        version: 0.0.10(patch_hash=812ec6d0c1f2190ab13129e914437957cd231ac4a4dc0a727bdc7f1142b734ba)
       '@arcsin1/pptx-ooxml-geometry':
         specifier: 0.0.2
         version: 0.0.2
@@ -5831,7 +5836,7 @@ snapshots:
     optionalDependencies:
       zod: 3.25.76
 
-  '@arcsin1/html2pptx@0.0.10':
+  '@arcsin1/html2pptx@0.0.10(patch_hash=812ec6d0c1f2190ab13129e914437957cd231ac4a4dc0a727bdc7f1142b734ba)':
     dependencies:
       '@chenglou/pretext': 0.0.6
       fflate: 0.8.3

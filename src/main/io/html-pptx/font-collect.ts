@@ -7,6 +7,15 @@ import type { HtmlToPptxEmbeddedFont, HtmlToPptxSlide } from '@arcsin1/html2pptx
 
 type EmbeddedFontStyle = HtmlToPptxEmbeddedFont['style']
 
+// Container format written into ppt/fonts/fontN.fntdata is fixed to EOT.
+// Round-4 experiment (2026-10) had suggested viewer support was mutually
+// exclusive (PowerPoint for Mac applying only raw sfnt), but that "EOT loses
+// bold" symptom was later traced to variable-font default outlines and fixed
+// in 51c2703. Re-test on the current pipeline: EOT renders Ma Shan Zheng
+// correctly in PowerPoint for Mac 16.78 AND WPS 12.1.0.28505 on Windows,
+// while raw TTF payloads fail on BOTH. So EOT strictly dominates and the
+// former export setting was removed.
+
 type FontUsage = {
   fontFace: string
   style: EmbeddedFontStyle
@@ -496,6 +505,25 @@ export const collectEmbeddedFonts = async (
   })
   if (usages.length === 0) return []
 
+  // 刷新项目内的内置字体分片：v2.8.3 及更早版本捆绑的 Google 字体是可变字体
+  // 默认实例（各字重文件轮廓相同，实际全是 Thin，仅 faces.css 声明了不同
+  // weight），从旧资产拷贝出的存量项目导出时加粗一直是假的。导出前用资源
+  // 目录同名分片覆盖项目资产，让存量项目无需重建即可拿到正确的静态实例。
+  try {
+    // 动态引入，避免把 electron 依赖带进本模块的测试环境
+    const { ensureGoogleFontsForProject } = await import(
+      '../../presentation/fonts/font-registry'
+    )
+    await ensureGoogleFontsForProject(
+      usages.map((usage) => usage.fontFace),
+      projectDir
+    )
+  } catch (error) {
+    log.warn('[font-embed] failed to refresh bundled google font assets', {
+      error: String(error)
+    })
+  }
+
   const faces = collectProjectFontFaces(projectDir, options.pageHtmlPaths || [])
   log.info('[font-embed] local @font-face declarations', {
     count: faces.length,
@@ -539,26 +567,26 @@ export const collectEmbeddedFonts = async (
     try {
       const isBold = usage.style === 'bold' || usage.style === 'boldItalic'
       const isItalic = usage.style === 'italic' || usage.style === 'boldItalic'
-      const eotPayload = mergeTtfObjects(
+      const payload = mergeTtfObjects(
         ttfObjects,
         usage.fontFace,
         isBold ? (isItalic ? 'Bold Italic' : 'Bold') : isItalic ? 'Italic' : 'Regular',
         source.weight,
         isItalic
       )
-      if (!eotPayload) {
-        log.warn('[font-embed] generated EOT failed structural validation', {
+      if (!payload) {
+        log.warn('[font-embed] generated font payload failed structural validation', {
           fontFace: usage.fontFace,
           style: usage.style
         })
         continue
       }
-      embeddedFonts.push({ fontFace: usage.fontFace, style: usage.style, ttfBuffer: eotPayload })
+      embeddedFonts.push({ fontFace: usage.fontFace, style: usage.style, ttfBuffer: payload })
       log.info('[font-embed] embedded actual font usage', {
         fontFace: usage.fontFace,
         style: usage.style,
         files: source.paths.length,
-        sizeKb: Math.round(eotPayload.byteLength / 1024)
+        sizeKb: Math.round(payload.byteLength / 1024)
       })
     } catch (error) {
       log.warn('[font-embed] failed to merge font', {

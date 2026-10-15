@@ -373,7 +373,7 @@ export async function ensureUserFontsForProject(
  * Copy bundled Google Fonts woff2 files into the project assets directory.
  * Returns the list of relative woff2 file paths copied.
  */
-async function ensureGoogleFontsForProject(
+export async function ensureGoogleFontsForProject(
   fontFamilies: string[],
   projectDir: string
 ): Promise<void> {
