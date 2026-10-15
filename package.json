@@ -34,7 +34,7 @@
     "electron:generate-icons": "npx @arcsin1/electron-icon-builder --input=./resources/icon.png --output=build --flatten"
   },
   "dependencies": {
-    "@arcsin1/html2pptx": "0.0.10",
+    "@arcsin1/html2pptx": "0.2.1",
     "@arcsin1/pptx-ooxml-geometry": "0.0.2",
     "@arcsin1/pptx2json": "0.1.9",
     "@arcsin1/presentation-editor-runtime": "0.0.8",
