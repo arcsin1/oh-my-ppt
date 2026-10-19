@@ -57,20 +57,20 @@
 
 <table>
   <tr>
-    <th width="300">赞助商</th>
+    <th width="280">赞助商</th>
     <th>简介</th>
   </tr>
   <tr>
-    <td width="300" align="center" valign="middle"><a href="https://www.toumingren.xyz/" target="_blank"><img src="./docs/images/toumingren.png" width="260" alt="透明人" /></a></td>
-    <td valign="top">❤️ 感谢 <b><a href="https://www.toumingren.xyz/">透明人</a></b> 对 Oh My PPT 的赞助支持！<br/>把订阅变成可编程的 API，不做黑盒，只做透明的中间层</td>
+    <td width="260" align="center" valign="middle"><a href="https://www.toumingren.xyz/register?aff=8UUDJN6MGBJX" target="_blank"><img src="./docs/images/toumingren.png" width="240" alt="透明人" /></a></td>
+    <td valign="middle">❤️ 感谢 <b><a href="https://www.toumingren.xyz/register?aff=8UUDJN6MGBJX">透明人</a></b> 对 Oh My PPT 的赞助支持！<br/>把订阅变成可编程的 API，不做黑盒，只做透明的中间层</td>
   </tr>
   <tr>
-    <td width="300" align="center" valign="middle"><a href="https://88api.ai/sign-up?aff=6PT1" target="_blank"><img src="./docs/images/88-api.jpg" width="240" alt="88api" /></a></td>
-    <td valign="top">❤️ 感谢 <b><a href="https://88api.ai/sign-up?aff=6PT1">88api</a></b> 对 Oh My PPT 的赞助支持！<br/>88API Token 聚合平台<br/>🧠 聚合 GPT、Claude、Gemini、Grok、DeepSeek、Kimi、GLM 等语言与编程模型<br/>🎨 图片模型：GPT-Image、Gemini、Grok 等<br/>🎬 视频模型：Seedance、Veo、MiniMax Hailuo H3、Kling、Grok 等<br/>🎙️ 语音能力：Whisper、TTS 等，从文案、出图、改图到视频生成与配音<br/>🎁 新用户注册送体验额度，可检测模型能力，站内有人工客服值守<br/>👉 海外企业资质运营，稳定不跑路，提供正规发票，充值比例 1:1</td>
+    <td width="260" align="center" valign="middle"><a href="https://88api.ai/sign-up?aff=6PT1" target="_blank"><img src="./docs/images/88-api.jpg" width="240" alt="88api" /></a></td>
+    <td valign="middle">❤️ 感谢 <b><a href="https://88api.ai/sign-up?aff=6PT1">88api</a></b> 对 Oh My PPT 的赞助支持！<br/>88API Token 聚合平台<br/>🧠 聚合 GPT、Claude、Gemini、Grok、DeepSeek、Kimi、GLM 等语言与编程模型<br/>🎨 图片模型：GPT-Image、Gemini、Grok 等<br/>🎬 视频模型：Seedance、Veo、MiniMax Hailuo H3、Kling、Grok 等<br/>🎙️ 语音能力：Whisper、TTS 等，从文案、出图、改图到视频生成与配音<br/>🎁 新用户注册送体验额度，可检测模型能力，站内有人工客服值守<br/>👉 海外企业资质运营，稳定不跑路，提供正规发票，充值比例 1:1</td>
   </tr>
   <tr>
-    <td width="300" align="center" valign="middle"><a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB" target="_blank"><img src="./docs/images/crazyToken-cn.webp" width="260" alt="CrazyToken" /></a></td>
-    <td valign="top">❤️ 感谢 <b><a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB">CrazyToken</a></b> 对 Oh My PPT 的赞助支持！<br/>全球 AI 大模型平台，为你的演示创意提供模型支持，从一个想法到一套好 PPT，倍率低至 0.05x，最高省 99%<br/>CrazyToken 提供 Claude、GPT、Gemini、Kimi、GLM、DeepSeek、Qwen、Grok 等主流模型 API，助力主题构思、大纲规划、HTML 幻灯片生成与对话式修改。无论是技术分享、课程讲解、项目汇报还是产品路演，都能选择合适的模型，逐步打磨内容与页面表达。<br/>💰 <b>最低 0.05×，多试几版也更从容</b>：模型价格低至官方价格的 5%，Token 级账单透明可查，降低整套演示稿生成与多轮修改的调用成本。<br/>✨ <b>官方原生通道</b>：不掺水、不混模、不压缩长上下文，为理解演示需求、参考资料与修改指令提供模型支持。<br/>⚡ <b>稳定高速，高并发不限流</b>：为页面生成、内容改写与多任务创作提供稳定的 API 服务，让灵感更快呈现在页面上。<br/>🎁 <b>新用户注册赠送 $20</b>：通过<a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB">专属链接</a>注册即送 <b>$20 体验额度</b>，充值额外加赠；提供 <b>1 对 1 远程配置服务</b>，真人协助完成模型 API 配置。</td>
+    <td width="260" align="center" valign="middle"><a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB" target="_blank"><img src="./docs/images/crazyToken-cn.webp" width="240" alt="CrazyToken" /></a></td>
+    <td valign="middle">❤️ 感谢 <b><a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB">CrazyToken</a></b> 对 Oh My PPT 的赞助支持！<br/>全球 AI 大模型平台，为你的演示创意提供模型支持，从一个想法到一套好 PPT，倍率低至 0.05x，最高省 99%<br/>CrazyToken 提供 Claude、GPT、Gemini、Kimi、GLM、DeepSeek、Qwen、Grok 等主流模型 API，助力主题构思、大纲规划、HTML 幻灯片生成与对话式修改。无论是技术分享、课程讲解、项目汇报还是产品路演，都能选择合适的模型，逐步打磨内容与页面表达。<br/>💰 <b>最低 0.05×，多试几版也更从容</b>：模型价格低至官方价格的 5%，Token 级账单透明可查，降低整套演示稿生成与多轮修改的调用成本。<br/>✨ <b>官方原生通道</b>：不掺水、不混模、不压缩长上下文，为理解演示需求、参考资料与修改指令提供模型支持。<br/>⚡ <b>稳定高速，高并发不限流</b>：为页面生成、内容改写与多任务创作提供稳定的 API 服务，让灵感更快呈现在页面上。<br/>🎁 <b>新用户注册赠送 $20</b>：通过<a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB">专属链接</a>注册即送 <b>$20 体验额度</b>，充值额外加赠；提供 <b>1 对 1 远程配置服务</b>，真人协助完成模型 API 配置。</td>
   </tr>
 </table>
 
