@@ -70,7 +70,7 @@
   </tr>
   <tr>
     <td width="260" align="center" valign="middle"><a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB" target="_blank"><img src="./docs/images/crazyToken-cn.webp" width="240" alt="CrazyToken" /></a></td>
-    <td valign="middle">❤️ 感谢 <b><a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB">CrazyToken</a></b> 对 Oh My PPT 的赞助支持！<br/>全球 AI 大模型平台，为你的演示创意提供模型支持，从一个想法到一套好 PPT，倍率低至 0.05x，最高省 99%<br/>CrazyToken 提供 Claude、GPT、Gemini、Kimi、GLM、DeepSeek、Qwen、Grok 等主流模型 API，助力主题构思、大纲规划、HTML 幻灯片生成与对话式修改。无论是技术分享、课程讲解、项目汇报还是产品路演，都能选择合适的模型，逐步打磨内容与页面表达。<br/>💰 <b>最低 0.05×，多试几版也更从容</b>：模型价格低至官方价格的 5%，Token 级账单透明可查，降低整套演示稿生成与多轮修改的调用成本。<br/>✨ <b>官方原生通道</b>：不掺水、不混模、不压缩长上下文，为理解演示需求、参考资料与修改指令提供模型支持。<br/>⚡ <b>稳定高速，高并发不限流</b>：为页面生成、内容改写与多任务创作提供稳定的 API 服务，让灵感更快呈现在页面上。<br/>🎁 <b>新用户注册赠送 $20</b>：通过<a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB">专属链接</a>注册即送 <b>$20 体验额度</b>，充值额外加赠；提供 <b>1 对 1 远程配置服务</b>，真人协助完成模型 API 配置。</td>
+    <td valign="middle">❤️ 感谢 <b><a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB">CrazyToken</a></b> 赞助支持 <b>Oh My PPT</b>！<br/>CrazyToken 提供 <b>Claude、GPT、Gemini、Kimi、GLM、DeepSeek、Qwen、Grok</b> 等主流模型 API，覆盖主题构思、大纲规划、HTML 幻灯片生成与对话式修改，从想法到演示稿，灵活选择合适的模型。<br/>💰 <b>低至 <code>0.05×</code></b>：最高省99%，Token 级账单透明可查。<br/>✨ <b>官方原生通道</b>：不掺水、不混模、不压缩长上下文，保持模型原生输出体验。<br/>⚡ <b>稳定高速，高并发不限流</b>：让演示稿生成与多轮修改更顺畅。<br/>🎁 <b>新用户注册赠送 <code>$20</code></b>：通过<a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB">专属链接</a>注册即领体验额度，充值额外加赠；提供 <b>1 对 1 真人远程配置服务</b>，轻松接入，开箱即用。</td>
   </tr>
 </table>
 
