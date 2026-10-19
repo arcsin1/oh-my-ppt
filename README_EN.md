@@ -41,11 +41,24 @@
 <a id="sponsors-list"></a>
 ## 🏢 Sponsors
 
-| Sponsor | About |
-| --- | --- |
-| <a href="https://www.toumingren.xyz/" target="_blank"><img src="./docs/images/toumingren.png" width="200" alt="toumingren" /></a> | ❤️ Thank you to **[Toumingren](https://www.toumingren.xyz/)** for sponsoring Oh My PPT!<br/>Turn subscriptions into a programmable API. No black boxes — just a transparent middle layer. |
-| <a href="https://88api.ai/sign-up?aff=6PT1" target="_blank"><img src="./docs/images/88-api.jpg" width="200" alt="88api" /></a> | ❤️ Thank you to **[88api](https://88api.ai/sign-up?aff=6PT1)** for sponsoring Oh My PPT!<br/>88API Token 聚合平台<br/>🧠 聚合 GPT、Claude、Gemini、Grok、DeepSeek、Kimi、GLM 等语言与编程模型<br/>🎨 图片模型：GPT-Image、Gemini、Grok 等<br/>🎬 视频模型：Seedance、Veo、MiniMax Hailuo H3、Kling、Grok 等<br/>🎙️ 语音能力：Whisper、TTS 等，从文案、出图、改图到视频生成与配音<br/>🎁 新用户注册送体验额度，可检测模型能力，站内有人工客服值守<br/>👉 海外企业资质运营，稳定不跑路，提供正规发票，充值比例 1:1 |
-| <a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB" target="_blank"><img src="./docs/images/crazyToken-en.webp" width="200" alt="CrazyToken" /></a> | ❤️ Thank you to **[CrazyToken](https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB)** for sponsoring Oh My PPT!<br/>Global AI model platform. Power your presentation ideas—from a spark of inspiration to a polished deck, with rates as low as 0.05x and savings of up to 99%<br/>CrazyToken provides APIs for leading models including Claude, GPT, Gemini, Kimi, GLM, DeepSeek, Qwen, and Grok, supporting topic ideation, outline planning, HTML slide generation, and conversational editing. Whether you are preparing a technical talk, a lesson, a project update, or a product pitch, you can choose the right model and refine both your content and slide design step by step.<br/>💰 **As low as 0.05×—explore more versions for less**: Model pricing starts at just 5% of official rates, with transparent, token-level billing to reduce the cost of generating complete presentations and making multiple rounds of revisions.<br/>✨ **Direct access to official models**: No degraded performance, model substitution, or long-context compression—giving models the context they need to understand your presentation requirements, reference materials, and editing instructions.<br/>⚡ **Fast, stable, and no concurrency caps**: Reliable API services for slide generation, content rewriting, and parallel creative tasks help bring your ideas to the screen faster.<br/>🎁 **$20 signup gift for new users**: Register through the [exclusive link](https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB) to receive **$20 in trial credits**, plus additional top-up bonuses. **One-on-one remote setup assistance** is available, with a real person helping you configure your model API. |
+<table>
+  <tr>
+    <th width="280">Sponsor</th>
+    <th>About</th>
+  </tr>
+  <tr>
+    <td width="280" align="center" valign="top"><a href="https://www.toumingren.xyz/" target="_blank"><img src="./docs/images/toumingren.png" width="360" alt="toumingren" /></a></td>
+    <td valign="top">❤️ Thank you to <b><a href="https://www.toumingren.xyz/">Toumingren</a></b> for sponsoring Oh My PPT!<br/>Turn subscriptions into a programmable API. No black boxes — just a transparent middle layer.</td>
+  </tr>
+  <tr>
+    <td width="280" align="center" valign="top"><a href="https://88api.ai/sign-up?aff=6PT1" target="_blank"><img src="./docs/images/88-api.jpg" width="240" alt="88api" /></a></td>
+    <td valign="top">❤️ Thank you to <b><a href="https://88api.ai/sign-up?aff=6PT1">88api</a></b> for sponsoring Oh My PPT!<br/>88API Token 聚合平台<br/>🧠 聚合 GPT、Claude、Gemini、Grok、DeepSeek、Kimi、GLM 等语言与编程模型<br/>🎨 图片模型：GPT-Image、Gemini、Grok 等<br/>🎬 视频模型：Seedance、Veo、MiniMax Hailloo H3、Kling、Grok 等<br/>🎙️ 语音能力：Whisper、TTS 等，从文案、出图、改图到视频生成与配音<br/>🎁 新用户注册送体验额度，可检测模型能力，站内有人工客服值守<br/>👉 海外企业资质运营，稳定不跑路，提供正规发票，充值比例 1:1</td>
+  </tr>
+  <tr>
+    <td width="280" align="center" valign="top"><a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB" target="_blank"><img src="./docs/images/crazyToken-en.webp" width="360" alt="CrazyToken" /></a></td>
+    <td valign="top">❤️ Thank you to <b><a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB">CrazyToken</a></b> for sponsoring Oh My PPT!<br/>Global AI model platform. Power your presentation ideas—from a spark of inspiration to a polished deck, with rates as low as 0.05x and savings of up to 99%<br/>CrazyToken provides APIs for leading models including Claude, GPT, Gemini, Kimi, GLM, DeepSeek, Qwen, and Grok, supporting topic ideation, outline planning, HTML slide generation, and conversational editing. Whether you are preparing a technical talk, a lesson, a project update, or a product pitch, you can choose the right model and refine both your content and slide design step by step.<br/>💰 <b>As low as 0.05×—explore more versions for less</b>: Model pricing starts at just 5% of official rates, with transparent, token-level billing to reduce the cost of generating complete presentations and making multiple rounds of revisions.<br/>✨ <b>Direct access to official models</b>: No degraded performance, model substitution, or long-context compression—giving models the context they need to understand your presentation requirements, reference materials, and editing instructions.<br/>⚡ <b>Fast, stable, and no concurrency caps</b>: Reliable API services for slide generation, content rewriting, and parallel creative tasks help bring your ideas to the screen faster.<br/>🎁 <b>$20 signup gift for new users</b>: Register through the <a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB">exclusive link</a> to receive <b>$20 in trial credits</b>, plus additional top-up bonuses. <b>One-on-one remote setup assistance</b> is available, with a real person helping you configure your model API.</td>
+  </tr>
+</table>
 
 <a id="sponsors"></a>
 ## 💖 Backers
