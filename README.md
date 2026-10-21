@@ -72,6 +72,10 @@
     <td width="260" align="center" valign="middle"><a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB" target="_blank"><img src="./docs/images/crazyToken-cn.webp" width="240" alt="CrazyToken" /></a></td>
     <td valign="middle">❤️ 感谢 <b><a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB">CrazyToken</a></b> 赞助支持 <b>Oh My PPT</b>！<br/>CrazyToken 提供 <b>Claude、GPT、Gemini、Kimi、GLM、DeepSeek、Qwen、Grok</b> 等主流模型 API，覆盖主题构思、大纲规划、HTML 幻灯片生成与对话式修改，从想法到演示稿，灵活选择合适的模型。<br/>💰 <b>低至 <code>0.05×</code></b>：最高省99%，Token 级账单透明可查。<br/>✨ <b>官方原生通道</b>：不掺水、不混模、不压缩长上下文，保持模型原生输出体验。<br/>⚡ <b>稳定高速，高并发不限流</b>：让演示稿生成与多轮修改更顺畅。<br/>🎁 <b>新用户注册赠送 <code>$20</code></b>：通过<a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB">专属链接</a>注册即领体验额度，充值额外加赠；提供 <b>1 对 1 真人远程配置服务</b>，轻松接入，开箱即用。</td>
   </tr>
+  <tr>
+    <td width="260" align="center" valign="middle"><a href="https://mixtoken.ai/?code=GWZQRH" target="_blank"><img src="./docs/images/mixtoken.png" width="240" alt="Mixtoken" /></a></td>
+    <td valign="middle">❤️ 感谢 <b><a href="https://mixtoken.ai/?code=GWZQRH">Mixtoken</a></b> 对 Oh My PPT 的支持！<br/>一站式接入主流 AI 模型 API，覆盖文本生成、图片创作与视频制作。一个 Key 调用所有模型！稳定高速，不掺水！<br/>🧠 语言模型：Claude、GPT、Gemini、DeepSeek 等，支持文案写作、代码开发和演示稿内容生成。<br/>🖼️ 图片模型：GPT-Image、Gemini 等，支持图片生成与编辑。<br/>🎥 视频模型：Seedance、MiniMax Hailuo H3、Grok 等，支持视频生成。<br/>✨ 新人体验：通过<a href="https://mixtoken.ai/?code=GWZQRH">专属链接</a>注册即可领取体验额度，测试模型效果。接入或使用中遇到问题，可联系人工客服。<br/>🌐 企业运营：由海外企业运营，具备企业资质，支持开具正规发票。</td>
+  </tr>
 </table>
 
 <a id="sponsors"></a>
