@@ -1,5 +1,37 @@
 # 更新日志 / Changelog
 
+## 2026-10-22 · v2.9.0
+
+### 中文
+
+- 新增思维画布：把问题放到无限画布上，用人的思维去分叉探索、标记死路、汇聚结论，下载想好的文档，还能从任意节点直接生成 PPT，思考时可附带参考资料。
+- 新增澄清能力：想法不完善？画布、创作和风格描述都能先让 AI 追问几句（可点选、多选或自行输入），把一句话补成完整你想要的指令。
+- 新增版式库与信息图风格：80+ 个可复用版式、50+ 种信息图构图和 8 个信息图风格，封面、目录、内容页都有更多选择，流程图、时间线等页面也更生动。
+- 新增 AI 生成风格：一句话描述想要的感觉，AI 起草并实时预览，确认后直接存进风格库，离开页面也会继续生成。
+- 新增对话创作转模板生成：确认生成时可选「风格生成」或「模板生成」，对话大纲可直接套模板出稿。
+- 新增模型参数实时更新与思考等级：新模型不用等版本更新，选模型时还能直接调【思考深浅】。
+- 新增画布编辑快捷键：保存、撤销/重做、复制、删除、方向键微移、Esc 退出，按 ⌘/ 或 Ctrl+/ 查看全部快捷键。
+- 优化编辑稳定性：换风格、局部重排时保留页面骨架与配图位置，复制页面也会继承原页的版式规划。
+- 优化整体生成多样性：版式库的增加（骨架）和风格（创意）构造多样的不同页面，后续也会开放版式agent能力和自定义能力。
+- 修复 PPTX 导出：在 PowerPoint / WPS 打开不再提示修复，行距、文字颜色、水印位置和 Mac 嵌入字体也一并修好。
+- 修复演示模式：连续快速翻页不再白屏或跳页，长时间放映更稳、更省内存。
+- 修复部分页面打开后只剩半页或直接白屏的问题。
+
+### English
+
+- Added Thinking Canvas: explore a question on an infinite canvas — branch out, mark dead ends, merge conclusions, and generate a deck from any node; attach reference material as you go.
+- Added clarification to the canvas, chat, and style inputs: when an idea is still rough, AI asks a few questions (pick options, select multiple, or write your own) to turn it into exactly the instruction you want.
+- Added a layout library and infographic styles: 80+ reusable layouts, 50+ infographic compositions, and 8 infographic style packs — more choice for covers, agendas, and content pages, with livelier flowcharts and timelines.
+- Added AI style generation: describe the feeling you want, get a live preview, and save it to the style library; it keeps generating if you leave the page.
+- Added template generation from Chat to Create: choose "Style generation" or "Template generation" when confirming, and turn a chat outline into a deck with a template.
+- Added auto-updating model parameters and thinking levels: new models work without an app update, and you can adjust thinking depth right from the model picker.
+- Added canvas editing shortcuts: save, undo/redo, duplicate, delete, arrow-key nudging, and Esc, with ⌘/ or Ctrl+/ to see them all.
+- Improved editing stability: style switches and local rearranges keep the page structure and image placement, and duplicated pages inherit the original page plan.
+- Improved overall generation variety: more layouts (structure) and styles (creative direction) now produce more diverse pages, with layout agent capabilities and custom layouts coming later.
+- Fixed PPTX export: no more repair prompts in PowerPoint / WPS, with better line spacing, text colors, watermark placement, and embedded fonts on Mac.
+- Fixed presentation mode: rapid page turns no longer blank out or skip pages, and long presentations stay stable with lower memory use.
+- Fixed some pages opening as only half a page or a blank screen.
+
 ## 2026-10-10 · v2.8.0
 
 ### 中文
