@@ -65,10 +65,6 @@
     <td valign="middle">❤️ 感谢 <b><a href="https://www.toumingren.xyz/register?aff=8UUDJN6MGBJX">透明人网关</a></b> 对 Oh My PPT 的赞助支持！<br/>高性价比 AI 聚合 API 网关——一套接口、一个 Key，海内外主流大模型一键通调！<br/>💥 <b>王牌底价</b><br/>🖼️ 生图单张低至 3 分钱！<br/>✅ GLM & DeepSeek 官方原版，价格直接砍半<br/>✅ 国模特惠分组，倍率低至 0.1，批量跑量成本拉满低<br/>✅ 高缓存命中率，重复请求更省 Token<br/>🧠 <b>支持模型能力</b><br/>文本：GPT、Claude、Gemini、DeepSeek、GLM，文案撰写、代码开发、方案脑暴、PPT 生成全都 hold 住<br/>图像：GPT-Image、Gemini，文生图、图编轻松调用<br/>⚙️ <b>接入省心</b>：线路稳定高速，兼容 OpenAI 格式，仅改一行 base_url 即可接入<br/>🎁 <b>长期惊喜福利</b>：不定时限时活动，充值直送余额；重大节日加码专属好礼，蹲优惠不踩空！<br/>无虚标、不混降级模型，开发者、工作室、批量业务调用首选！</td>
   </tr>
   <tr>
-    <td width="260" align="center" valign="middle"><a href="https://88api.ai/sign-up?aff=6PT1" target="_blank"><img src="./docs/images/88-api.jpg" width="240" alt="88api" /></a></td>
-    <td valign="middle">❤️ 感谢 <b><a href="https://88api.ai/sign-up?aff=6PT1">88api</a></b> 对 Oh My PPT 的赞助支持！<br/>88API Token 聚合平台<br/>🧠 聚合 GPT、Claude、Gemini、Grok、DeepSeek、Kimi、GLM 等语言与编程模型<br/>🎨 图片模型：GPT-Image、Gemini、Grok 等<br/>🎬 视频模型：Seedance、Veo、MiniMax Hailuo H3、Kling、Grok 等<br/>🎙️ 语音能力：Whisper、TTS 等，从文案、出图、改图到视频生成与配音<br/>🎁 新用户注册送体验额度，可检测模型能力，站内有人工客服值守<br/>👉 海外企业资质运营，稳定不跑路，提供正规发票，充值比例 1:1</td>
-  </tr>
-  <tr>
     <td width="260" align="center" valign="middle"><a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB" target="_blank"><img src="./docs/images/crazyToken-cn.webp" width="240" alt="CrazyToken" /></a></td>
     <td valign="middle">❤️ 感谢 <b><a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB">CrazyToken</a></b> 赞助支持 <b>Oh My PPT</b>！<br/>CrazyToken 提供 <b>Claude、GPT、Gemini、Kimi、GLM、DeepSeek、Qwen、Grok</b> 等主流模型 API，覆盖主题构思、大纲规划、HTML 幻灯片生成与对话式修改，从想法到演示稿，灵活选择合适的模型。<br/>💰 <b>低至 <code>0.05×</code></b>：最高省99%，Token 级账单透明可查。<br/>✨ <b>官方原生通道</b>：不掺水、不混模、不压缩长上下文，保持模型原生输出体验。<br/>⚡ <b>稳定高速，高并发不限流</b>：让演示稿生成与多轮修改更顺畅。<br/>🎁 <b>新用户注册赠送 <code>$20</code></b>：通过<a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB">专属链接</a>注册即领体验额度，充值额外加赠；提供 <b>1 对 1 真人远程配置服务</b>，轻松接入，开箱即用。</td>
   </tr>
@@ -85,7 +81,7 @@
 
 ---
 
-<div><img src="./docs/images/OhMyPPT.png"/></div>
+<div><img src="./docs/images/ohmyppt.png"/></div>
 
 ## 目录
 
