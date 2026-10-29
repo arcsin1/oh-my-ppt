@@ -67,7 +67,7 @@ Thanks to everyone who has supported Oh My PPT — see [SponsorsList.md](./Spons
 
 ---
 
-<div><img src="./docs/images/OhMyPPT.png"/></div>
+<div><img src="./docs/images/ohmyppt.webp"/></div>
 
 ## Table of Contents
 

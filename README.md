@@ -81,7 +81,7 @@
 
 ---
 
-<div><img src="./docs/images/ohmyppt.png"/></div>
+<div><img src="./docs/images/ohmyppt.webp"/></div>
 
 ## 目录
 
