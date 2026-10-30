@@ -61,8 +61,8 @@
     <th>简介</th>
   </tr>
   <tr>
-    <td width="260" align="center" valign="middle"><a href="https://www.toumingren.xyz/register?aff=8UUDJN6MGBJX" target="_blank"><img src="./docs/images/toumingren.png" width="240" alt="透明人" /></a></td>
-    <td valign="middle">❤️ 感谢 <b><a href="https://www.toumingren.xyz/register?aff=8UUDJN6MGBJX">透明人网关</a></b> 对 Oh My PPT 的赞助支持！<br/>高性价比 AI 聚合 API 网关——一套接口、一个 Key，海内外主流大模型一键通调！<br/>💥 <b>王牌底价</b><br/>🖼️ 生图单张低至 3 分钱！<br/>✅ GLM & DeepSeek 官方原版，价格直接砍半<br/>✅ 国模特惠分组，倍率低至 0.1，批量跑量成本拉满低<br/>✅ 高缓存命中率，重复请求更省 Token<br/>🧠 <b>支持模型能力</b><br/>文本：GPT、Claude、Gemini、DeepSeek、GLM，文案撰写、代码开发、方案脑暴、PPT 生成全都 hold 住<br/>图像：GPT-Image、Gemini，文生图、图编轻松调用<br/>⚙️ <b>接入省心</b>：线路稳定高速，兼容 OpenAI 格式，仅改一行 base_url 即可接入<br/>🎁 <b>长期惊喜福利</b>：不定时限时活动，充值直送余额；重大节日加码专属好礼，蹲优惠不踩空！<br/>无虚标、不混降级模型，开发者、工作室、批量业务调用首选！</td>
+    <td width="260" align="center" valign="middle"><a href="https://www.toumingren.xyz/register?aff=TJ73QWYB" target="_blank"><img src="./docs/images/toumingren.png" width="240" alt="透明人" /></a></td>
+    <td valign="middle">❤️ 感谢 <b><a href="https://www.toumingren.xyz/register?aff=TJ73QWYB">透明人网关</a></b> 对 Oh My PPT 的赞助支持！<br/>高性价比 AI 聚合 API 网关——一套接口、一个 Key，海内外主流大模型一键通调！<br/>💥 <b>王牌底价</b><br/>🖼️ 生图单张低至 3 分钱！<br/>✅ GLM & DeepSeek 官方原版，价格直接砍半<br/>✅ 国模特惠分组，倍率低至 0.1，批量跑量成本拉满低<br/>✅ 高缓存命中率，重复请求更省 Token<br/>🧠 <b>支持模型能力</b><br/>文本：GPT、Claude、Gemini、DeepSeek、GLM，文案撰写、代码开发、方案脑暴、PPT 生成全都 hold 住<br/>图像：GPT-Image、Gemini，文生图、图编轻松调用<br/>⚙️ <b>接入省心</b>：线路稳定高速，兼容 OpenAI 格式，仅改一行 base_url 即可接入<br/>🎁 <b>长期惊喜福利</b>：不定时限时活动，充值直送余额；重大节日加码专属好礼，蹲优惠不踩空！<br/>无虚标、不混降级模型，开发者、工作室、批量业务调用首选！</td>
   </tr>
   <tr>
     <td width="260" align="center" valign="middle"><a href="https://www.aiyoyoo.com/register?aff=PQP2BB2SSRVB" target="_blank"><img src="./docs/images/crazyToken-cn.webp" width="240" alt="CrazyToken" /></a></td>
