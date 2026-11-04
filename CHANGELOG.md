@@ -1,5 +1,51 @@
 # 更新日志 / Changelog
 
+
+## 2026-11-04 · v2.10.0
+
+### 中文
+
+- 新增资产工作台：每次创建的内容（上传文档创建以及模版创建）都会自动保存到这里；点开继续编辑和修改，然后生成PPT。
+- 新增单页一键换版式：某一页排版不满意，一键换成别的版式，文字内容原样保留。
+- 新增全新的大纲修改编辑方式： 更加容易的去修改你的大纲和优化大纲。
+- 新增全页一键美化提速：整套美化可以多页同时处理（跟随全局并发控制），完成更快。
+- 新增风格切换提速和交互优化：整套切换可以多页同时处理（跟随全局并发控制），完成更快，交互更好。
+- 新增统一选模型弹窗：换版式、美化、全页美化、配图前都能在弹窗里直接选模型，不用再去设置页。
+- 新增侧边栏常驻「有新版本」入口，升级弹窗关掉后也能随时找到。
+- 新增版式AI生成Agent：支持 对话式 AI 生成自定义版式，用你所想，想你想要。
+- 优化一键配图：AI 会按每一页的内容更加【智能】自动判断该配重点插图还是背景图、尺寸，配图更贴合页面。
+- 优化自动配图： 大幅优化初次生成配图效果，更加贴近内容，更加智能和友好配图以及背景。
+- 优化生成与编辑速度：大纲生成更快更准，进入编辑页也更快。
+- 优化 PPTX 导入与导出：导入的页面更接近原稿，导出的可编辑 PPTX 还原度更高。
+- 优化编辑页风格挑选：风格卡片标出「可配图」，以及增加搜索，一眼看清哪些风格支持自动配图。
+- 优化进入编辑页：优化编辑页载入速度和增华一些全局loading动画效果。
+- 优化窗口放大缩小时的页面占位与闪动。
+- 优化编辑页检选元素： 更有好的选择，更有好的交互体验
+- 修复创建草稿偶发互相覆盖、内容丢失的问题。
+- 修复部分失败提示看不懂的问题，改为通俗说明。
+
+### English
+
+- Added the Assets workbench: everything you start creating — whether from an uploaded document or a template — is saved here automatically. Open it anytime to keep editing, then generate the deck.
+- Added one-click layout switching for a single slide: not happy with one page's layout? Switch it in one click while keeping all the text.
+- Added a brand-new way to edit outlines: revising and refining your outline is now much easier.
+- Faster whole-deck beautification: slides can now be processed several at a time (following the global concurrency setting), so the full pass finishes sooner.
+- Faster, smoother style switching: the whole deck now switches several slides at a time (following the global concurrency setting), finishing sooner with a better overall experience.
+- Added a unified model picker: choose the model right in the dialog before layout switching, beautifying, whole-deck beautifying, or illustrating — no more trips to Settings.
+- Added a permanent "New version" entry in the sidebar, so the update dialog stays reachable after you close it.
+- Added the AI layout-generation agent: chat with AI to create custom layouts — describe what you have in mind and get exactly the layout you want.
+- Improved one-click illustration: AI judges more intelligently, per slide, whether it needs a focal illustration or a background — and at what size — based on the slide's content, so images fit the page better.
+- Improved auto-illustration: first-pass illustrations are much better — images stick closer to the content, with smarter, friendlier matching of illustrations and backgrounds.
+- Faster generation and editing: outlines are quicker and more accurate, and the editor opens faster.
+- Improved PPTX import and export: imported slides stay closer to the original, and exported editable PPTX files are more faithful.
+- Improved style picking in the editor: style cards are badged "illustratable" and search is now available, so you can see at a glance which styles support auto-illustration.
+- Improved entering the editor: faster loading and enhanced global loading animations.
+- Improved page placeholders and flicker when resizing the window.
+- Improved element selection in the editor: friendlier selection and better interaction overall.
+- Fixed creation drafts occasionally overwriting each other and losing content.
+- Fixed unclear failure messages; they are now written in plain language.
+
+
 ## 2026-10-22 · v2.9.0
 
 ### 中文
