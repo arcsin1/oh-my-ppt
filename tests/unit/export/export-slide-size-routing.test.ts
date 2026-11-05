@@ -15,12 +15,14 @@ describe('export slide-size routing', () => {
   it('routes a supported 16:9 or 4:3 slide size through PPTX export', () => {
     const source = exportHandlersSource()
     const pptxHandler = handlerSource(source, 'export:pptx', 'export:video')
+    const writer = fs.readFileSync(path.resolve('src/main/io/pptx-export.ts'), 'utf8')
 
     expect(pptxHandler).toContain('const slideSize = requireSessionSlideSize(session)')
     expect(pptxHandler).toContain('assertPptxExportSupported(slideSize)')
-    expect(pptxHandler).toContain('const pptxLayout = resolvePptxExportLayout(slideSize)')
-    expect(pptxHandler).toContain('widthIn: pptxLayout.slideWidthIn')
-    expect(pptxHandler).toContain('heightIn: pptxLayout.slideHeightIn')
+    expect(pptxHandler).toContain('writeSessionPptx(')
+    expect(writer).toContain('const pptxLayout = resolvePptxExportLayout(slideSize)')
+    expect(writer).toContain('widthIn: pptxLayout.slideWidthIn')
+    expect(writer).toContain('heightIn: pptxLayout.slideHeightIn')
   })
 
   it('uses a standard video frame while passing slide size for centered page fitting', () => {

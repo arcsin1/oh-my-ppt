@@ -36,9 +36,40 @@ export type RuntimeLocalFiles = {
   }): Promise<string>
 }
 
-const ALLOWED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'])
-const ALLOWED_VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.ogg'])
-const ALLOWED_DOC_EXTENSIONS = new Set(['.md', '.txt', '.text'])
+export const MAX_ASSET_IMPORT_SIZE = 20 * 1024 * 1024
+export const ALLOWED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'])
+export const ALLOWED_VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.ogg'])
+export const ALLOWED_DOC_EXTENSIONS = new Set(['.md', '.txt', '.text'])
+
+export function resolveAssetUploadTarget(
+  sourcePath: string,
+  kind?: 'image' | 'video' | 'document'
+): UploadTarget {
+  const ext = path.extname(sourcePath).toLowerCase()
+  const inferred: UploadTarget | null = ALLOWED_IMAGE_EXTENSIONS.has(ext)
+    ? 'images'
+    : ALLOWED_VIDEO_EXTENSIONS.has(ext)
+      ? 'videos'
+      : ALLOWED_DOC_EXTENSIONS.has(ext)
+        ? 'docs'
+        : null
+  if (kind === 'image') {
+    if (inferred !== 'images') throw new Error('暂只支持 png、jpg、jpeg、webp、gif、svg 图片素材')
+    return 'images'
+  }
+  if (kind === 'video') {
+    if (inferred !== 'videos') throw new Error('暂只支持 mp4、webm、ogg 视频素材')
+    return 'videos'
+  }
+  if (kind === 'document') {
+    if (inferred !== 'docs') throw new Error('暂只支持 md、txt 文档素材')
+    return 'docs'
+  }
+  if (!inferred)
+    throw new Error('暂只支持 png/jpg/webp/gif/svg 图片、mp4/webm/ogg 视频，或 md/txt 文档素材')
+  return inferred
+}
+
 const IMAGE_MIME_BY_EXT: Record<string, string> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
@@ -155,7 +186,7 @@ export function createRuntimeLocalFiles(args: {
       if (!sourcePath) throw new Error('素材路径不能为空')
       const stat = await fs.promises.stat(sourcePath)
       if (!stat.isFile()) throw new Error(`素材不是文件: ${sourcePath}`)
-      if (stat.size > 20 * 1024 * 1024) throw new Error('单个素材不能超过 20MB')
+      if (stat.size > MAX_ASSET_IMPORT_SIZE) throw new Error('单个素材不能超过 20MB')
 
       const ext = path.extname(sourcePath).toLowerCase()
       if (target === 'images' && !ALLOWED_IMAGE_EXTENSIONS.has(ext)) {

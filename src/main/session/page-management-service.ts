@@ -15,6 +15,15 @@ import { setMasterPageNumber } from '../presentation/html/master-link'
 import type { SessionPageStatus } from '../db/schema'
 import { resolveOutlinesForPages } from './page-outline-utils'
 import { requireSessionSlideSize } from '@shared/slide-size'
+import {
+  ensureHistoryBaselineSafe,
+  recordHistoryOperationStrict
+} from '../history/git-history-service'
+
+type PageManagementContext = Pick<
+  IpcContext,
+  'db' | 'resolveSessionProjectDir' | 'ensureSessionAssets'
+>
 
 const pageSlugId = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 10)
 
@@ -52,7 +61,7 @@ export interface ManagedPage {
 }
 
 export async function loadEditableSessionPages(
-  ctx: IpcContext,
+  ctx: PageManagementContext,
   sessionId: string
 ): Promise<{
   session: Record<string, unknown>
@@ -66,6 +75,7 @@ export async function loadEditableSessionPages(
 
   const projectDir = await ctx.resolveSessionProjectDir(sessionId)
   const indexPath = path.join(projectDir, 'index.html')
+  // SAFETY: Session DTO 只有 title 字段被页面管理使用，其余列保持原样。
   const deckTitle = (session as unknown as { title?: string }).title || 'Untitled'
 
   const sessionPages = await ctx.db.listSessionPages(sessionId)
@@ -85,11 +95,18 @@ export async function loadEditableSessionPages(
     error: sp.error
   }))
 
-  return { session: session as unknown as Record<string, unknown>, projectDir, indexPath, deckTitle, pages }
+  // SAFETY: 调用方只读取 title/pages，Session 行被当作宽松对象传出。
+  return {
+    session: session as unknown as Record<string, unknown>,
+    projectDir,
+    indexPath,
+    deckTitle,
+    pages
+  }
 }
 
 export async function persistManagedPages(
-  ctx: IpcContext,
+  ctx: PageManagementContext,
   args: {
     sessionId: string
     projectDir: string
@@ -151,6 +168,8 @@ export async function persistManagedPages(
     generatedPages?: unknown
     failedPages?: unknown
   }
+  void _generatedPages
+  void _failedPages
 
   try {
     await Promise.all(
@@ -162,9 +181,9 @@ export async function persistManagedPages(
       pages: renumbered.map((page) => ({ id: page.id, pageNumber: page.pageNumber })),
       deletedPageIds: args.deletedPageIds,
       metadata: {
-      ...safeMetadata,
-      entryMode: 'multi_page',
-      indexPath: args.indexPath
+        ...safeMetadata,
+        entryMode: 'multi_page',
+        indexPath: args.indexPath
       }
     })
   } catch (error) {
@@ -175,6 +194,121 @@ export async function persistManagedPages(
   await fs.promises.rename(`${args.indexPath}.tmp`, args.indexPath)
 
   return renumbered
+}
+
+export async function deleteSessionPages(
+  ctx: PageManagementContext,
+  payload: {
+    sessionId: string
+    pageIds: string[]
+    selectedPageId?: string
+  }
+): Promise<{
+  ok: boolean
+  generatedPages: Array<{
+    id: string
+    pageNumber: number
+    pageId: string
+    title: string
+    contentOutline: string | null
+    html: string
+    htmlPath: string
+    status?: SessionPageStatus
+    error?: string | null
+  }>
+  selectedPageId: string | null
+}> {
+  const { sessionId, pageIds, selectedPageId } = payload
+  const { projectDir, indexPath, deckTitle, pages } = await loadEditableSessionPages(ctx, sessionId)
+  if (!pageIds.length) throw new Error('pageIds is empty')
+  const uniqueDeleteIds = new Set(pageIds)
+  if (uniqueDeleteIds.size !== pageIds.length) {
+    throw new Error('pageIds contains duplicate page ids')
+  }
+  const resolvedIds = pageIds.map((id) => {
+    const page = pages.find((item) => item.id === id || item.pageId === id)
+    if (!page) throw new Error(`Unknown page id: ${id}`)
+    return page.id
+  })
+  const deleteSet = new Set(resolvedIds)
+  if (pages.length - deleteSet.size < 1) throw new Error('Cannot delete last page')
+  const beforeOrder = pages.map((p) => ({
+    id: p.id,
+    pageNumber: p.pageNumber,
+    pageId: p.pageId,
+    title: p.title
+  }))
+  const firstDeletedIndex = pages.findIndex((p) => deleteSet.has(p.id))
+  const remaining = pages.filter((p) => !deleteSet.has(p.id))
+  const deletedPages = pages.filter((p) => deleteSet.has(p.id))
+  const afterOrder = remaining.map((p, index) => ({
+    id: p.id,
+    pageNumber: index + 1,
+    pageId: p.pageId,
+    title: p.title
+  }))
+  const shrinkTitle = (title: string): string => {
+    const clean = title.replace(/\s+/g, ' ').trim()
+    if (clean.length <= 16) return clean
+    return `${clean.slice(0, 16)}…`
+  }
+  const deletedPreview = deletedPages
+    .slice(0, 3)
+    .map((item) => `P${item.pageNumber}《${shrinkTitle(item.title)}》`)
+    .join('；')
+  const deletePrompt =
+    deletedPages.length > 0
+      ? `删除页面：${deletedPreview}${deletedPages.length > 3 ? `；等 ${deletedPages.length} 页` : ''}`
+      : `删除页面：${resolvedIds.length} 页`
+  await ensureHistoryBaselineSafe(ctx.db, sessionId, projectDir)
+
+  const result = await persistManagedPages(ctx, {
+    sessionId,
+    projectDir,
+    indexPath,
+    deckTitle,
+    pages: remaining,
+    operation: 'delete',
+    deletedPageIds: resolvedIds,
+    prompt: deletePrompt
+  })
+  await recordHistoryOperationStrict(ctx.db, {
+    sessionId,
+    type: 'delete',
+    scope: 'session',
+    projectDir,
+    prompt: deletePrompt,
+    metadata: {
+      deletedPageIds: resolvedIds,
+      selectedPageId: selectedPageId || null,
+      deletedCount: resolvedIds.length,
+      totalPagesAfterDelete: result.length,
+      beforeOrder,
+      afterOrder
+    }
+  })
+
+  let newSelectedId = selectedPageId || null
+  if (selectedPageId && deleteSet.has(selectedPageId)) {
+    const nextIndex = Math.min(Math.max(firstDeletedIndex, 0), result.length - 1)
+    newSelectedId = result.length > 0 ? result[nextIndex].id : null
+  }
+
+  return {
+    ok: true,
+    generatedPages: result.map((p) => ({
+      id: p.id,
+      pageNumber: p.pageNumber,
+      pageId: p.pageId,
+      title: p.title,
+      contentOutline: p.contentOutline?.trim() || null,
+      html: '',
+      htmlPath: p.htmlPath,
+      status: p.status,
+      error: p.error
+    })),
+    selectedPageId: newSelectedId
+  }
 }
 
 export async function createBlankSessionPage(
@@ -228,11 +362,7 @@ export async function createBlankSessionPage(
     status: 'completed',
     error: null
   }
-  const mergedPages = [
-    ...pages.slice(0, sourceIndex + 1),
-    newPage,
-    ...pages.slice(sourceIndex + 1)
-  ]
+  const mergedPages = [...pages.slice(0, sourceIndex + 1), newPage, ...pages.slice(sourceIndex + 1)]
 
   await ctx.db.upsertSessionPage({
     id: newPage.id,
@@ -358,7 +488,10 @@ export async function renameSessionPageTitle(
 ): Promise<{ pages: ManagedPage[]; selectedPageId: string }> {
   const title = args.title.replace(/\s+/g, ' ').trim()
   if (!title) throw new Error('页面标题不能为空')
-  const { projectDir, indexPath, deckTitle, pages } = await loadEditableSessionPages(ctx, args.sessionId)
+  const { projectDir, indexPath, deckTitle, pages } = await loadEditableSessionPages(
+    ctx,
+    args.sessionId
+  )
   const page = pages.find((item) => item.id === args.pageId || item.pageId === args.pageId)
   if (!page) throw new Error('未找到要修改标题的页面')
 

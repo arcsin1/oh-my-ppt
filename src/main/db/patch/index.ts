@@ -12,6 +12,7 @@ import { patchModelConfigThinkingParameterMode } from './add-model-thinking-para
 import { patchStylesColumns } from './add-styles-columns'
 import { patchDesignContractFonts } from './backfill-design-contract-fonts'
 import { patchSourcePageSkeletonAgendaItems } from './add-source-page-skeleton-agenda-items'
+import { patchExternalAgentTables } from './add-external-agent-tables'
 
 type LibSqlClient = ReturnType<typeof createClient>
 type DrizzleDb = ReturnType<typeof drizzle>
@@ -440,9 +441,23 @@ CREATE INDEX IF NOT EXISTS idx_session_operation_pages_order ON session_operatio
 CREATE INDEX IF NOT EXISTS idx_session_operation_pages_session ON session_operation_pages(session_id, operation_id);
 `
 
-const getRowValue = (row: unknown, key: string): unknown => {
-  if (row && typeof row === 'object' && !Array.isArray(row) && key in row) {
-    return (row as Record<string, unknown>)[key]
+type PatchRowValue = string | number | bigint | boolean | null | Uint8Array | undefined
+
+const getRowValue = (row: unknown, key: string): PatchRowValue => {
+  if (!row || typeof row !== 'object' || Array.isArray(row) || !(key in row)) {
+    return undefined
+  }
+  const value = (row as Record<string, unknown>)[key]
+  if (
+    value === undefined ||
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint' ||
+    value instanceof Uint8Array
+  ) {
+    return value
   }
   return undefined
 }
@@ -1766,6 +1781,7 @@ export const runDatabasePatches = async (args: {
   await enforceSessionOperationsSchema(client)
   await enforceSessionOperationPagesSchema(client)
   await enforceHtmlEditorSchema(client)
+  await patchExternalAgentTables(client)
   await patchStylesColumns(client)
   await client.execute('PRAGMA foreign_keys = ON;')
   await ensureDefaultSettings(client)

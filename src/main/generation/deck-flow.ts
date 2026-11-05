@@ -45,7 +45,7 @@ export async function resolveDeckContext(
   const common = await resolveCommonContext(ctx, input.sessionId, input.modelConfigId, execution)
   const userMessage = `${input.rawUserMessage}${localFiles.formatImagePathsForPrompt([])}`
   const userProvidedOutlineTitles = buildOutlineTitles(input.rawUserMessage)
-  const totalPages = buildTotalPages(common.sessionRecord)
+  const totalPages = buildTotalPages(common.sessionRecord, input.pageCount)
   const sourceDocumentPaths = await resolveSourceDocuments(ctx, {
     sessionId: input.sessionId,
     projectDir: common.projectDir,
