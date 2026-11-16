@@ -1,5 +1,43 @@
 # 更新日志 / Changelog
 
+## 2026-11-16 · v2.11.0
+
+### 中文
+
+- 新增元素级 AI 编辑：选中任意元素，直接让 AI 改它——换文案、调样式、加动画都行，立刻生效。
+- 新增 AI 对话清空上下文：一键清空对话，从零开始提新需求。
+- 新增编辑工具栏一键美化：选中页面就能直接一键美化，更顺手。
+- 新增 38 种动画类型：整套演示动画更丰富，导出 PPTX 也支持。
+- 新增会话体检：打开会话前先检查文件，有问题提前提示，不再打开一片空白。
+- 新增 Linux 安装包：提供 deb 与 AppImage，支持 x64 和 arm64 两种架构。
+- 优化用量统计：Token 用量能看清每次生成、编辑各环节的消耗。
+- 优化生成质量检查：页面判断更准、不再误判重写，首次生成更稳，更快，更有效率。
+- 优化动画数量：装饰动画太多会自动收敛，页面更克制。
+- 优化风格生成效率：Token 成本降约 25%，生成时间缩短 20%～25%，大幅提升稳定性和速度。
+- 优化模板生成效率：Token 成本降约 40%，生成时间缩短约 45%，大幅提升稳定性和速度。
+- 优化 PPTX 导出：动画播放更流畅、更接近应用内效果，导出再导入动画不丢。
+- 修复放映白屏：放映和演讲者视图更稳定。
+- 修复老会话报错：改为引导新建会话，不再莫名报错。
+- 修复kimi系列问题：修复kimi系列模型的temperature参数问题兼容性。
+
+### English
+
+- Added element-level AI editing: select any element and let AI change it directly — rewrite text, restyle, or animate, effective immediately.
+- Added clear-context for AI chat: empty the conversation in one click and start fresh.
+- Added one-click beautify in the editor toolbar: select a slide and beautify it right from the toolbar.
+- Added 38 animation types: richer animations across the deck, supported in exported PPTX too.
+- Added session health checks: files are verified before a session opens, with early warnings instead of a blank page.
+- Added Linux packages: deb and AppImage, for both x64 and arm64.
+- Improved usage statistics: see token consumption per step of each generation and edit.
+- Improved generation quality checks: sharper page judgment, no more rewrite-on-misjudge, steadier first-pass results.
+- Improved animation restraint: too many decorative animations are toned down automatically.
+- Improved style-based generation efficiency: token cost down about 25%, generation time down 20–25%.
+- Improved template-based generation efficiency: token cost down about 40%, generation time down about 45%.
+- Improved PPTX export: smoother animations closer to the in-app look, and they survive re-importing.
+- Fixed presentation white screens: playback and presenter view are more stable.
+- Fixed errors on older sessions: now guided to create a new session instead of a cryptic failure.
+- Fixed Kimi model compatibility: temperature is now always sent as 1.0, so Kimi requests no longer fail on the parameter.
+
 
 ## 2026-11-04 · v2.10.0
 
