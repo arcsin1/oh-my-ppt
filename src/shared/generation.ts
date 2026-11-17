@@ -274,6 +274,7 @@ export interface GenerateStartPayload {
   sessionId: string
   modelConfigId?: string
   userMessage: string
+  pageCount?: number
   type?: 'deck' | 'page'
   chatType?: 'main' | 'page'
   resetVisualStyle?: boolean
@@ -380,33 +381,7 @@ export interface GenerateRetryFailedPayload {
   failedRunId?: string
 }
 
-export type AnimationPreferenceId =
-  | 'fade'
-  | 'fade-up'
-  | 'fade-down'
-  | 'fade-left'
-  | 'fade-right'
-  | 'scale-in'
-  | 'slide-up'
-  | 'slide-down'
-  | 'slide-left'
-  | 'slide-right'
-  | 'fly-in'
-  | 'wipe'
-  | 'zoom-in'
-  | 'spin-in'
-  | 'pulse-soft'
-  | 'pulse'
-  | 'pulse-strong'
-  | 'grow-shrink-soft'
-  | 'grow-shrink'
-  | 'grow-shrink-strong'
-
-export interface AnimationPreferencesPayload {
-  ids: AnimationPreferenceId[]
-}
-
-const ANIMATION_PREFERENCE_IDS = new Set<AnimationPreferenceId>([
+export const ANIMATION_PREFERENCE_ID_LIST = [
   'fade',
   'fade-up',
   'fade-down',
@@ -427,7 +402,15 @@ const ANIMATION_PREFERENCE_IDS = new Set<AnimationPreferenceId>([
   'grow-shrink-soft',
   'grow-shrink',
   'grow-shrink-strong'
-])
+] as const
+
+export type AnimationPreferenceId = (typeof ANIMATION_PREFERENCE_ID_LIST)[number]
+
+export interface AnimationPreferencesPayload {
+  ids: AnimationPreferenceId[]
+}
+
+const ANIMATION_PREFERENCE_IDS = new Set<AnimationPreferenceId>(ANIMATION_PREFERENCE_ID_LIST)
 
 export const normalizeAnimationPreferences = (
   value: unknown

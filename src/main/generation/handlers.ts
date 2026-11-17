@@ -4,10 +4,7 @@ import log from 'electron-log/main.js'
 import { getSessionRunPageCounts } from '../ipc/runtime/session-run-state'
 import { createEmitAssistantMessage } from './generation-utils'
 import { executeDeckGeneration, resolveDeckContext } from './deck-flow'
-import {
-  executeTemplateDeckGeneration,
-  resolveTemplateDeckContext
-} from './template-deck-flow'
+import { executeTemplateDeckGeneration, resolveTemplateDeckContext } from './template-deck-flow'
 import { executeRetryFailedPages, resolveRetryContext } from './retry-flow'
 import type { DeckContext, RetryContext } from './types'
 import {
@@ -34,13 +31,8 @@ export function registerGenerationHandlers(
   styleSwitchJobs: StyleSwitchJobService,
   pageEditJobs?: PageEditJobService,
   deckEditJobs?: DeckEditJobService
-): void {
-  const {
-    db,
-    agentManager,
-    sessionRuns,
-    runtimeEmitters
-  } = ctx
+): GenerateJobManager {
+  const { db, agentManager, sessionRuns, runtimeEmitters } = ctx
   const { sessionRunStates, pruneFinishedSessionRunStates } = sessionRuns
   const { emitGenerateChunk } = runtimeEmitters
   const emitAssistant = createEmitAssistantMessage(db, emitGenerateChunk)
@@ -377,7 +369,11 @@ export function registerGenerationHandlers(
         ? String((payload as { sessionId?: string }).sessionId).trim()
         : ''
     const reservation = requestedSessionId
-      ? await jobManager.reserve('generate:retryFailedPages', requestedSessionId, crypto.randomUUID())
+      ? await jobManager.reserve(
+          'generate:retryFailedPages',
+          requestedSessionId,
+          crypto.randomUUID()
+        )
       : null
     if (reservation?.alreadyRunning) {
       return { success: true, runId: reservation.runId, alreadyRunning: true }
@@ -492,7 +488,8 @@ export function registerGenerationHandlers(
       const targetPage = addPageContext.targetPageId
         ? (await db.listSessionPages(addPageContext.sessionId)).find(
             (page) =>
-              page.id === addPageContext.targetPageId || page.file_slug === addPageContext.targetPageId
+              page.id === addPageContext.targetPageId ||
+              page.file_slug === addPageContext.targetPageId
           )
         : undefined
       jobManager.assertNotCancelled(reserved)
@@ -630,4 +627,5 @@ export function registerGenerationHandlers(
     }
     return { success: true }
   })
+  return jobManager
 }

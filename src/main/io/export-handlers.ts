@@ -11,17 +11,7 @@ import { zipSync } from 'fflate'
 import { PDFDocument } from 'pdf-lib'
 import type { IpcContext } from '../ipc/context'
 import { resolveOutlinesForPages } from '../session/page-outline-utils'
-import {
-  type HtmlToPptxEmbeddedFont,
-  type HtmlToPptxSlide
-} from '@arcsin1/html2pptx'
-import { writeHtmlToPptx } from '@arcsin1/html2pptx/node'
-import { collectEmbeddedFonts } from './html-pptx/font-collect'
-import {
-  captureHtmlPageToPptxImageSlide,
-  extractHtmlPageToPptxSlide
-} from './html-pptx/renderer'
-import { resolvePptxExportLayout } from './html-pptx/static-background'
+import { writeSessionPptx } from './pptx-export'
 import {
   exportHtmlPagesToVideo,
   normalizeVideoExportFps,
@@ -641,7 +631,6 @@ export function registerExportHandlers(ctx: IpcContext): void {
     const { session, pages: allPages, projectDir } = await resolveSessionPageFiles(sessionId)
     const slideSize = requireSessionSlideSize(session)
     assertPptxExportSupported(slideSize)
-    const pptxLayout = resolvePptxExportLayout(slideSize)
     const pages = requestedPageId
       ? allPages.filter((page) => page.id === requestedPageId)
       : allPages
@@ -676,148 +665,28 @@ export function registerExportHandlers(ctx: IpcContext): void {
     }
 
     const sendProgress = createExportProgressSender(event, sessionId, 'pptx')
-    const warnings: string[] = []
 
     try {
-      let extractedCount = 0
-      sendProgress({
-        stage: 'preparing',
-        progress: 3,
-        current: 0,
-        total: pages.length
-      })
-      const slides: HtmlToPptxSlide[] = []
-      for (let start = 0; start < pages.length; start += EXPORT_PAGE_RENDER_CONCURRENCY) {
-        const pageBatch = pages.slice(start, start + EXPORT_PAGE_RENDER_CONCURRENCY)
-        const extractedPages = await mapPageBatch(pageBatch, async (page) => {
-          const mode = imageOnly ? 'image' : 'editable'
-          log.info('[export:pptx] extract page', {
-            sessionId,
-            sessionPageId: page.id,
-            pageId: page.pageId,
-            htmlPath: page.htmlPath,
-            mode,
-            singlePage: Boolean(requestedPageId)
-          })
-          return imageOnly
-            ? captureHtmlPageToPptxImageSlide({
-                page,
-                slideSize,
-                timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS,
-                settleMs: EXPORT_CAPTURE_SETTLE_MS,
-                waitForPrintReadySignal
-              })
-            : extractHtmlPageToPptxSlide({
-                page,
-                slideSize,
-                timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS,
-                settleMs: EXPORT_CAPTURE_SETTLE_MS,
-                animationMode: 'slide-transition',
-                waitForPrintReadySignal
-              })
-        })
-        for (const extracted of extractedPages) {
-          slides.push(extracted.slide)
-          if (extracted.warning) warnings.push(extracted.warning)
-          extractedCount += 1
-          sendProgress({
-            stage: 'rendering',
-            progress: scaleExportProgress(extractedCount, pages.length, 8, 82),
-            current: extractedCount,
-            total: pages.length
-          })
-        }
-      }
-
-      if (!imageOnly) {
-        const pagesWithoutText = slides.filter((s) => s.texts.length === 0).length
-        if (pagesWithoutText > 0) {
-          warnings.push(`${pages.length} 页中有 ${pagesWithoutText} 页未提取到可编辑文本。`)
-        }
-      }
-
-      // Collect embedded fonts (editable mode only). The user-facing behavior is
-      // always "try to include fonts"; fallback is internal compatibility handling.
-      let embeddedFonts: HtmlToPptxEmbeddedFont[] = []
-      if (!imageOnly) {
-        try {
-          sendProgress({
-            stage: 'packaging',
-            progress: 88,
-            current: pages.length,
-            total: pages.length
-          })
-          embeddedFonts = await collectEmbeddedFonts(projectDir, slides, {
-            mode: fontEmbedMode,
-            maxTotalBytes: 20 * 1024 * 1024,
-            pageHtmlPaths: pages.map((page) => page.htmlPath)
-          })
-        } catch (error) {
-          log.warn('[export:pptx] font embedding collection failed, fallback to system fonts', {
-            sessionId,
-            message: error instanceof Error ? error.message : String(error)
-          })
-          warnings.push('字体嵌入失败，已自动改用 PowerPoint 本机字体导出。')
-        }
-      }
-
-      sendProgress({
-        stage: 'writing',
-        progress: 94,
-        current: pages.length,
-        total: pages.length
-      })
-      try {
-        await writeHtmlToPptx(saveResult.filePath, {
-          title: sessionTitle,
-          author: 'OhMyPPT',
-          slides,
-          slideSize: {
-            widthIn: pptxLayout.slideWidthIn,
-            heightIn: pptxLayout.slideHeightIn
-          },
-          embeddedFonts: embeddedFonts.length > 0 ? embeddedFonts : undefined
-        })
-      } catch (error) {
-        if (embeddedFonts.length === 0) throw error
-        log.warn('[export:pptx] write with embedded fonts failed, retry without fonts', {
-          sessionId,
-          message: error instanceof Error ? error.message : String(error)
-        })
-        warnings.push('字体嵌入写入失败，已自动降级为 PowerPoint 本机字体导出。')
-        embeddedFonts = []
-        await writeHtmlToPptx(saveResult.filePath, {
-          title: sessionTitle,
-          author: 'OhMyPPT',
-          slides,
-          slideSize: {
-            widthIn: pptxLayout.slideWidthIn,
-            heightIn: pptxLayout.slideHeightIn
-          }
-        })
-      }
-      const project = await db.getProject(sessionId)
-      if (project?.id) {
-        await db.updateProjectStatus(project.id, 'exported')
-      }
-
-      log.info('[export:pptx] completed', {
+      const exported = await writeSessionPptx({
         sessionId,
-        pageCount: slides.length,
-        filePath: saveResult.filePath,
-        warningCount: warnings.length,
+        outputPath: saveResult.filePath,
         imageOnly,
-        sessionPageId: requestedPageId || undefined,
-        fontEmbedMode,
-        embeddedFontCount: embeddedFonts.length
+        embedFonts: fontEmbedMode,
+        pageId: requestedPageId,
+        resolveSessionPageFiles,
+        waitForPrintReadySignal,
+        timeoutMs: EXPORT_PAGE_READY_TIMEOUT_MS,
+        settleMs: EXPORT_CAPTURE_SETTLE_MS,
+        db,
+        onProgress: sendProgress
       })
-      shell.showItemInFolder(saveResult.filePath)
+      shell.showItemInFolder(exported.outputPath)
       return {
         success: true,
         cancelled: false,
-        path: saveResult.filePath,
-        pageCount: slides.length,
-        warnings
+        path: exported.outputPath,
+        pageCount: exported.pageCount,
+        warnings: exported.warnings
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)

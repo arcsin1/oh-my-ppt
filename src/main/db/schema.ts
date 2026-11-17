@@ -565,6 +565,101 @@ export const htmlEditVersions = sqliteTable(
   })
 )
 
+export const externalAgents = sqliteTable('external_agents', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  version: text('version').notNull(),
+  executablePath: text('executable_path'),
+  credentialId: text('credential_id'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  lastUsedAt: integer('last_used_at'),
+  revokedAt: integer('revoked_at')
+})
+
+export const externalAgentGrants = sqliteTable(
+  'external_agent_grants',
+  {
+    id: text('id').primaryKey(),
+    agentId: text('agent_id')
+      .notNull()
+      .references(() => externalAgents.id, { onDelete: 'cascade' }),
+    capabilitiesJson: text('capabilities_json').notNull().default('[]'),
+    sessionIdsJson: text('session_ids_json').notNull().default('[]'),
+    workspaceRootsJson: text('workspace_roots_json').notNull().default('[]'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+    lastUsedAt: integer('last_used_at'),
+    revokedAt: integer('revoked_at')
+  },
+  (table) => ({
+    agentIdUniqueIdx: uniqueIndex('external_agent_grants_agent_id_unique').on(table.agentId)
+  })
+)
+
+export const externalAgentOperations = sqliteTable(
+  'external_agent_operations',
+  {
+    id: text('id').primaryKey(),
+    agentId: text('agent_id')
+      .notNull()
+      .references(() => externalAgents.id, { onDelete: 'cascade' }),
+    sessionId: text('session_id'),
+    toolName: text('tool_name').notNull(),
+    idempotencyKey: text('idempotency_key').notNull(),
+    requestHash: text('request_hash').notNull(),
+    requestJson: text('request_json').notNull().default('{}'),
+    status: text('status').notNull(),
+    progress: integer('progress').notNull().default(0),
+    checkpoint: text('checkpoint'),
+    resultRef: text('result_ref'),
+    errorCode: text('error_code'),
+    resumable: integer('resumable').notNull().default(0),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull()
+  },
+  (table) => ({
+    idempotencyUniqueIdx: uniqueIndex('external_agent_operations_idempotency_unique').on(
+      table.agentId,
+      table.idempotencyKey
+    ),
+    sessionStatusIdx: index('idx_external_agent_operations_session_status').on(
+      table.sessionId,
+      table.status,
+      table.createdAt
+    ),
+    agentStatusIdx: index('idx_external_agent_operations_agent_status').on(
+      table.agentId,
+      table.status,
+      table.updatedAt
+    )
+  })
+)
+
+export const externalAgentEvents = sqliteTable(
+  'external_agent_events',
+  {
+    id: text('id').primaryKey(),
+    operationId: text('operation_id')
+      .notNull()
+      .references(() => externalAgentOperations.id, { onDelete: 'cascade' }),
+    sequence: integer('sequence').notNull(),
+    type: text('type').notNull(),
+    payloadJson: text('payload_json').notNull().default('{}'),
+    occurredAt: integer('occurred_at').notNull()
+  },
+  (table) => ({
+    sequenceUniqueIdx: uniqueIndex('external_agent_events_seq_unique').on(
+      table.operationId,
+      table.sequence
+    ),
+    operationSeqIdx: index('idx_external_agent_events_operation_seq').on(
+      table.operationId,
+      table.sequence
+    )
+  })
+)
+
 export type Session = typeof sessions.$inferSelect
 export type Message = typeof messages.$inferSelect
 export type ModelUsageEvent = typeof modelUsageEvents.$inferSelect
@@ -584,6 +679,10 @@ export type SessionOperationPage = typeof sessionOperationPages.$inferSelect
 export type HtmlEditDocument = typeof htmlEditDocuments.$inferSelect
 export type HtmlEditMessage = typeof htmlEditMessages.$inferSelect
 export type HtmlEditVersion = typeof htmlEditVersions.$inferSelect
+export type ExternalAgentRow = typeof externalAgents.$inferSelect
+export type ExternalAgentGrantRow = typeof externalAgentGrants.$inferSelect
+export type ExternalAgentOperationRow = typeof externalAgentOperations.$inferSelect
+export type ExternalAgentEventRow = typeof externalAgentEvents.$inferSelect
 
 export type SessionStatus = 'active' | 'completed' | 'failed' | 'archived'
 export type MessageRole = 'user' | 'assistant' | 'system' | 'tool'
