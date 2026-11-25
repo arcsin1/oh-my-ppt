@@ -36,7 +36,7 @@
 
 **Oh My PPT - 本地优先的 AI PPT、配图生成与编辑工具**
 
-[English](./README_EN.md) | [全新 v3.0](#v3) • [为什么做这个](#why) • [能做什么](#features) • [使用流程](#workflow) • [更新日志](./CHANGELOG.md) • [使用问题](#usage-notes)
+[English](./README_EN.md) | [日本語](./README_JA.md) | [全新 v3.0](#v3) • [为什么做这个](#why) • [能做什么](#features) • [使用流程](#workflow) • [更新日志](./CHANGELOG.md) • [使用问题](#usage-notes)
 
   <p>
     AI+ 驱动可编辑 HTML，重构下一代 PPT 生产方式。<br/>
