@@ -23,7 +23,7 @@
 
 **Oh My PPT - Local-first AI Slide Deck, Image Generation & Editing Workbench**
 
-[中文](./README.md) | [Why](#why) • [Features](#features) • [Workflow](#workflow) • [Changelog](./CHANGELOG.md) • [Usage Notes](#usage-notes)
+[中文](./README.md) | [New in v3.0](#v3) • [Why](#why) • [Features](#features) • [Workflow](#workflow) • [Changelog](./CHANGELOG.md) • [Usage Notes](#usage-notes)
 
   <p>
     AI-powered editable HTML, reinventing how next-generation presentations are made.<br/>
@@ -67,18 +67,19 @@ Thanks to everyone who has supported Oh My PPT — see [SponsorsList.md](./Spons
 
 ---
 
-<div><img src="./docs/images/ohmyppt.webp"/></div>
+<div><img src="./docs/images/v3-home.webp"/></div>
 
 ## Table of Contents
 
 - [Sponsors](#sponsors-list)
 - [Backers](#sponsors)
+- [New in v3.0](#v3)
 - [Why I Built This](#why)
 - [Import Legacy PPTX Templates for Editing](#pptx-import)
 - [Export Editable PPTX from the Desktop App](#pptx-export)
 - [What It Can Do](#features)
 - [Workflow](#workflow)
-- [90+ Built-in Style Skills](#style-skills)
+- [100+ Built-in Styles & Style Management](#style-skills)
 - [AI Image Generation & Smart Visuals](#image-generation)
 - [Font Management](#fonts)
 - [Animation Support](#animations)
@@ -93,6 +94,21 @@ Thanks to everyone who has supported Oh My PPT — see [SponsorsList.md](./Spons
 - [License](#license)
 
 ---
+
+<a id="v3"></a>
+## 🚀 New in v3.0
+
+A rebuilt workspace, 176 reusable layouts, style management, asset-to-deck creation, and a media workspace — all in place. Layouts, styles, assets, and media come together in one workspace.
+
+| ![New Start Screen](./docs/images/v3-home.webp) | ![Asset-to-Deck](./docs/images/v3-create.webp) |
+| --- | --- |
+| **🪟 New Start Screen** — Quick create, asset-to-deck, chat creation, and PPTX import — four ways in, all in one place. | **🖼️ Asset-to-Deck** — Upload an outline and image assets — AI reads each page and builds an illustrated first draft. |
+| ![Outline & Visuals](./docs/images/v3-assets.webp) | ![Visual Editing](./docs/images/v3-edit.webp) |
+| **🗺️ Outline & Visuals** — Chapter outline, source materials, and per-page image matching side by side. | **✨ Visual Editing** — Select any element and ask AI to rewrite the copy, colors, or layout in place. |
+| ![Multi-Format Export](./docs/images/v3-export.webp) | ![Layout Library](./docs/images/v3-layouts.webp) |
+| **📤 Multi-Format Export** — Editable PPTX, image-based PPTX, PNG, MP4, and PDF from one menu. | **🧱 Layout Library** — 176 reusable page skeletons, filterable by cover, contents, section, content, and closing. |
+| ![Style Manager](./docs/images/v3-style.webp) | ![Media Workspace](./docs/images/v3-media.webp) |
+| **🎨 Style Manager** — 100+ built-in styles, extract new ones from PPTX, HTML, or images, and favorite the ones you reuse. | **📽️ Media Workspace** — Generated images, videos, and assets organized in one place, ready to reuse. |
 
 <a id="why"></a>
 ## 🎯 Why I Built This
@@ -117,77 +133,79 @@ Parsing and structured conversion are **fully in-house**; complex shapes, charts
 <a id="pptx-export"></a>
 ## 📤 Export Editable PPTX from the Desktop App, Close to 100% Fidelity
 
-After creating or editing in the desktop app, export a true PPTX that remains editable in PowerPoint / Keynote. In typical cases, the exported file preserves close to **100%** of its visual and structural result, including text, images, colors, formulas, and basic layout where possible.
+After creating or editing in the desktop app, export a true PPTX that remains editable in PowerPoint / Keynote. In typical cases, the exported file preserves close to **100%** of its visual and structural result, including text, images, colors, formulas, and basic layout where possible. An **image-based PPTX** is also available when you want a layout that absolutely cannot shift.
 
 HTML-to-editable-PPTX generation and layout are **fully in-house**; complex charts, tables, shapes, and animations are still being improved.
 
 <a id="features"></a>
 ## ✅ What It Can Do
 
+- 🧭 **All-new v3.0 workspace** — The start screen offers four ways in: Quick Create, Assets to Deck, Chat Creation, and Import PPTX; templates, styles, layouts, fonts, and media live in one sidebar, with assets, usage stats, and HTML editing close at hand
+- 🖼️ **Asset-to-Deck** — Upload an outline and image assets together; AI reads each image, matches it to the right page by meaning, and builds an illustrated first draft
+- 🗺️ **Outline & visuals side by side** — Chapter outline, source materials, and per-page image matching are arranged in one space, so every text-image pairing is clear before generation
+- 🧱 **Layout library** — 176 reusable page skeletons, filterable by cover, contents, section, content, and closing; swap any page's layout with one click while keeping its text intact
+- 📽️ **Media workspace** — Generated images, videos, and assets organized in one place, ready to reuse
+- 🎨 **100+ built-in styles & style management** — Minimal White, Cyber Neon, Bauhaus, Japanese Minimal, Xiaohongshu White, and more; extract styles from PPTX, HTML, or images, favorite the ones you reuse, or bring your own
 - 📥 **Import legacy PPTX templates for editing, close to 100% fidelity** — Imported files become pages you can drag, adjust, modify with AI, and manage through version history; parsing and conversion are fully in-house
 - 📤 **Export editable PPTX from the desktop app, close to 100% fidelity** — Export decks as true PPTX files that remain editable in PowerPoint / Keynote; generation and layout are fully in-house
-- 💬 **Topic-based creation** — Set the topic, detailed brief, and page options; AI plans the outline, palette, and layout, then generates a complete deck
+- ⚡ **Quick Create** — Paste Markdown / plain text or upload Word, PDF, and Excel files; after parsing you land on the chapter canvas to confirm style, layouts, and page count before generating
+- 💬 **Chat Creation** — Start from a vague idea: talk through the topic, audience, and structure with AI, shape the outline, then generate
 - 🔀 **Multi-task generation** — Submit multiple generation tasks in parallel without waiting for one to finish before starting another, with automatic notifications on completion
 - 📐 **Multi-size, multi-format canvases** — 16:9, 4:3, vertical 9:16, portrait 3:4, square 1:1, Xiaohongshu/social-note formats and more, with the real aspect ratio preserved from generation to export
-- 📄 **Document-based creation** — Upload txt, md, csv, or docx files and the app prepares the topic, page count, and brief automatically; generation keeps referencing the source document to produce creative decks grounded in your content
+- 🌐 **HTML editing** — Import a single HTML file to edit and save it in the app, with AI edits, asset insertion, history, preview, and export
 - 🧱 **Template library and template creation** — Save generated or edited decks as templates, import PPTX files as templates, and reuse templates to create new PPT sessions
-- 🖼️ **Image-based style and outline generation** — Upload a screenshot or design mockup to automatically extract a distinctive visual style and generate an outline (requires a multimodal AI model)
 - 🖼️ **AI image generation and smart visuals** — Enable automatic visuals while creating a deck. AI generates illustrations, backgrounds, and visual assets only where the current content, layout, and chosen style call for them, instead of forcing an image onto every slide
 - ✨ **In-editor image studio** — Generate a prompt from the current slide title and outline, add your own direction and image size, then preview the result, add it to the canvas, or make it the slide background
-- 🏷️ **Image-generation style filtering** — The style library marks styles that support image generation, so automatic visuals can follow the deck's visual direction
 - 🔒 **Local-first** — Sessions, source documents, assets, and generated results stay on your computer. No Oh My PPT account or platform cloud is required. Requests made to your configured AI or image service are sent to that provider
 - 🔤 **Font management** — 14 curated Google Fonts built-in (including CJK), upload local fonts, pick title and body fonts separately or let AI auto-match
-- 🎨 **90+ built-in style skills** — Minimal White, Cyber Neon, Bauhaus, Japanese Minimal, Xiaohongshu White, and more, plus custom styles
-- ✏️ **Chat-based editing** — Tell it "change title color" or "add a data chart" on a specific page, without rebuilding everything
-- 🖱️ **Visual editing** — Every visible element can be dragged and resized, and every element can be picked and modified with AI
+- ✏️ **Chat-based editing** — Tell it "change title color" or "add a data chart" on a specific page, without rebuilding everything; select any element and let AI change just that piece
+- 🖱️ **Visual editing** — Every visible element can be dragged and resized, double-click text to edit inline; the toolbar adds page insert/delete, one-click beautify, and one-click visuals
 - 📸 **Image and video insertion** — Upload images and videos directly in edit mode from the asset library or local files, and use them alongside AI-generated images
 - 📋 **Element duplication** — One-click copy of any element (text, images, videos, etc.), auto-offset and independently editable
 - ↩️ **Undo and redo** — Undo and redo edits freely before committing, then save as a version history entry
 - 🗑️ **Element deletion** — Delete any element with a click or keyboard shortcut
 - 🖥️ **Presentation mode** — Enter fullscreen presentation with one click, navigate slides with arrow keys or clicks
 - 📝 **Speaker script generation** — Generate scripts for the full deck or the current slide, with formal, casual conversational, storytelling, and custom styles
-- 🎬 **Animation support** — 16+ slide transition effects plus Anime.js v4-powered whole-element motion
+- 🎬 **Animation support** — 16+ slide transition effects plus 38 element animation types (powered by a local Anime.js v4 runtime), also supported in exported PPTX
 - 🎞️ **Per-element animation controls** — Select individual text, image, chart, or other elements while editing, then configure entrance, emphasis, or exit effects with automatic/click triggers, duration, and direction
 - 🧮 **Math formula rendering** — Display common LaTeX formulas for classes, teaching decks, and technical talks
-- 📄 **Other export formats** — Export to PDF, batch PNG, PNG long image, or MP4 video
-- 🏷️ **Session management** — Session list distinguishes AI-created decks from imported PPTX decks, and deck names can be renamed
+- 📄 **Multi-format export** — Editable PPTX, image-based PPTX, PNG, PNG long image, PDF, and MP4 from one menu, plus session ZIP backups and standalone presentation preview packages
+- 🏷️ **Session management** — Session list distinguishes AI-created decks from imported PPTX decks, and deck names can be renamed; sessions are health-checked before opening, so no more blank pages
 - 🧩 **More reliable page layout** — Generation follows the selected canvas size and content-height budget to reduce overflow
 - 🔄 **Version history rollback** — Every edit is automatically saved, roll back to any previous version with one click, never worry about mistakes
-- 📦 **One-click packaging** — Bundle your HTML deck into a single executable file, double-click to open and present anywhere, no installation needed (just a browser)
-- 💾 **Creative deck import & export** — Export the session's AI-generated creative deck from the editor in one click, import it on another computer to continue editing, and collaborate seamlessly across devices
+- 📊 **Usage statistics** — Token consumption is transparent per step of each generation and edit
+- 💾 **Session import & export** — Export a session ZIP from the editor and import it on another computer to continue editing; the presentation preview package opens in a browser with a double click, for seamless cross-device collaboration
 
 <p>
-  <img width="32%" alt="Oh My PPT Home" src="./docs/images/home.webp" />
-  <img width="32%" alt="Oh My PPT Style Library" src="./docs/images/style.webp" />
-  <img width="32%" alt="Oh My PPT Editor" src="./docs/images/edit.webp" />
+  <img width="32%" alt="Oh My PPT New Start Screen" src="./docs/images/v3-home.webp" />
+  <img width="32%" alt="Oh My PPT Outline & Visuals" src="./docs/images/v3-assets.webp" />
+  <img width="32%" alt="Oh My PPT Visual Editing" src="./docs/images/v3-edit.webp" />
 </p>
 
 <a id="workflow"></a>
 ## 🔄 Workflow
 
-> 💡 Import a legacy PPTX template to keep editing, or choose a creation mode → confirm topic / materials / page count / canvas format / style / fonts / visuals → AI generates the HTML deck → preview, present, and edit → export an editable PPTX from the desktop app with close to 100% fidelity, PDF / PNG / PNG long image / MP4 / packaged HTML
+> 💡 Once your model is configured, pick one of the four creation entry points → confirm the chapter outline, style, layouts, and page count (Assets to Deck also takes image uploads) → AI generates editable HTML slides page by page → preview, present, visually edit, and chat to refine → export an editable PPTX with close to 100% fidelity, or image-based PPTX / PDF / PNG / MP4 / session ZIP.
 
-<img src="./docs/images/home.webp" alt="Oh My PPT Home Entry Points" width="600" />
+<img src="./docs/images/v3-home.webp" alt="Oh My PPT Home Entry Points" width="600" />
 
-The home page supports several common entry points:
+The home page offers four creation entry points — pick whichever matches what you already have:
 
-- **Topic-based creation**: set the topic, canvas format, and detailed brief to create a complete deck, vertical page, square card, or Xiaohongshu/social-note format.
-- **Chat to Create**: use a multi-turn conversation to clarify the topic, materials, audience, structure, and key points for each slide. This is useful when requirements are still unclear, the source material is complex, or you want to shape the outline together first.
-- **Upload document parsing**: upload txt, md, csv, docx, and other files so the app can prepare the topic, page count, and detailed description, then keep referencing the source file during generation.
-- **Create from template**: choose a saved template from the Templates page to copy it into an editable PPT session, or enter a new topic/outline or upload a document so the app regenerates content while preserving the template's layout, palette, and visual rhythm.
+- **Quick Create** (outline or clear direction ready): paste Markdown / plain text or upload Word, PDF, and Excel files; after parsing you land on the chapter canvas to confirm style, layouts, and page count before generating.
+- **Assets to Deck** (outline plus images): upload an outline and image assets together; AI reads each image and matches it to the right page by meaning, producing an illustrated first draft. In the workspace you can review how each image was understood and fine-tune the text-image pairings.
+- **Chat Creation** (just an idea): talk through the topic, audience, and structure with AI first, shape the outline, then generate — useful when requirements are still unclear, the material is complex, or you want to refine the outline together first.
+- **Import PPTX** (files you already have): convert existing PPTX files into editable pages while extracting their styles and layouts, restored with close to 100% fidelity for further editing.
 
-To import a legacy PPTX template, click "Import PPTX" on the home page; typical files are restored with close to 100% fidelity for further editing. Existing sessions can also be saved to the template library and reused.
-
-After configuring and verifying an image model in **Settings**, enable **Image Generation** on the creation page and pick a style marked **Image generation**; visuals are produced only where they genuinely improve the page. Automatic visuals add generation time — you can still generate images on demand in the editor when it is off.
-
-After generation, preview or present the deck, keep editing (drag elements, insert images/videos, chat edits, roll back history, generate speaker scripts), and export — imported or newly created alike — as an editable PPTX with close to 100% fidelity.
+Saved templates, styles, layouts, and fonts can all be reused in new work. You can leave the page while generation runs — tasks continue in the background and notify you when done. After generation, keep editing in the editor (drag elements, insert images/videos, chat edits, roll back history, generate speaker scripts) and export an editable PPTX with close to 100% fidelity or other formats.
 
 <a id="style-skills"></a>
-## 🎨 90+ Built-in Style Skills
+## 🎨 100+ Built-in Styles & Style Management
+
+100+ styles are built in: Minimal White, Cyber Neon, Bauhaus, Japanese Minimal, Xiaohongshu White, and more — favorite the ones you reach for often. Since v3.0 you can extract styles from PPTX, HTML, and images to build a library of your own; you can also upload a screenshot or design mockup and let AI extract its visual signature into a distinctive style and outline (requires a multimodal AI model).
 
 To create your own Style Skill, use the official style generation package: [arcsin1/style-generate-skill](https://github.com/arcsin1/style-generate-skill). It helps turn reference designs, palettes, and layout requirements into importable Oh My PPT style packages.
 
-<img src="./docs/images/style.webp" alt="Oh My PPT Style Library" width="600" />
+<img src="./docs/images/v3-style.webp" alt="Oh My PPT Style Manager" width="600" />
 
 <a id="image-generation"></a>
 ## 🖼️ AI Image Generation & Smart Visuals
@@ -196,12 +214,12 @@ Image generation has two entry points for deck-wide visuals and targeted additio
 
 | Use case | How to use it | Result |
 | --- | --- | --- |
-| Create a full deck | Add and **verify** an image model under **Settings → Image Models**, enable **Image Generation** on the creation page, and choose a style marked **Image generation** | AI produces illustrations, backgrounds, or visual elements only in suitable layout slots, preserving text-safe space and the selected visual style |
+| Create a full deck | Add an image endpoint under **Settings → Image Models** and **test-generate an image**; enable **Image Generation** on the creation page and pick a style marked **Image generation** | AI produces illustrations, backgrounds, or visual elements only in suitable layout slots, preserving text-safe space and the selected visual style |
 | Edit an existing slide | Open the editor's image-generation panel, generate a prompt from the current slide or write one yourself, then choose a model and size | Preview the generated image, add it to the canvas for layout work, or set it as the current slide background |
 
-Built-in provider presets include Jimeng 3.0 / 4.0, Agnes AI, Seedream, SiliconFlow, Gemini, and OpenAI-compatible image APIs; text and image models are configured separately. Image configurations are saved only after passing a real test under **Settings → Image Models**.
+Built-in provider presets include Jimeng 3.0 / 4.0, Agnes AI, Seedream, SiliconFlow, Gemini, and OpenAI-compatible image APIs; text and image models are configured separately, and an image endpoint becomes available only after passing a real test under **Settings → Image Models**.
 
-Successful outputs are archived in the session's local asset directory, ready to edit, replace, export, or move with the session. Automatic visuals keep the canvas format and never replace images you uploaded. Image requests are sent to the provider you choose — follow its privacy and content policies.
+Successful outputs are archived in the media workspace and the session's local asset directory, ready to edit, replace, export, or move with the session. Automatic visuals keep the canvas format and never replace images you uploaded. Image requests are sent to the provider you choose — follow its privacy and content policies.
 
 <a id="fonts"></a>
 ## 🔤 Font Management
@@ -213,7 +231,7 @@ When creating a deck, you can choose **title fonts** and **body fonts** separate
 <a id="animations"></a>
 ## 🎬 Animation Support
 
-Oh My PPT generates HTML slides with 16+ slide transition effects and a local **Anime.js v4** runtime. During generation or chat-based editing, the AI can add presentation motion to whole slide elements such as titles, metric cards, images, chart containers, and step blocks.
+Oh My PPT generates HTML slides with 16+ slide transition effects, 38 element animation types, and a local **Anime.js v4** runtime — animations are also supported in exported PPTX. During generation or chat-based editing, the AI can add presentation motion to whole slide elements such as titles, metric cards, images, chart containers, and step blocks.
 
 In addition to AI-generated motion, edit mode lets you select an individual element and configure its entrance, emphasis, or exit effect, together with automatic or click triggering, duration, and direction.
 
@@ -239,11 +257,11 @@ Whole-element animation is preferred over splitting text into many tiny moving f
 
 This project supports local Ollama through the **OpenAI-compatible API**.
 
-Fill the Settings page like this:
+When adding an endpoint under **Settings → Base Model Configuration**, fill in:
 
-- `provider`: `openai`
+- `Provider preset`: `OpenAI Compatible`
 - `base_url`: `http://127.0.0.1:11434/v1`
-- `model`: your local model tag (for example `qwen2.5-coder:14b`); a 14B+ model (or a strong cloud model) is recommended
+- `Model`: enter your local model tag manually (for example `qwen2.5-coder:14b`); a 14B+ model (or a strong cloud model) is recommended
 - `api_key`: any non-empty string (for example `ollama`)
 
 Notes:
@@ -261,9 +279,9 @@ Notes:
 
 > Recommended: DeepSeek V4, Kimi, Doubao, Qwen, GLM, MiMo, MiniMax and other Chinese models, plus GPT, Claude and other international models.
 
-Set up the model for creation, document parsing, and editing under **Settings → Text Models**. Deck generation cannot start without it.
+Under **Settings → Base Model Configuration**, click **Add Endpoint**, choose a provider preset (or **Custom / Compatible Protocol** if none matches), fill in the base_url and API key, and save. Then fetch or manually add models in the model list — the first model of the first endpoint becomes the default automatically. Generation, chat editing, and document parsing all use the base model configured here; set it up once and switch models whenever needed.
 
-For AI image generation or automatic visuals, add the provider's full JSON configuration under **Settings → Image Models** and select **Verify**. Verification generates a real test image; it must succeed before the configuration can be saved, then it can be selected on the creation page and in the editor.
+For AI image generation or automatic visuals, add an image endpoint under **Settings → Image Models** and test-generate an image with each model; once the test passes, you can enable visuals on the creation page or use them in the editor and media workspace.
 
 <a id="preview"></a>
 ### About preview mode
@@ -273,18 +291,16 @@ Navigate slides with the left/right arrow keys; presentation mode and fullscreen
 <a id="export"></a>
 ### About export
 
-Oh My PPT currently supports five export modes, plus standalone HTML packaging:
+Everything exports from one menu:
 
-- **PDF**: best for sharing, archiving, and printing.
-- **PNG**: batch-export every slide as an image for docs, Notion, articles, or social posts.
+- **Editable PPTX**: fully in-house export foundation, close to 100% fidelity in typical cases, remains editable in PowerPoint / Keynote — best for delivery and further polishing.
+- **Image-based PPTX / PNG**: layouts that cannot shift, great for sharing, social posts, and archiving; PNG batch-exports every slide for docs, Notion, articles, or social content.
 - **PNG long image**: stitch the full set of pages vertically into one long image for social posts, chat sharing, long-document previews, and mobile reading.
-- **Editable PPTX**: fully in-house export foundation, close to 100% fidelity in typical cases, remains editable in PowerPoint / Keynote.
-- **MP4**: export the presentation as a video for social posts, client sharing, or playback when a PPT file is not the best fit.
-- **Packaged HTML**: bundle the deck and its runtime resources so it can be opened and presented in a browser with a double click.
+- **PDF**: best for sharing, archiving, and printing.
+- **MP4**: render animated pages into a video for courses, playback, or situations where a PPT file is not the best fit.
+- **Session ZIP / presentation preview package**: full backups or cross-device migration; the preview package opens and presents in a browser with a double click, no installation needed.
 
-<img src="./docs/images/edit2.webp" alt="Oh My PPT Export Menu" width="600" />
-
-<img src="./docs/images/exp.webp" alt="Oh My PPT Export Content Preview" width="600" />
+<img src="./docs/images/v3-export.webp" alt="Oh My PPT Export Menu" width="600" />
 
 <a id="unsigned-app"></a>
 ## 📦 Opening Unsigned Apps
@@ -351,7 +367,7 @@ Thanks to all contributors!
 <p>
 <a href="https://github.com/m13891290332"><img src="https://github.com/m13891290332.png" width="50" height="50" alt="m13891290332" /></a>
 <a href="https://github.com/whisper-xiang"><img src="https://github.com/whisper-xiang.png" width="50" height="50" alt="whisper-xiang" /></a>
-<a href="https://github.com/Jacobinwwey"><img src="https://github.com/Jacobinwwey.png" width="50" height="50" alt="Jacobinwwey" /></a>
+<a href="https://github.com/Jacobinwwey"><img src="https://github.com/Jacobinwwey.png" width="50" height="50" alt="whisper-xiang" /></a>
 </p>
 
 <a id="license"></a>

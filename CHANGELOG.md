@@ -1,4 +1,53 @@
 # 更新日志 / Changelog
+## 2026-11-25 · v3.0.0
+
+### 中文
+
+- 新增客户端全新界面：采用全新 v3 交互与视觉风格。
+- 新增编辑页全新交互：全新不一样的交互体验和功能。
+- 新增素材成稿能力：上传大纲与图片后，AI 可自动理解并匹配大纲配图。
+- 新增快捷创建页逐页配图：支持选择本地图片与媒体库图片（媒体工作台生图）。
+- 新增编辑页【标选页面区域】AI 修改：框选后由 AI 进行局部修改。
+- 新增编辑页媒体库插图：可直接从媒体库（媒体工作台）选图。
+- 新增编辑视图工具：标尺、参考线、网格、吸附与幻灯片浏览。
+- 新增按页切页动画与元素动画：支持为每一页单独设置切页动画，并可直接预览元素动画。
+- 新增网页 HTML 编辑元素级 AI 直接修改。
+- 新增媒体工作台生图能力：支持文生图、图生图、图片编辑。
+- 新增媒体工作台反推提示词：可从参考图反推可复用的提示词。
+- 新增媒体工作台创作 Agent：支持对话式智能生图与多轮会话。
+- 新增媒体工作台无限画布：通过节点与连线组织生图，结果可分叉并自动保存。
+- 优化资产页：统一管理快速创建、模板创建与素材成稿。
+- 优化版式库：扩充至 172 个并支持跨画幅匹配；模板库与风格库同步换新。
+- 优化模型配置：提供全新的模型添加设置方式。
+- 优化设置：整合技能库与高级参数，新增素材理解并发。
+- 优化性能：任务独立运行，单页写完即停，安装包精简。
+- 优化 PPTX 导入的页序、主题色、字体、编号、画幅与图片裁切问题，使导入结果更接近原稿。
+- 优化 PPTX 导出的矢量丢失、阴影、文字重叠与填充错误，使导出结果更接近应用内效果。
+- 修复导出可编辑 PPTX 的批注问题。
+
+### English
+
+- Added a brand-new client interface with an all-new v3 interaction and visual style.
+- Added a completely new editor experience with revamped interactions and features.
+- Added Assets to deck: upload an outline and images, and AI understands and matches images to the outline automatically.
+- Added per-page image assignment in Quick Create: choose local images or images from the media library (generated in the Media Workbench).
+- Added Mark area AI editing in the editor: select an area and let AI make local changes.
+- Added media-library image insertion in the editor: pick images directly from the media library (Media Workbench).
+- Added editor view tools: rulers, guides, grid, snapping, and slide browser.
+- Added per-page transitions and element animations: set a transition for each slide and preview element animations directly.
+- Added element-level direct AI editing in the HTML Web Editor.
+- Added image generation in the Media Workbench: text-to-image, image-to-image, and image editing.
+- Added Reverse Prompt in the Media Workbench: turn a reference image into a reusable prompt.
+- Added the Creative Agent in the Media Workbench: conversational image generation with multi-turn sessions.
+- Added the Infinite Canvas in the Media Workbench: organize image generation with nodes and connections; results can branch and autosave.
+- Improved the Assets page: quick-creation, template-creation, and Assets to deck projects are managed in one place.
+- Improved the Layout Library: expanded to 172 layouts with cross-canvas matching; the template and style libraries get the new look.
+- Improved model configuration: a brand-new way to add and configure models.
+- Improved Settings: the Skill Library and advanced options are brought together, with asset-understanding concurrency.
+- Improved performance: tasks run independently, page generation stops as soon as the page is written, and the installer is smaller.
+- Improved PPTX import: slide order, theme colors, fonts, numbering, canvas sizes, and image cropping now stay closer to the original.
+- Improved PPTX export: lost vectors, shadows, overlapping text, and fills now stay closer to the in-app result.
+- Fixed annotations in editable PPTX export.
 
 ## 2026-11-16 · v2.11.0
 
