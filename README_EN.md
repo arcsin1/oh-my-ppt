@@ -23,7 +23,7 @@
 
 **Oh My PPT - Local-first AI Slide Deck, Image Generation & Editing Workbench**
 
-[中文](./README.md) | [New in v3.0](#v3) • [Why](#why) • [Features](#features) • [Workflow](#workflow) • [Changelog](./CHANGELOG.md) • [Usage Notes](#usage-notes)
+[中文](./README.md) | [日本語](./README_JA.md) | [New in v3.0](#v3) • [Why](#why) • [Features](#features) • [Workflow](#workflow) • [Changelog](./CHANGELOG.md) • [Usage Notes](#usage-notes)
 
   <p>
     AI-powered editable HTML, reinventing how next-generation presentations are made.<br/>
